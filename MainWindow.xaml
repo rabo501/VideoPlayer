@@ -1,8 +1,8 @@
-﻿<Window x:Class="VideoPlayer.MainWindow"
+<Window x:Class="VideoPlayer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
-        Title="Video Player"
+        Title="Odtwarzacz wideo"
         Width="1200"
         Height="780"
         MinWidth="850"
@@ -253,12 +253,47 @@
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- GŁÓWNE MENU -->
+        <Menu Grid.Row="0"
+              Background="#1B1E25"
+              Foreground="#F1F3F5"
+              Padding="4,3"
+              Margin="0,0,0,10">
+            <Menu.Resources>
+                <Style TargetType="MenuItem">
+                    <Setter Property="Foreground" Value="#F1F3F5"/>
+                    <Setter Property="Background" Value="#1B1E25"/>
+                    <Setter Property="Padding" Value="12,7"/>
+                    <Setter Property="MinWidth" Value="150"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter Property="Background" Value="#3478F6"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+                <Style TargetType="Separator">
+                    <Setter Property="Background" Value="#454C59"/>
+                </Style>
+            </Menu.Resources>
+            <MenuItem Header="Plik">
+                <MenuItem Header="Otwórz film…" Click="Open_Click" InputGestureText="Ctrl+O"/>
+                <Separator/>
+                <MenuItem Header="Zakończ" Click="ExitMenu_Click"/>
+            </MenuItem>
+            <MenuItem Header="Pomoc">
+                <MenuItem Header="Podstawowe funkcje programu" Click="BasicHelp_Click"/>
+                <MenuItem Header="Informacje o programie" Click="About_Click"/>
+            </MenuItem>
+        </Menu>
+
         <!-- OBSZAR WIDEO -->
-        <Border Grid.Row="0"
+        <Border Grid.Row="1"
                 Background="#050608"
                 BorderBrush="#303541"
                 BorderThickness="1"
@@ -286,7 +321,7 @@
         </Border>
 
         <!-- PANEL STEROWANIA -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Background="#1B1E25"
                 BorderBrush="#303541"
                 BorderThickness="1"
@@ -438,6 +473,19 @@
                                     Content="✂  Zapisz fragment MP4"
                                     Style="{StaticResource PrimaryButton}"
                                     Click="ExportClip_Click"/>
+
+                            <TextBlock Text="Profil:" VerticalAlignment="Center" Foreground="#9CA6B6" Margin="10,0,6,8"/>
+                            <ComboBox x:Name="ExportProfileBox" Width="175" Margin="0,0,8,8" SelectedIndex="1"
+                                      ToolTip="Wybierz kompromis między szybkością, jakością i rozmiarem">
+                                <ComboBoxItem Content="Szybki eksport" Tag="fast"/>
+                                <ComboBoxItem Content="Standardowy" Tag="standard"/>
+                                <ComboBoxItem Content="Mniejszy plik" Tag="small"/>
+                                <ComboBoxItem Content="Wysoka jakość" Tag="quality"/>
+                            </ComboBox>
+                            <CheckBox x:Name="StreamCopyCheckBox" Content="Bez ponownego kodowania (szybko)"
+                                      Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,8,8"
+                                      ToolTip="Kopiuje strumienie bez kodowania. Cięcie może wypaść na najbliższej klatce kluczowej; kodeki muszą być zgodne z MP4."/>
+
                             <Button x:Name="RemoveClipButton"
                                     Content="✂ Usuń zaznaczony fragment"
                                     Click="RemoveClip_Click"
@@ -480,6 +528,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <Grid Grid.Row="0" Margin="0,0,0,7">
@@ -514,6 +563,13 @@
                  Background="#303541"
                  Foreground="#3478F6"
                  BorderThickness="0"/>
+                    <TextBlock x:Name="ExportOperationText"
+                               Grid.Row="2"
+                               Text="Brak aktywnej operacji"
+                               Foreground="#7F899A"
+                               FontSize="10"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0"/>
                 </Grid>
 
                 <Separator Background="#343945"

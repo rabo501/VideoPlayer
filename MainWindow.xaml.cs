@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -51,6 +51,9 @@ namespace VideoPlayer
         private bool _exporting;
         private Process? _exportProcess;
         private bool _cancelExportRequested;
+        private Stopwatch? _exportStopwatch;
+        private string _activeOperationName = "";
+        private double _activeOperationDuration;
 
         private readonly string _historyDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VideoPlayer");
@@ -82,6 +85,60 @@ namespace VideoPlayer
             InitializeComponent();
             VideoHost.Child = _videoPanel;
         }
+
+        private void ExitMenu_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        private void About_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show(
+                this,
+                "Odtwarzacz wideo\n" +
+                "Wersja: 1.0\n\n" +
+                "Aplikacja do odtwarzania nagrań wideo, przeglądania nagrań z monitoringu, " +
+                "zaznaczania i eksportowania fragmentów oraz zapisywania pojedynczych klatek.\n\n" +
+                "Silnik odtwarzania: mpv\n" +
+                "Przetwarzanie i eksport: FFmpeg\n\n" +
+                "Autor: Rafał Bonna\n" +
+                "© 2026",
+                "Informacje o programie",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private void BasicHelp_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show(
+                this,
+                "PODSTAWOWE FUNKCJE ODTWARZACZA\n\n" +
+                "1. Otwieranie nagrania\n" +
+                "Wybierz Plik > Otwórz film lub kliknij przycisk „Otwórz film”. Wybierz lokalny plik wideo.\n\n" +
+                "2. Odtwarzanie i nawigacja\n" +
+                "Użyj przycisku Odtwarzaj / Pauza. Suwak osi czasu pozwala przejść do wybranego momentu. " +
+                "Przyciski Poprzednia klatka i Następna klatka umożliwiają dokładniejsze przeglądanie nagrania. " +
+                "Listę prędkości można wykorzystać do zwolnienia lub przyspieszenia odtwarzania.\n\n" +
+                "3. Zapis klatki JPG\n" +
+                "Zatrzymaj nagranie na wybranym obrazie, kliknij Zapisz klatkę JPG i wskaż nazwę oraz folder pliku. " +
+                "Zapisane obrazy pojawiają się na liście zrzutów.\n\n" +
+                "4. Zaznaczanie fragmentu\n" +
+                "Ustaw odtwarzanie w miejscu początku i kliknij ustawienie początku fragmentu. Następnie przejdź do końca " +
+                "i ustaw koniec. Jeśli widoczne są uchwyty osi czasu, możesz też przeciągać je myszą.\n\n" +
+                "5. Eksport fragmentu\n" +
+                "Wybierz profil eksportu i wskaż plik wynikowy. Eksport może potrwać dłużej w zależności od długości nagrania, " +
+                "rozdzielczości i wybranego profilu. W trakcie kodowania obserwuj pasek postępu. Jeśli funkcja anulowania jest dostępna, " +
+                "możesz przerwać operację.\n\n" +
+                "6. Informacje o nagraniu i historia\n" +
+                "W panelu sterowania sprawdź parametry pliku oraz szacowany rozmiar zaznaczonego fragmentu. Listy ostatnich nagrań " +
+                "i zrzutów ułatwiają ponowne otwieranie wcześniej używanych plików.\n\n" +
+                "Uwaga: nazwy przycisków i dostępność poszczególnych opcji mogą zależeć od wersji aplikacji. " +
+                "Oryginalne nagranie pozostaje bez zmian; eksport zapisuje nowy plik.",
+                "Pomoc — podstawowe funkcje",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
 
         private async void Window_Loaded(
             object sender,
@@ -983,6 +1040,19 @@ namespace VideoPlayer
             string sourcePath = _sourceFilePath;
             double start = _clipStart.Value;
             double duration = _clipEnd.Value - start;
+            bool streamCopyRequested = StreamCopyCheckBox.IsChecked == true;
+
+            if (streamCopyRequested)
+            {
+                MessageBoxResult confirm = MessageBox.Show(
+                    this,
+                    "Tryb bez ponownego kodowania jest bardzo szybki, ale początek i koniec mogą zostać dopasowane do klatek kluczowych. Niektóre kodeki mogą nie działać poprawnie w MP4. Kontynuować?",
+                    "Eksport bez ponownego kodowania",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (confirm != MessageBoxResult.Yes)
+                    return;
+            }
 
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
@@ -1023,12 +1093,19 @@ namespace VideoPlayer
 
             _exporting = true;
             _cancelExportRequested = false;
+            _exportStopwatch = Stopwatch.StartNew();
+            _activeOperationName = Path.GetFileName(sourcePath);
+            _activeOperationDuration = duration;
 
             ExportClipButton.IsEnabled = false;
+            RemoveClipButton.IsEnabled = false;
+            ExportProfileBox.IsEnabled = false;
+            StreamCopyCheckBox.IsEnabled = false;
             CancelExportButton.Visibility = Visibility.Visible;
             CancelExportButton.IsEnabled = true;
             ExportProgressBar.Value = 0;
-            ExportProgressText.Text = "Uruchamianie FFmpeg…";
+            ExportProgressText.Text = "Analiza źródła i przygotowanie eksportu…";
+            ExportOperationText.Text = $"Plik: {_activeOperationName} | Zakres: {FormatTime(start)}–{FormatTime(start + duration)} | Długość: {FormatTime(duration)}";
 
             Process? process = null;
 
@@ -1043,46 +1120,46 @@ namespace VideoPlayer
                     RedirectStandardError = true
                 };
 
-                string[] arguments =
+                bool streamCopy = StreamCopyCheckBox.IsChecked == true;
+                string profile = (ExportProfileBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "standard";
+
+                var arguments = new System.Collections.Generic.List<string>
                 {
-            "-hide_banner",
-            "-loglevel", "error",
-            "-nostdin",
-            "-n",
+                    "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                    "-progress", "pipe:1", "-stats_period", "0.25", "-nostats",
+                    "-ss", start.ToString("R", CultureInfo.InvariantCulture),
+                    "-i", sourcePath,
+                    "-t", duration.ToString("R", CultureInfo.InvariantCulture),
+                    "-map", "0:v:0", "-map", "0:a:0?"
+                };
 
-            // Raport postępu na standardowe wyjście.
-            "-progress", "pipe:1",
-            "-stats_period", "0.25",
-            "-nostats",
+                if (streamCopy)
+                {
+                    // Tryb bez ponownego kodowania: szybki, ale cięcie jest ograniczone
+                    // do granic pakietów/klatek kluczowych, a kodeki muszą pasować do MP4.
+                    arguments.AddRange(new[] { "-c:v", "copy", "-c:a", "copy", "-avoid_negative_ts", "make_zero" });
+                }
+                else
+                {
+                    string preset;
+                    string crf;
+                    switch (profile)
+                    {
+                        case "fast": preset = "veryfast"; crf = "22"; break;
+                        case "small": preset = "slow"; crf = "27"; break;
+                        case "quality": preset = "slow"; crf = "16"; break;
+                        default: preset = "medium"; crf = "20"; break;
+                    }
 
-            "-ss", start.ToString(
-                "R", CultureInfo.InvariantCulture),
+                    arguments.AddRange(new[]
+                    {
+                        "-c:v", "libx264", "-preset", preset, "-crf", crf,
+                        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "192k"
+                    });
+                }
 
-            "-i", sourcePath,
-
-            "-t", duration.ToString(
-                "R", CultureInfo.InvariantCulture),
-
-            "-map", "0:v:0",
-            "-map", "0:a:0?",
-
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "18",
-
-            "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-            "-pix_fmt", "yuv420p",
-
-            "-c:a", "aac",
-            "-b:a", "192k",
-
-            "-sn",
-            "-dn",
-            "-map_chapters", "-1",
-            "-movflags", "+faststart",
-
-            temporaryPath
-        };
+                arguments.AddRange(new[] { "-sn", "-dn", "-map_chapters", "-1", "-movflags", "+faststart", temporaryPath });
 
                 foreach (string argument in arguments)
                     startInfo.ArgumentList.Add(argument);
@@ -1140,7 +1217,17 @@ namespace VideoPlayer
                 ExportProgressBar.Value = 100;
                 ExportProgressText.Text = "Eksport zakończony — 100%";
                 long outputSize = new FileInfo(outputPath).Length;
-                _lastExportSummary = $"Ostatni eksport: {Path.GetFileName(outputPath)} — H.264 (libx264, CRF 18), audio AAC 192 kb/s, rzeczywisty rozmiar {FormatFileSize(outputSize)}.";
+                string profileDescription = streamCopy
+                    ? "kopiowanie strumieni bez ponownego kodowania"
+                    : profile switch
+                    {
+                        "fast" => "H.264, profil szybki (veryfast, CRF 22), audio AAC 192 kb/s",
+                        "small" => "H.264, profil mniejszego pliku (slow, CRF 27), audio AAC 192 kb/s",
+                        "quality" => "H.264, profil wysokiej jakości (slow, CRF 16), audio AAC 192 kb/s",
+                        _ => "H.264, profil standardowy (medium, CRF 20), audio AAC 192 kb/s"
+                    };
+                _lastExportSummary = $"Ostatni eksport: {Path.GetFileName(outputPath)} — {profileDescription}, rzeczywisty rozmiar {FormatFileSize(outputSize)}.";
+                ExportOperationText.Text = $"Zakończono: {Path.GetFileName(outputPath)} | Rozmiar: {FormatFileSize(outputSize)} | Czas operacji: {_exportStopwatch?.Elapsed.ToString(@"hh\:mm\:ss") ?? "—"}";
                 UpdateEstimatedSizeText();
                 StatusText.Text = "Zapisano fragment: " + outputPath;
 
@@ -1153,13 +1240,15 @@ namespace VideoPlayer
             }
             catch (OperationCanceledException)
             {
-                ExportProgressText.Text = "Eksport anulowany.";
+                ExportProgressText.Text = "Eksport anulowany — czyszczenie pliku tymczasowego…";
+                ExportOperationText.Text = $"Anulowano operację dla pliku: {_activeOperationName}";
                 StatusText.Text =
                     "Eksport anulowano. Plik tymczasowy zostanie usunięty.";
             }
             catch (Exception ex)
             {
                 ExportProgressText.Text = "Eksport nie powiódł się.";
+                ExportOperationText.Text = $"Błąd podczas przetwarzania: {_activeOperationName}";
                 StatusText.Text = "Błąd eksportu.";
 
                 MessageBox.Show(
@@ -1191,10 +1280,15 @@ namespace VideoPlayer
                 }
 
                 _exporting = false;
+                _exportStopwatch?.Stop();
+                _exportStopwatch = null;
 
                 if (!_closing)
                 {
                     ExportClipButton.IsEnabled = true;
+                    RemoveClipButton.IsEnabled = true;
+                    ExportProfileBox.IsEnabled = true;
+                    StreamCopyCheckBox.IsEnabled = true;
                     CancelExportButton.IsEnabled = false;
                     CancelExportButton.Visibility = Visibility.Collapsed;
                 }
@@ -1238,9 +1332,14 @@ namespace VideoPlayer
 
                             ExportProgressBar.Value = percent;
 
+                            double elapsed = _exportStopwatch?.Elapsed.TotalSeconds ?? 0;
+                            double speed = elapsed > 0 ? seconds / elapsed : 0;
+                            double remaining = speed > 0.001 ? Math.Max(0, duration - seconds) / speed : 0;
+                            string eta = double.IsFinite(remaining) && remaining < 864000
+                                ? TimeSpan.FromSeconds(remaining).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
+                                : "obliczanie…";
                             ExportProgressText.Text =
-                                $"Eksportowanie: {percent:0.0}%  " +
-                                $"({FormatTime(seconds)} / {FormatTime(duration)})";
+                                $"Kodowanie: {percent:0.0}% ({FormatTime(seconds)} / {FormatTime(duration)}) | Pozostało: {eta}";
                         });
                     }
                 }
@@ -1252,7 +1351,8 @@ namespace VideoPlayer
                             return;
 
                         ExportProgressBar.Value = 100;
-                        ExportProgressText.Text = "Finalizowanie pliku…";
+                        ExportProgressText.Text = "Finalizowanie pliku MP4…";
+                        ExportOperationText.Text = $"Finalizowanie: {_activeOperationName} | upłynęło: {_exportStopwatch?.Elapsed.ToString(@"hh\:mm\:ss") ?? "—"}";
                     });
                 }
             }
@@ -1871,6 +1971,29 @@ namespace VideoPlayer
             object? sender,
             CancelEventArgs e)
         {
+            if (_exporting)
+            {
+                MessageBoxResult result = MessageBox.Show(
+                    this,
+                    "Eksport jest w toku. Zamknięcie aplikacji przerwie operację i usunie nieukończony plik tymczasowy. Czy anulować eksport i zamknąć program?",
+                    "Eksport w toku",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                _cancelExportRequested = true;
+                try
+                {
+                    if (_exportProcess != null && !_exportProcess.HasExited)
+                        _exportProcess.Kill(entireProcessTree: true);
+                }
+                catch (InvalidOperationException) { }
+                catch (System.ComponentModel.Win32Exception) { }
+            }
+
             _closing = true;
             try
             {
