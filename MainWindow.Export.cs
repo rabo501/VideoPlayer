@@ -47,10 +47,7 @@ namespace VideoPlayer
                 return;
             }
 
-            string ffmpegPath = Path.Combine(
-                AppContext.BaseDirectory,
-                "ffmpeg",
-                "ffmpeg.exe");
+            string ffmpegPath = _ffmpegService.ExecutablePath;
 
             if (!File.Exists(ffmpegPath))
             {
@@ -138,14 +135,9 @@ namespace VideoPlayer
 
             try
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
+                var startInfo = _ffmpegService.CreateStartInfo(
+                    redirectStandardOutput: true,
+                    redirectStandardError: true);
 
                 bool streamCopy = StreamCopyCheckBox.IsChecked == true;
                 string profile = (ExportProfileBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "standard";
@@ -414,10 +406,7 @@ namespace VideoPlayer
                 return;
             }
 
-            string ffmpegPath = System.IO.Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory,
-                "ffmpeg",
-                "ffmpeg.exe");
+            string ffmpegPath = _ffmpegService.ExecutablePath;
 
             if (!File.Exists(ffmpegPath))
             {
@@ -431,7 +420,7 @@ namespace VideoPlayer
 
             try
             {
-                var probeInfo = await ProbeMediaAsync(ffmpegPath, _sourceFilePath);
+                var probeInfo = await ProbeMediaAsync(_sourceFilePath);
                 mediaDuration = probeInfo.Duration;
                 hasAudio = probeInfo.HasAudio;
             }
@@ -563,14 +552,9 @@ namespace VideoPlayer
                 }
             }
 
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+            var psi = _ffmpegService.CreateStartInfo(
+                redirectStandardOutput: true,
+                redirectStandardError: true);
 
             string[] args =
             {
@@ -790,21 +774,7 @@ namespace VideoPlayer
             }
 
             _ready = false;
-
-            try
-            {
-                if (_mpv != null && !_mpv.HasExited)
-                    _mpv.Kill(entireProcessTree: true);
-            }
-            catch (InvalidOperationException)
-            {
-            }
-            catch (Win32Exception)
-            {
-            }
-
-            _pipe?.Dispose();
-            _mpv?.Dispose();
+            _ = _mpvService.DisposeAsync();
         }
     }
 }

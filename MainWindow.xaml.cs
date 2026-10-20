@@ -25,15 +25,11 @@ namespace VideoPlayer
             Dock = Forms.DockStyle.Fill
         };
 
-        private readonly string _pipeName =
-            "VideoPlayer_" + Guid.NewGuid().ToString("N");
-
-        private readonly SemaphoreSlim _sendLock =
-            new SemaphoreSlim(1, 1);
-
-        private Process? _mpv;
-        private NamedPipeClientStream? _pipe;
-        private StreamWriter? _writer;
+        private readonly MpvService _mpvService = new();
+        private readonly FfmpegService _ffmpegService = new();
+        private readonly MediaInfoService _mediaInfoService = new(
+            Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"));
+        private readonly HistoryService _historyService = new();
 
         private bool _ready;
         private bool _closing;
@@ -55,35 +51,52 @@ namespace VideoPlayer
         private string _activeOperationName = "";
         private double _activeOperationDuration;
 
-        private readonly string _historyDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VideoPlayer");
-        private string HistoryFilePath => Path.Combine(_historyDirectory, "history.json");
         private readonly System.Collections.Generic.List<string> _recentFiles = new();
         private readonly System.Collections.Generic.List<string> _recentScreenshots = new();
-        private MediaInfo? _currentMediaInfo;
+        private MediaInfoData? _currentMediaInfo;
         private string? _lastExportSummary;
-
-        private sealed class MediaInfo
-        {
-            public double Duration { get; set; }
-            public string VideoCodec { get; set; } = "nieznany";
-            public string Resolution { get; set; } = "nieznana";
-            public string Fps { get; set; } = "nieznane";
-            public string Bitrate { get; set; } = "nieznany";
-            public string AudioCodec { get; set; } = "brak / nieznany";
-            public long FileSize { get; set; }
-        }
-
-        private sealed class AppHistory
-        {
-            public System.Collections.Generic.List<string> RecentFiles { get; set; } = new();
-            public System.Collections.Generic.List<string> RecentScreenshots { get; set; } = new();
-        }
+        private readonly System.Collections.Generic.List<TimelineMarker> _timelineMarkers = new();
+        private readonly System.Collections.Generic.List<System.Windows.Controls.Button> _markerButtons = new();
 
         public MainWindow()
         {
             InitializeComponent();
             VideoHost.Child = _videoPanel;
+            _mpvService.MessageReceived += OnMpvMessageReceived;
+        }
+
+
+        private async void VideoScaleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_ready || _closing || VideoScaleBox.SelectedItem is not ComboBoxItem selected)
+                return;
+
+            string mode = selected.Tag?.ToString() ?? "fit";
+            try
+            {
+                if (mode == "fill")
+                {
+                    // mpv panscan=1 skaluje obraz do wypełnienia całego obszaru,
+                    // przycinając nadmiar przy zachowaniu proporcji.
+                    await SendAsync("set_property", "video-zoom", 0.0);
+                    await SendAsync("set_property", "panscan", 1.0);
+                }
+                else if (mode == "fit")
+                {
+                    await SendAsync("set_property", "panscan", 0.0);
+                    await SendAsync("set_property", "video-zoom", 0.0);
+                }
+                else if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1.0)
+                {
+                    // video-zoom w mpv jest wyrażony w skali logarytmicznej o podstawie 2.
+                    await SendAsync("set_property", "panscan", 0.0);
+                    await SendAsync("set_property", "video-zoom", Math.Log(factor, 2.0));
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Nie udało się zmienić skalowania obrazu: " + ex.Message;
+            }
         }
 
         private void ExitMenu_Click(object sender, RoutedEventArgs e)
@@ -132,6 +145,12 @@ namespace VideoPlayer
                 "6. Informacje o nagraniu i historia\n" +
                 "W panelu sterowania sprawdź parametry pliku oraz szacowany rozmiar zaznaczonego fragmentu. Listy ostatnich nagrań " +
                 "i zrzutów ułatwiają ponowne otwieranie wcześniej używanych plików.\n\n" +
+                "Obszar obrazu można powiększyć lub zmniejszyć, przeciągając poziomy separator między nagraniem a panelem sterowania. " +
+                "Lista „Skalowanie” pozwala dopasować cały obraz, wypełnić obszar albo ustawić powiększenie 125%, 150% lub 200%.\n\n" +
+                "7. Punkty zdarzeń na osi czasu\n" +
+                "Wpisz opis zdarzenia i kliknij „Dodaj w bieżącej pozycji”. Znaczniki są zapisywane osobno dla każdego nagrania. " +
+                "Wybierz znacznik, aby zmienić opis, przejść do jego czasu lub go usunąć. Możesz też dwukrotnie kliknąć pozycję na liście " +
+                "albo kliknąć pomarańczowy punkt na osi czasu, aby przejść do zdarzenia.\n\n" +
                 "Uwaga: nazwy przycisków i dostępność poszczególnych opcji mogą zależeć od wersji aplikacji. " +
                 "Oryginalne nagranie pozostaje bez zmian; eksport zapisuje nowy plik.",
                 "Pomoc — podstawowe funkcje",
@@ -140,111 +159,41 @@ namespace VideoPlayer
         }
 
 
-        private async void Window_Loaded(
-            object sender,
-            RoutedEventArgs e)
+        private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             LoadHistory();
             RefreshHistoryControls();
             try
             {
-                string executable = Path.Combine(
-                    AppContext.BaseDirectory, "mpv", "mpv.exe");
-
-                if (!File.Exists(executable))
-                {
-                    throw new FileNotFoundException(
-                        "Nie znaleziono mpv.exe w folderze mpv.");
-                }
-
-                uint windowHandle = unchecked(
-                    (uint)_videoPanel.Handle.ToInt64());
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = executable,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                string[] arguments =
-                {
-                    "--no-config",
-                    "--idle=yes",
-                    "--keep-open=always",
-                    "--keep-open-pause=yes",
-                    "--terminal=no",
-                    "--osc=no",
-                    "--input-default-bindings=no",
-                    "--input-vo-keyboard=no",
-                    "--wid=" + windowHandle.ToString(
-                        CultureInfo.InvariantCulture),
-                    "--screenshot-jpeg-quality=95",
-                    "--input-ipc-server=\\\\.\\pipe\\" + _pipeName
-
-                };
-
-                foreach (string argument in arguments)
-                    startInfo.ArgumentList.Add(argument);
-
-                _mpv = Process.Start(startInfo)
-                    ?? throw new InvalidOperationException(
-                        "Nie udało się uruchomić mpv.");
-
-                _pipe = new NamedPipeClientStream(
-                    ".",
-                    _pipeName,
-                    PipeDirection.InOut,
-                    PipeOptions.Asynchronous);
-
-                await _pipe.ConnectAsync(10000);
-
-                if (_closing)
-                    return;
-
-                _writer = new StreamWriter(
-                    _pipe,
-                    new UTF8Encoding(false),
-                    4096,
-                    leaveOpen: true)
-                {
-                    AutoFlush = true,
-                    NewLine = "\n"
-                };
-
+                await _mpvService.StartAsync(
+                    Path.Combine(AppContext.BaseDirectory, "mpv", "mpv.exe"),
+                    _videoPanel.Handle);
+                if (_closing) return;
                 _ready = true;
 
-                // Czytanie odpowiedzi i zdarzeń mpv.
-                _ = ReadMessagesAsync(_pipe);
-
-                // mpv będzie przesyłać zmiany tych właściwości.
                 await SendAsync("observe_property", 1, "time-pos");
                 await SendAsync("observe_property", 2, "duration");
                 await SendAsync("observe_property", 3, "eof-reached");
                 await SendAsync("observe_property", 4, "pause");
-
-                await SendAsync(
-                    "set_property", "speed", GetSelectedSpeed());
-
+                await SendAsync("set_property", "speed", GetSelectedSpeed());
                 StatusText.Text = "Gotowy. Otwórz film.";
             }
             catch (Exception ex)
             {
                 if (!_closing)
                 {
-                    StatusText.Text =
-                        "Nie udało się uruchomić odtwarzacza.";
-
-                    MessageBox.Show(
-                        this,
-                        ex.Message,
-                        "Błąd uruchamiania",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
+                    StatusText.Text = "Nie udało się uruchomić odtwarzacza.";
+                    MessageBox.Show(this, ex.Message, "Błąd uruchamiania",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
 
+        private void OnMpvMessageReceived(JsonElement message)
+        {
+            if (_closing) return;
+            _ = Dispatcher.InvokeAsync(() => HandleMessage(message));
+        }
 
     }
 }

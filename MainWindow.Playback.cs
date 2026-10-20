@@ -19,70 +19,6 @@ namespace VideoPlayer
 {
     public partial class MainWindow
     {
-        private async Task ReadMessagesAsync(
-            NamedPipeClientStream pipe)
-        {
-            try
-            {
-                using var reader = new StreamReader(
-                    pipe,
-                    Encoding.UTF8,
-                    detectEncodingFromByteOrderMarks: false,
-                    bufferSize: 4096,
-                    leaveOpen: true);
-
-                while (!_closing)
-                {
-                    string? line = await reader.ReadLineAsync();
-
-                    if (line == null)
-                        break;
-
-                    try
-                    {
-                        using JsonDocument document =
-                            JsonDocument.Parse(line);
-
-                        JsonElement message =
-                            document.RootElement.Clone();
-
-                        if (_closing)
-                            break;
-
-                        await Dispatcher.InvokeAsync(
-                            () => HandleMessage(message));
-                    }
-                    catch (JsonException)
-                    {
-                        // Pomijamy niepoprawny komunikat.
-                    }
-                }
-            }
-            catch (IOException)
-            {
-                // Zerwane lub zamknięte połączenie.
-            }
-            catch (ObjectDisposedException)
-            {
-                // Zamknięcie aplikacji.
-            }
-            finally
-            {
-                if (!_closing)
-                {
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        if (_closing)
-                            return;
-
-                        _ready = false;
-                        StatusText.Text =
-                            "Połączenie z silnikiem zostało zamknięte.";
-                    });
-                }
-            }
-        }
-
         private void HandleMessage(JsonElement message)
         {
             if (_closing)
@@ -224,6 +160,7 @@ namespace VideoPlayer
 
             DurationText.Text = FormatTime(duration);
             UpdateTimelineOverlay();
+            UpdateTimelineOverlay();
         }
 
         private static string FormatTime(double seconds)
@@ -241,34 +178,15 @@ namespace VideoPlayer
 
         private async Task SendAsync(params object[] command)
         {
-            if (!_ready || _closing)
-                return;
-
-            await _sendLock.WaitAsync();
-
+            if (!_ready || _closing) return;
             try
             {
-                if (_writer == null || _closing)
-                    return;
-
-                string message = JsonSerializer.Serialize(
-                    new { command });
-
-                await _writer.WriteLineAsync(message);
+                await _mpvService.SendAsync(command);
             }
             catch (Exception ex)
             {
                 _ready = false;
-
-                if (!_closing)
-                {
-                    StatusText.Text =
-                        "Błąd połączenia: " + ex.Message;
-                }
-            }
-            finally
-            {
-                _sendLock.Release();
+                if (!_closing) StatusText.Text = "Błąd połączenia: " + ex.Message;
             }
         }
 
@@ -296,6 +214,7 @@ namespace VideoPlayer
             if (dialog.ShowDialog(this) != true)
                 return;
             _sourceFilePath = dialog.FileName;
+            LoadTimelineMarkers();
             AddRecentFile(dialog.FileName);
             _currentMediaInfo = null;
             MediaInfoText.Text = "Odczytywanie parametrów nagrania…";
@@ -494,49 +413,22 @@ namespace VideoPlayer
             ScreenshotButton.IsEnabled = false;
             _pendingScreenshotPath = dialog.FileName;
 
-            await _sendLock.WaitAsync();
-
             try
             {
-                if (!_ready || _closing || _writer == null)
-                {
-                    _pendingScreenshotPath = null;
-                    ScreenshotButton.IsEnabled = true;
-                    return;
-                }
-
-                string message = JsonSerializer.Serialize(new
-                {
-                    command = new object[]
-                    {
-                "screenshot-to-file",
-                dialog.FileName,
-                "video"
-                    },
-                    request_id = ScreenshotRequestId
-                });
-
                 StatusText.Text = "Zapisywanie klatki…";
-
-                await _writer.WriteLineAsync(message);
+                await _mpvService.SendRequestAsync(
+                    ScreenshotRequestId,
+                    "screenshot-to-file",
+                    dialog.FileName,
+                    "video");
             }
             catch (Exception ex)
             {
                 _pendingScreenshotPath = null;
                 ScreenshotButton.IsEnabled = true;
-
-                StatusText.Text = "Nie udało się wysłać polecenia zapisu.";
-
-                MessageBox.Show(
-                    this,
-                    ex.Message,
-                    "Błąd zapisu klatki",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-            finally
-            {
-                _sendLock.Release();
+                StatusText.Text = "Nie udało się wysłać polecenia zapisu klatki.";
+                MessageBox.Show(this, ex.Message, "Błąd zapisu klatki",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

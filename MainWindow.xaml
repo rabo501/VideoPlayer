@@ -254,8 +254,9 @@
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*" MinHeight="180"/>
+            <RowDefinition Height="6"/>
+            <RowDefinition Height="*" MinHeight="170"/>
         </Grid.RowDefinitions>
 
         <!-- GŁÓWNE MENU -->
@@ -314,14 +315,26 @@
                     <TextBlock Text="VIDEO PLAYER"
                                Foreground="#DDE5F5"
                                FontSize="10"
-                               FontWeight="Bold"
-                               />
+                               FontWeight="Bold"/>
                 </Border>
+
             </Grid>
         </Border>
 
+        <!-- REGULACJA WYSOKOŚCI OBSZARU WIDEO -->
+        <GridSplitter Grid.Row="2"
+                      Height="6"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      Background="#343B48"
+                      ShowsPreview="True"
+                      ResizeDirection="Rows"
+                      ResizeBehavior="PreviousAndNext"
+                      Cursor="SizeNS"
+                      ToolTip="Przeciągnij, aby zmienić wysokość okna nagrania"/>
+
         <!-- PANEL STEROWANIA -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Background="#1B1E25"
                 BorderBrush="#303541"
                 BorderThickness="1"
@@ -330,6 +343,31 @@
 
             <ScrollViewer MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
+
+                <!-- SKALOWANIE OBRAZU: poza obszarem WindowsFormsHost, który zasłania kontrolki WPF umieszczone nad nim -->
+                <Border Background="#252A34"
+                        BorderBrush="#3B4351"
+                        BorderThickness="1"
+                        CornerRadius="7"
+                        Padding="10,7"
+                        Margin="0,0,0,10">
+                    <DockPanel LastChildFill="False">
+                        <TextBlock Text="Skalowanie obrazu:" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#D8DCE4"/>
+                        <ComboBox x:Name="VideoScaleBox"
+                                  Width="205"
+                                  Height="32"
+                                  FontSize="12"
+                                  SelectedIndex="0"
+                                  SelectionChanged="VideoScaleBox_SelectionChanged"
+                                  ToolTip="Dopasuj obraz, wypełnij okno lub ustaw powiększenie">
+                            <ComboBoxItem Content="Dopasuj cały obraz" Tag="fit"/>
+                            <ComboBoxItem Content="Wypełnij okno" Tag="fill"/>
+                            <ComboBoxItem Content="Powiększenie 125%" Tag="1.25"/>
+                            <ComboBoxItem Content="Powiększenie 150%" Tag="1.5"/>
+                            <ComboBoxItem Content="Powiększenie 200%" Tag="2"/>
+                        </ComboBox>
+                    </DockPanel>
+                </Border>
 
                 <!-- OŚ CZASU -->
                 <Grid Margin="0,0,0,10">
@@ -400,6 +438,38 @@
                                HorizontalAlignment="Right"
                                VerticalAlignment="Center"/>
                 </Grid>
+
+                <!-- ZNACZNIKI ZDARZEŃ -->
+                <Border Background="#20242C" BorderBrush="#343B48" BorderThickness="1"
+                        CornerRadius="6" Padding="9" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="PUNKTY ZDARZEŃ NA OSI CZASU"
+                                   Foreground="#DDE5F5" FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,0,0,7"/>
+                        <WrapPanel>
+                            <TextBox x:Name="MarkerDescriptionBox" Width="280" Margin="0,0,8,8"
+                                     Padding="7,5" Background="#171A20" Foreground="#E6EAF0"
+                                     BorderBrush="#454C59"
+                                     ToolTip="Opis zdarzenia, np. Wejście osoby lub Otwarcie bramy"
+                                     VerticalContentAlignment="Center"/>
+                            <Button Content="＋ Dodaj w bieżącej pozycji" Click="AddMarker_Click" Margin="0,0,8,8"/>
+                            <Button Content="Zmień opis" Click="UpdateMarker_Click" Margin="0,0,8,8"/>
+                            <Button Content="Przejdź do" Click="GoToMarker_Click" Margin="0,0,8,8"/>
+                            <Button Content="Usuń" Click="DeleteMarker_Click" Margin="0,0,8,8"/>
+                        </WrapPanel>
+                        <ListBox x:Name="TimelineMarkersListBox" Height="78"
+                                 Background="#171A20" Foreground="#E6EAF0"
+                                 BorderBrush="#343B48"
+                                 SelectionChanged="TimelineMarkersListBox_SelectionChanged"
+                                 ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <EventSetter Event="MouseDoubleClick" Handler="MarkerListItem_DoubleClick"/>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                    </StackPanel>
+                </Border>
 
                 <!-- ODTWARZANIE -->
                 <TextBlock Text="ODTWARZANIE"

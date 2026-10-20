@@ -23,45 +23,11 @@ namespace VideoPlayer
         {
             try
             {
-                string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-                if (!File.Exists(ffmpegPath))
-                {
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        if (_sourceFilePath == sourcePath)
-                            MediaInfoText.Text = "Brak ffmpeg.exe — nie można odczytać parametrów nagrania.";
-                    });
-                    return;
-                }
-
-                var psi = new ProcessStartInfo { FileName = ffmpegPath, UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
-                psi.ArgumentList.Add("-hide_banner");
-                psi.ArgumentList.Add("-i");
-                psi.ArgumentList.Add(sourcePath);
-                using var process = new Process { StartInfo = psi };
-                process.Start();
-                string output = await process.StandardError.ReadToEndAsync();
-                await process.WaitForExitAsync();
-
-                var info = new MediaInfo { FileSize = new FileInfo(sourcePath).Length, Duration = ParseDurationFromFfmpeg(output) };
-                var videoLine = System.Text.RegularExpressions.Regex.Match(output, @"Stream #\S+.*?: Video:\s*([^, ]+)(.*)");
-                if (videoLine.Success)
-                {
-                    info.VideoCodec = videoLine.Groups[1].Value;
-                    string details = videoLine.Groups[2].Value;
-                    var resolution = System.Text.RegularExpressions.Regex.Match(details, @"(\d{2,5})x(\d{2,5})");
-                    if (resolution.Success) info.Resolution = resolution.Groups[1].Value + "×" + resolution.Groups[2].Value;
-                    var fps = System.Text.RegularExpressions.Regex.Match(details, @"([\d.]+)\s*fps");
-                    if (fps.Success) info.Fps = fps.Groups[1].Value;
-                }
-                var audio = System.Text.RegularExpressions.Regex.Match(output, @"Stream #\S+.*?: Audio:\s*([^, ]+)");
-                if (audio.Success) info.AudioCodec = audio.Groups[1].Value;
-                var bitrate = System.Text.RegularExpressions.Regex.Match(output, @"bitrate:\s*(\d+)\s*kb/s");
-                if (bitrate.Success) info.Bitrate = bitrate.Groups[1].Value + " kb/s";
-
+                MediaInfoData info = await _mediaInfoService.ReadAsync(sourcePath);
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    if (_closing || !string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase)) return;
+                    if (_closing || !string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase))
+                        return;
                     _currentMediaInfo = info;
                     UpdateEstimatedSizeText();
                 });
@@ -74,15 +40,6 @@ namespace VideoPlayer
                         MediaInfoText.Text = "Nie udało się odczytać parametrów: " + ex.Message;
                 });
             }
-        }
-
-        private static double ParseDurationFromFfmpeg(string output)
-        {
-            var match = System.Text.RegularExpressions.Regex.Match(output, @"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)");
-            if (!match.Success) return 0;
-            return double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) * 3600 +
-                   double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) * 60 +
-                   double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
         }
 
         private void UpdateEstimatedSizeText()
@@ -114,31 +71,27 @@ namespace VideoPlayer
 
         private void LoadHistory()
         {
-            try
-            {
-                if (!File.Exists(HistoryFilePath)) return;
-                var history = JsonSerializer.Deserialize<AppHistory>(File.ReadAllText(HistoryFilePath));
-                if (history == null) return;
-                _recentFiles.Clear();
-                _recentFiles.AddRange(history.RecentFiles.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(10));
-                _recentScreenshots.Clear();
-                _recentScreenshots.AddRange(history.RecentScreenshots.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(30));
-            }
-            catch { /* Uszkodzona historia nie blokuje uruchomienia aplikacji. */ }
+            AppHistoryData history = _historyService.Load();
+            _recentFiles.Clear();
+            _recentFiles.AddRange(history.RecentFiles);
+            _recentScreenshots.Clear();
+            _recentScreenshots.AddRange(history.RecentScreenshots);
         }
 
         private void SaveHistory()
         {
             try
             {
-                Directory.CreateDirectory(_historyDirectory);
-                File.WriteAllText(HistoryFilePath, JsonSerializer.Serialize(new AppHistory
+                _historyService.Save(new AppHistoryData
                 {
-                    RecentFiles = _recentFiles.Take(10).ToList(),
-                    RecentScreenshots = _recentScreenshots.Take(30).ToList()
-                }, new JsonSerializerOptions { WriteIndented = true }));
+                    RecentFiles = _recentFiles,
+                    RecentScreenshots = _recentScreenshots
+                });
             }
-            catch (Exception ex) { StatusText.Text = "Nie udało się zapisać historii: " + ex.Message; }
+            catch (Exception ex)
+            {
+                if (!_closing) StatusText.Text = "Nie udało się zapisać historii: " + ex.Message;
+            }
         }
 
         private void AddRecentFile(string path)
@@ -178,6 +131,7 @@ namespace VideoPlayer
             { MessageBox.Show(this, "Wybierz istniejący plik z historii.", "Historia nagrań"); return; }
             if (!_ready) { MessageBox.Show(this, "Silnik odtwarzacza nie jest gotowy.", "Odtwarzacz"); return; }
             _sourceFilePath = path;
+            LoadTimelineMarkers();
             _fileName = Path.GetFileName(path);
             _clipStart = null; _clipEnd = null; _currentMediaInfo = null;
             UpdateClipRangeText();
@@ -215,52 +169,13 @@ namespace VideoPlayer
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Nie można otworzyć folderu", MessageBoxButton.OK, MessageBoxImage.Error); }
         }
 
-        private async Task<(double Duration, bool HasAudio)> ProbeMediaAsync(
-            string ffmpegPath,
+        private Task<(double Duration, bool HasAudio)> ProbeMediaAsync(
             string sourcePath)
         {
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardError = true
-            };
-
-            psi.ArgumentList.Add("-i");
-            psi.ArgumentList.Add(sourcePath);
-
-            using var process = new Process { StartInfo = psi };
-            process.Start();
-
-            string output = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            var durationMatch = System.Text.RegularExpressions.Regex.Match(
-                output,
-                @"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)");
-
-            if (!durationMatch.Success)
-            {
-                throw new Exception(
-                    "FFmpeg nie rozpoznał czasu trwania pliku. " +
-                    "Sprawdź, czy nagranie jest poprawne i obsługiwane.");
-            }
-
-            double hours = double.Parse(
-                durationMatch.Groups[1].Value, CultureInfo.InvariantCulture);
-            double minutes = double.Parse(
-                durationMatch.Groups[2].Value, CultureInfo.InvariantCulture);
-            double seconds = double.Parse(
-                durationMatch.Groups[3].Value, CultureInfo.InvariantCulture);
-
-            double duration = hours * 3600 + minutes * 60 + seconds;
-
-            bool hasAudio = System.Text.RegularExpressions.Regex.IsMatch(
-                output,
-                @"Stream #\S+.*?: Audio:");
-
-            return (duration, hasAudio);
+            // Używamy wspólnej usługi FFmpeg, aby ścieżka i obsługa błędów
+            // były takie same dla operacji na nagraniu.
+            return _ffmpegService.ProbeAsync(sourcePath);
         }
+
     }
 }

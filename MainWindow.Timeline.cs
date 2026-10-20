@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 
 using Forms = System.Windows.Forms;
 
@@ -184,6 +185,8 @@ namespace VideoPlayer
                 ClipSelectionRect.Width = Math.Max(0, endX - startX);
                 Canvas.SetTop(ClipSelectionRect, (TimelineOverlay.ActualHeight - ClipSelectionRect.Height) / 2);
             }
+
+            DrawTimelineMarkers();
         }
 
         private void ClipStartHandle_DragDelta(
@@ -243,6 +246,162 @@ namespace VideoPlayer
             DragCompletedEventArgs e)
         {
             UpdateClipRangeText();
+        }
+
+        private void LoadTimelineMarkers()
+        {
+            _timelineMarkers.Clear();
+            if (!string.IsNullOrWhiteSpace(_sourceFilePath) && File.Exists(_sourceFilePath))
+                _timelineMarkers.AddRange(_historyService.LoadMarkers(_sourceFilePath));
+            RefreshTimelineMarkerList();
+            UpdateTimelineOverlay();
+        }
+
+        private void SaveTimelineMarkers()
+        {
+            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
+                return;
+            try
+            {
+                _historyService.SaveMarkers(_sourceFilePath, _timelineMarkers);
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Nie udało się zapisać znaczników: " + ex.Message;
+            }
+        }
+
+        private void RefreshTimelineMarkerList()
+        {
+            if (TimelineMarkersListBox == null) return;
+            TimelineMarkersListBox.ItemsSource = null;
+            TimelineMarkersListBox.ItemsSource = _timelineMarkers.OrderBy(m => m.Seconds).ToList();
+        }
+
+        private void AddMarker_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath) ||
+                !PositionSlider.IsEnabled)
+            {
+                MessageBox.Show(this, "Najpierw otwórz nagranie.", "Znacznik zdarzenia",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string description = MarkerDescriptionBox.Text.Trim();
+            if (description.Length == 0)
+            {
+                MessageBox.Show(this, "Wpisz opis zdarzenia przed dodaniem znacznika.",
+                    "Znacznik zdarzenia", MessageBoxButton.OK, MessageBoxImage.Information);
+                MarkerDescriptionBox.Focus();
+                return;
+            }
+
+            _timelineMarkers.Add(new TimelineMarker
+            {
+                Id = Guid.NewGuid(),
+                Seconds = Math.Clamp(PositionSlider.Value, 0, PositionSlider.Maximum),
+                Description = description
+            });
+            SaveTimelineMarkers();
+            RefreshTimelineMarkerList();
+            UpdateTimelineOverlay();
+            StatusText.Text = "Dodano znacznik: " + description;
+        }
+
+        private void UpdateMarker_Click(object sender, RoutedEventArgs e)
+        {
+            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker selected)
+            {
+                MessageBox.Show(this, "Wybierz znacznik z listy.", "Znaczniki zdarzeń",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string description = MarkerDescriptionBox.Text.Trim();
+            if (description.Length == 0)
+            {
+                MessageBox.Show(this, "Opis nie może być pusty.", "Znaczniki zdarzeń",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            selected.Description = description;
+            SaveTimelineMarkers();
+            RefreshTimelineMarkerList();
+            TimelineMarkersListBox.SelectedItem = _timelineMarkers.FirstOrDefault(m => m.Id == selected.Id);
+            UpdateTimelineOverlay();
+        }
+
+        private async void GoToMarker_Click(object sender, RoutedEventArgs e)
+        {
+            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker selected) return;
+            await SeekAsync(selected.Seconds);
+            StatusText.Text = "Przejście do zdarzenia: " + selected.Description;
+        }
+
+        private void DeleteMarker_Click(object sender, RoutedEventArgs e)
+        {
+            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker selected) return;
+            _timelineMarkers.RemoveAll(m => m.Id == selected.Id);
+            SaveTimelineMarkers();
+            RefreshTimelineMarkerList();
+            MarkerDescriptionBox.Clear();
+            UpdateTimelineOverlay();
+        }
+
+        private void TimelineMarkersListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (TimelineMarkersListBox.SelectedItem is TimelineMarker marker)
+                MarkerDescriptionBox.Text = marker.Description;
+        }
+
+        private async void MarkerListItem_DoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is ListBoxItem item && item.DataContext is TimelineMarker marker)
+            {
+                TimelineMarkersListBox.SelectedItem = marker;
+                await SeekAsync(marker.Seconds);
+                StatusText.Text = "Przejście do zdarzenia: " + marker.Description;
+            }
+        }
+
+        private void DrawTimelineMarkers()
+        {
+            if (TimelineOverlay == null) return;
+            foreach (var button in _markerButtons)
+                TimelineOverlay.Children.Remove(button);
+            _markerButtons.Clear();
+
+            double width = TimelineOverlay.ActualWidth;
+            double duration = PositionSlider.Maximum - PositionSlider.Minimum;
+            if (width <= 0 || duration <= 0 || !PositionSlider.IsEnabled) return;
+
+            foreach (TimelineMarker marker in _timelineMarkers)
+            {
+                double x = Math.Clamp((marker.Seconds - PositionSlider.Minimum) / duration * width, 0, width);
+                var button = new System.Windows.Controls.Button
+                {
+                    Width = 12,
+                    Height = 12,
+                    Padding = new Thickness(0),
+                    BorderThickness = new Thickness(1),
+                    BorderBrush = System.Windows.Media.Brushes.White,
+                    Background = System.Windows.Media.Brushes.DarkOrange,
+                    ToolTip = $"{FormatClipTime(marker.Seconds)} — {marker.Description}",
+                    Cursor = Cursors.Hand,
+                    Focusable = true
+                };
+                button.Click += async (_, __) =>
+                {
+                    TimelineMarkersListBox.SelectedItem = marker;
+                    await SeekAsync(marker.Seconds);
+                    StatusText.Text = "Przejście do zdarzenia: " + marker.Description;
+                };
+                Canvas.SetLeft(button, Math.Clamp(x - button.Width / 2, 0, Math.Max(0, width - button.Width)));
+                Canvas.SetTop(button, Math.Max(0, (TimelineOverlay.ActualHeight - button.Height) / 2));
+                Canvas.SetZIndex(button, 20);
+                TimelineOverlay.Children.Add(button);
+                _markerButtons.Add(button);
+            }
         }
     }
 }
