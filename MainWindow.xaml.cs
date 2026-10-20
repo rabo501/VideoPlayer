@@ -123,41 +123,13 @@ namespace VideoPlayer
 
         private void BasicHelp_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(
-                this,
-                "PODSTAWOWE FUNKCJE ODTWARZACZA\n\n" +
-                "1. Otwieranie nagrania\n" +
-                "Wybierz Plik > Otwórz film lub kliknij przycisk „Otwórz film”. Wybierz lokalny plik wideo.\n\n" +
-                "2. Odtwarzanie i nawigacja\n" +
-                "Użyj przycisku Odtwarzaj / Pauza. Suwak osi czasu pozwala przejść do wybranego momentu. " +
-                "Przyciski Poprzednia klatka i Następna klatka umożliwiają dokładniejsze przeglądanie nagrania. " +
-                "Listę prędkości można wykorzystać do zwolnienia lub przyspieszenia odtwarzania.\n\n" +
-                "3. Zapis klatki JPG\n" +
-                "Zatrzymaj nagranie na wybranym obrazie, kliknij Zapisz klatkę JPG i wskaż nazwę oraz folder pliku. " +
-                "Zapisane obrazy pojawiają się na liście zrzutów.\n\n" +
-                "4. Zaznaczanie fragmentu\n" +
-                "Ustaw odtwarzanie w miejscu początku i kliknij ustawienie początku fragmentu. Następnie przejdź do końca " +
-                "i ustaw koniec. Jeśli widoczne są uchwyty osi czasu, możesz też przeciągać je myszą.\n\n" +
-                "5. Eksport fragmentu\n" +
-                "Wybierz profil eksportu i wskaż plik wynikowy. Eksport może potrwać dłużej w zależności od długości nagrania, " +
-                "rozdzielczości i wybranego profilu. W trakcie kodowania obserwuj pasek postępu. Jeśli funkcja anulowania jest dostępna, " +
-                "możesz przerwać operację.\n\n" +
-                "6. Informacje o nagraniu i historia\n" +
-                "W panelu sterowania sprawdź parametry pliku oraz szacowany rozmiar zaznaczonego fragmentu. Listy ostatnich nagrań " +
-                "i zrzutów ułatwiają ponowne otwieranie wcześniej używanych plików.\n\n" +
-                "Obszar obrazu można powiększyć lub zmniejszyć, przeciągając poziomy separator między nagraniem a panelem sterowania. " +
-                "Lista „Skalowanie” pozwala dopasować cały obraz, wypełnić obszar albo ustawić powiększenie 125%, 150% lub 200%.\n\n" +
-                "7. Punkty zdarzeń na osi czasu\n" +
-                "Wpisz opis zdarzenia i kliknij „Dodaj w bieżącej pozycji”. Znaczniki są zapisywane osobno dla każdego nagrania. " +
-                "Wybierz znacznik, aby zmienić opis, przejść do jego czasu lub go usunąć. Możesz też dwukrotnie kliknąć pozycję na liście " +
-                "albo kliknąć pomarańczowy punkt na osi czasu, aby przejść do zdarzenia.\n\n" +
-                "Uwaga: nazwy przycisków i dostępność poszczególnych opcji mogą zależeć od wersji aplikacji. " +
-                "Oryginalne nagranie pozostaje bez zmian; eksport zapisuje nowy plik.",
-                "Pomoc — podstawowe funkcje",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            var helpWindow = new BasicHelpWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            helpWindow.ShowDialog();
         }
-
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
