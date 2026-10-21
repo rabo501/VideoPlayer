@@ -259,6 +259,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Zapisz zdarzenie w bieżącej pozycji filmu. Dwuklik na liście przenosi do wskazanego czasu." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
+                                <Button x:Name="PlateOcrButton" Content="Rozpoznaj tablicę — lokalnie" Click="PlateOcr_Click" Margin="0,0,0,8" Padding="10,8" ToolTip="Zatrzymaj klatkę, zaznacz tablicę i potwierdź odczyt. Bez internetu." />
                                 <TextBox x:Name="MarkerDescriptionBox" Margin="0,0,0,8" Padding="7,5" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#454C59" ToolTip="Opis zdarzenia, np. Wejście osoby lub Otwarcie bramy" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="36" />
                                 <WrapPanel>
                                     <Button Content="Dodaj zdarzenie" Click="AddMarker_Click" Style="{StaticResource PrimaryButton}" />
