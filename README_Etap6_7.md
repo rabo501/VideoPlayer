@@ -38,3 +38,12 @@ Historia nagrań i zrzutów pozostaje w `%LOCALAPPDATA%\VideoPlayer\history.json
 - Lista „Skalowanie” w prawym górnym rogu podglądu udostępnia tryby: „Dopasuj cały obraz”, „Wypełnij okno”, 125%, 150% i 200%.
 - „Dopasuj cały obraz” pokazuje pełną klatkę bez celowego przycinania; „Wypełnij okno” wypełnia obszar i może przyciąć krawędzie. Powiększenia 125–200% mogą również obciąć fragment obrazu poza obszarem podglądu.
 - Rozmiar obszaru zmienia tylko układ aplikacji, a skalowanie jest ustawiane w mpv. Oryginalny plik wideo nie jest modyfikowany.
+
+## Przenośne dane SQLite
+
+Historia ostatnio otwieranych nagrań, historia zrzutów ekranu oraz znaczniki osi czasu są teraz przechowywane w pliku `VideoPlayer.db` w katalogu aplikacji (obok pliku EXE). Nie jest już potrzebny katalog `%LOCALAPPDATA%\VideoPlayer` do bieżącego zapisu tych danych.
+
+- Aby przenieść aplikację, skopiuj cały katalog aplikacji razem z `VideoPlayer.db`, folderami `mpv` i `ffmpeg`.
+- Uruchamiaj aplikację z katalogu, w którym konto użytkownika ma prawo zapisu. Katalog `C:\Program Files` może być chroniony; dla wersji przenośnej użyj np. własnego katalogu lub pamięci USB.
+- Przy pierwszym uruchomieniu nowej wersji aplikacja próbuje jednorazowo zaimportować dotychczasowe `history.json` i `timeline-markers.json` z `%LOCALAPPDATA%\VideoPlayer`. Stare pliki JSON nie są usuwane.
+- Historia przechowuje ścieżki do nagrań i zrzutów, a nie same pliki multimedialne. Po przeniesieniu komputera lub zmianie liter dysków pozycje historii mogą wymagać ponownego otwarcia plików z ich nowej lokalizacji.

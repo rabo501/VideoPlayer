@@ -646,6 +646,42 @@
                            Margin="0,7,0,10"
                            Height="1"/>
 
+
+                <Border Background="#20242C" BorderBrush="#343B48" BorderThickness="1" CornerRadius="7" Padding="10" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="SESJA I WIDOK" Style="{StaticResource SectionLabel}"/>
+                        <WrapPanel>
+                            <Button Content="Reset widoku (R)" Click="ResetView_Click"/>
+                            <Button Content="Zapisz sesję" Click="SaveSession_Click"/>
+                            <Button Content="Uruchom ponownie mpv" Click="RestartMpv_Click"/>
+                            <CheckBox x:Name="RestoreSessionCheckBox" Content="Przywracaj pozycję i widok" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="8,0,8,8"/>
+                        </WrapPanel>
+                        <TextBlock Text="Kółko nad filmem: zoom wokół kursora. Lewy przycisk: przesuń obraz. Spacja: pauza; ←/→: klatki; I/O: zakres; S: JPG; Ctrl+O: otwórz." TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <TextBlock Text="LISTA FRAGMENTÓW" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Zatrzymaj film, ustaw początek, przejdź dalej, ustaw koniec, a potem dodaj zaznaczenie." TextWrapping="Wrap" Margin="0,0,0,6"/>
+                        <WrapPanel>
+                            <Button Content="Początek (I)" Click="MarkStart_Click"/>
+                            <Button Content="Koniec (O)" Click="MarkEnd_Click"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="RangeFeedbackText" TextWrapping="Wrap" Foreground="#F5C970" Margin="0,0,0,8"/>
+                        <WrapPanel>
+                            <TextBox x:Name="ClipNameBox" Width="220" Margin="0,0,8,8" Padding="7" Text="Fragment" ToolTip="Nazwa fragmentu"/>
+                            <Button Content="Dodaj zaznaczenie" Click="AddRange_Click"/>
+                            <Button Content="Zaktualizuj wybrany" Click="UpdateRange_Click"/>
+                            <Button Content="Wczytaj zakres" Click="LoadRange_Click"/>
+                            <Button Content="Usuń z listy" Click="DeleteRange_Click"/>
+                            <Button x:Name="ExportAllButton" Content="Eksportuj wszystkie" Click="ExportAll_Click"/>
+                        </WrapPanel>
+                        <ListBox x:Name="ClipRangesListBox" Height="90" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" Margin="0,0,0,10"/>
+                        <TextBlock Text="RAPORT ZDARZEŃ" Style="{StaticResource SectionLabel}"/>
+                        <WrapPanel>
+                            <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click"/>
+                            <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click"/>
+                            <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="8,0,8,8"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- INFORMACJE O PLIKU + HISTORIA -->
                 <Border Background="#20242C"
                         BorderBrush="#343B48"

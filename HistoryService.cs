@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,76 +7,222 @@ using System.Text.Json;
 
 namespace VideoPlayer
 {
+    /// <summary>
+    /// Stores application history and timeline markers in a portable SQLite database.
+    /// The database is placed beside the application executable (or in the supplied directory).
+    /// </summary>
     internal sealed class HistoryService
     {
         private readonly string _directory;
-        private string HistoryPath => Path.Combine(_directory, "history.json");
-        private string MarkersPath => Path.Combine(_directory, "timeline-markers.json");
+        private readonly string _databasePath;
+        private readonly string _connectionString;
 
         public HistoryService(string? directory = null)
         {
-            _directory = directory ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VideoPlayer");
+            _directory = directory ?? AppContext.BaseDirectory;
+            Directory.CreateDirectory(_directory);
+            _databasePath = Path.Combine(_directory, "VideoPlayer.db");
+            _connectionString = new SqliteConnectionStringBuilder
+            {
+                DataSource = _databasePath,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Cache = SqliteCacheMode.Shared
+            }.ToString();
+
+            bool databaseAlreadyExisted = File.Exists(_databasePath);
+            InitializeDatabase();
+            if (!databaseAlreadyExisted)
+                ImportLegacyJson();
         }
 
         public AppHistoryData Load()
         {
-            try
+            var data = new AppHistoryData();
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT Kind, Path FROM RecentItems ORDER BY Kind, Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
             {
-                if (!File.Exists(HistoryPath)) return new AppHistoryData();
-                var data = JsonSerializer.Deserialize<AppHistoryData>(File.ReadAllText(HistoryPath));
-                if (data == null) return new AppHistoryData();
-                data.RecentFiles = data.RecentFiles.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToList();
-                data.RecentScreenshots = data.RecentScreenshots.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(30).ToList();
-                return data;
+                string kind = reader.GetString(0);
+                string path = reader.GetString(1);
+                if (!File.Exists(path)) continue;
+                if (kind == "file" && data.RecentFiles.Count < 10 && !data.RecentFiles.Contains(path, StringComparer.OrdinalIgnoreCase))
+                    data.RecentFiles.Add(path);
+                else if (kind == "screenshot" && data.RecentScreenshots.Count < 30 && !data.RecentScreenshots.Contains(path, StringComparer.OrdinalIgnoreCase))
+                    data.RecentScreenshots.Add(path);
             }
-            catch { return new AppHistoryData(); }
+            return data;
         }
 
         public void Save(AppHistoryData data)
         {
-            Directory.CreateDirectory(_directory);
-            File.WriteAllText(HistoryPath, JsonSerializer.Serialize(new AppHistoryData
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            using (var delete = connection.CreateCommand())
             {
-                RecentFiles = data.RecentFiles.Take(10).ToList(),
-                RecentScreenshots = data.RecentScreenshots.Take(30).ToList()
-            }, new JsonSerializerOptions { WriteIndented = true }));
+                delete.Transaction = transaction;
+                delete.CommandText = "DELETE FROM RecentItems;";
+                delete.ExecuteNonQuery();
+            }
+
+            InsertRecentItems(connection, transaction, "file", data.RecentFiles.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(10));
+            InsertRecentItems(connection, transaction, "screenshot", data.RecentScreenshots.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(30));
+            transaction.Commit();
         }
 
         public List<TimelineMarker> LoadMarkers(string sourcePath)
         {
-            try
+            var markers = new List<TimelineMarker>();
+            string key = NormalizePath(sourcePath);
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"SELECT Id, Seconds, Description FROM TimelineMarkers
+                                    WHERE SourcePath = $sourcePath ORDER BY Seconds;";
+            command.Parameters.AddWithValue("$sourcePath", key);
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
             {
-                if (!File.Exists(MarkersPath)) return new List<TimelineMarker>();
-                var db = JsonSerializer.Deserialize<MarkerDatabase>(File.ReadAllText(MarkersPath));
-                if (db == null) return new List<TimelineMarker>();
-                string key = NormalizePath(sourcePath);
-                return db.Files.TryGetValue(key, out var markers)
-                    ? markers.OrderBy(m => m.Seconds).ToList()
-                    : new List<TimelineMarker>();
+                if (!Guid.TryParse(reader.GetString(0), out Guid id)) id = Guid.NewGuid();
+                markers.Add(new TimelineMarker
+                {
+                    Id = id,
+                    Seconds = reader.GetDouble(1),
+                    Description = reader.GetString(2)
+                });
             }
-            catch { return new List<TimelineMarker>(); }
+            return markers;
         }
 
         public void SaveMarkers(string sourcePath, IEnumerable<TimelineMarker> markers)
         {
-            Directory.CreateDirectory(_directory);
-            MarkerDatabase db;
-            try
+            string key = NormalizePath(sourcePath);
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            using (var delete = connection.CreateCommand())
             {
-                db = File.Exists(MarkersPath)
-                    ? JsonSerializer.Deserialize<MarkerDatabase>(File.ReadAllText(MarkersPath)) ?? new MarkerDatabase()
-                    : new MarkerDatabase();
+                delete.Transaction = transaction;
+                delete.CommandText = "DELETE FROM TimelineMarkers WHERE SourcePath = $sourcePath;";
+                delete.Parameters.AddWithValue("$sourcePath", key);
+                delete.ExecuteNonQuery();
             }
-            catch { db = new MarkerDatabase(); }
 
-            db.Files[NormalizePath(sourcePath)] = markers
+            foreach (TimelineMarker marker in markers
                 .Where(m => double.IsFinite(m.Seconds) && m.Seconds >= 0)
-                .OrderBy(m => m.Seconds).ToList();
-            File.WriteAllText(MarkersPath, JsonSerializer.Serialize(db, new JsonSerializerOptions { WriteIndented = true }));
+                .OrderBy(m => m.Seconds))
+            {
+                using var insert = connection.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = @"INSERT INTO TimelineMarkers (Id, SourcePath, Seconds, Description)
+                                       VALUES ($id, $sourcePath, $seconds, $description);";
+                insert.Parameters.AddWithValue("$id", marker.Id.ToString("D"));
+                insert.Parameters.AddWithValue("$sourcePath", key);
+                insert.Parameters.AddWithValue("$seconds", marker.Seconds);
+                insert.Parameters.AddWithValue("$description", marker.Description ?? string.Empty);
+                insert.ExecuteNonQuery();
+            }
+            transaction.Commit();
         }
 
-        private static string NormalizePath(string path) => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+        private SqliteConnection OpenConnection()
+        {
+            var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+            return connection;
+        }
+
+        private void InitializeDatabase()
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                PRAGMA journal_mode = WAL;
+                CREATE TABLE IF NOT EXISTS RecentItems (
+                    Kind TEXT NOT NULL,
+                    Path TEXT NOT NULL,
+                    Position INTEGER NOT NULL,
+                    PRIMARY KEY (Kind, Path)
+                );
+                CREATE INDEX IF NOT EXISTS IX_RecentItems_KindPosition ON RecentItems (Kind, Position);
+                CREATE TABLE IF NOT EXISTS TimelineMarkers (
+                    Id TEXT NOT NULL,
+                    SourcePath TEXT NOT NULL,
+                    Seconds REAL NOT NULL,
+                    Description TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (SourcePath, Id)
+                );
+                CREATE INDEX IF NOT EXISTS IX_TimelineMarkers_SourceSeconds ON TimelineMarkers (SourcePath, Seconds);
+            ";
+            command.ExecuteNonQuery();
+        }
+
+        private void InsertRecentItems(SqliteConnection connection, SqliteTransaction transaction, string kind, IEnumerable<string> paths)
+        {
+            int position = 0;
+            foreach (string path in paths)
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = "INSERT OR REPLACE INTO RecentItems (Kind, Path, Position) VALUES ($kind, $path, $position);";
+                command.Parameters.AddWithValue("$kind", kind);
+                command.Parameters.AddWithValue("$path", path);
+                command.Parameters.AddWithValue("$position", position++);
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private void ImportLegacyJson()
+        {
+            // One-time import of the previous AppData JSON files, so an update does not lose history.
+            string legacyDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VideoPlayer");
+            string historyPath = Path.Combine(legacyDirectory, "history.json");
+            string markersPath = Path.Combine(legacyDirectory, "timeline-markers.json");
+
+            if (File.Exists(historyPath))
+            {
+                try
+                {
+                    var history = JsonSerializer.Deserialize<AppHistoryData>(File.ReadAllText(historyPath));
+                    if (history != null) Save(history);
+                }
+                catch { /* Preserve the database and continue if an old JSON file is invalid. */ }
+            }
+
+            if (File.Exists(markersPath))
+            {
+                try
+                {
+                    var db = JsonSerializer.Deserialize<MarkerDatabase>(File.ReadAllText(markersPath));
+                    if (db != null)
+                    {
+                        foreach (var pair in db.Files)
+                        {
+                            using var connection = OpenConnection();
+                            using var transaction = connection.BeginTransaction();
+                            foreach (TimelineMarker marker in pair.Value ?? new List<TimelineMarker>())
+                            {
+                                if (!double.IsFinite(marker.Seconds) || marker.Seconds < 0) continue;
+                                using var command = connection.CreateCommand();
+                                command.Transaction = transaction;
+                                command.CommandText = @"INSERT OR REPLACE INTO TimelineMarkers (Id, SourcePath, Seconds, Description)
+                                                        VALUES ($id, $sourcePath, $seconds, $description);";
+                                command.Parameters.AddWithValue("$id", marker.Id.ToString("D"));
+                                command.Parameters.AddWithValue("$sourcePath", NormalizePath(pair.Key));
+                                command.Parameters.AddWithValue("$seconds", marker.Seconds);
+                                command.Parameters.AddWithValue("$description", marker.Description ?? string.Empty);
+                                command.ExecuteNonQuery();
+                            }
+                            transaction.Commit();
+                        }
+                    }
+                }
+                catch { /* Do not prevent startup because an old marker file cannot be imported. */ }
+            }
+        }
+
+        private static string NormalizePath(string path) => Path.GetFullPath(path)
+            .TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
     }
 
     internal sealed class AppHistoryData

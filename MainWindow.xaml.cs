@@ -1,171 +1,162 @@
 using System;
-using System.ComponentModel;
-using System.Diagnostics;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
-using System.IO.Pipes;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-
-using Forms = System.Windows.Forms;
-
+using System.Windows.Input;
+using System.Windows.Threading;
+using Forms=System.Windows.Forms;
 namespace VideoPlayer
 {
     public partial class MainWindow : Window
     {
-        private readonly Forms.Panel _videoPanel = new Forms.Panel
-        {
-            BackColor = System.Drawing.Color.Black,
-            Dock = Forms.DockStyle.Fill
-        };
-
-        private readonly MpvService _mpvService = new();
-        private readonly FfmpegService _ffmpegService = new();
-        private readonly MediaInfoService _mediaInfoService = new(
-            Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"));
-        private readonly HistoryService _historyService = new();
-
-        private bool _ready;
-        private bool _closing;
-        private bool _dragging;
-        private bool _updatingSlider;
-        private bool _eofReached;
-
-        private string _fileName = "";
-
-        private const int ScreenshotRequestId = 10001;
-        private string? _pendingScreenshotPath;
+        private readonly Forms.Panel _videoPanel=new(){BackColor=System.Drawing.Color.Black,Dock=Forms.DockStyle.Fill};
+        private MpvService _mpvService=new();
+        private readonly FfmpegService _ffmpegService=new();
+        private readonly MediaInfoService _mediaInfoService=new(Path.Combine(AppContext.BaseDirectory,"ffmpeg","ffmpeg.exe"));
+        private HistoryService _historyService=null!;
+        private ReviewRepository _reviews=null!;
+        private ExportService _exports=null!;
+        private ReportService _reports=null!;
+        private readonly DispatcherTimer _saveTimer=new(){Interval=TimeSpan.FromSeconds(3)};
+        private readonly List<string> _recentFiles=new(),_recentScreenshots=new();
+        private readonly List<TimelineMarker> _timelineMarkers=new();
+        private readonly List<Button> _markerButtons=new();
+        private readonly ObservableCollection<ClipRange> _clips=new();
+        private bool _ready,_closing,_dragging,_updatingSlider,_eofReached,_paused=true,_opening,_restoring,_shutdownRequested,_allowClose;
+        private bool _exporting,_screenshotBusy,_changingScale;
+        private string _fileName="";
         private string? _sourceFilePath;
-        private double? _clipStart;
-        private double? _clipEnd;
-        private bool _exporting;
-        private Process? _exportProcess;
-        private bool _cancelExportRequested;
-        private Stopwatch? _exportStopwatch;
-        private string _activeOperationName = "";
-        private double _activeOperationDuration;
-
-        private readonly System.Collections.Generic.List<string> _recentFiles = new();
-        private readonly System.Collections.Generic.List<string> _recentScreenshots = new();
+        private double? _clipStart,_clipEnd;
+        private double _zoom,_panX,_panY,_panscan;
         private MediaInfoData? _currentMediaInfo;
         private string? _lastExportSummary;
-        private readonly System.Collections.Generic.List<TimelineMarker> _timelineMarkers = new();
-        private readonly System.Collections.Generic.List<System.Windows.Controls.Button> _markerButtons = new();
-
+        private Task? _operationTask;
+        private CancellationTokenSource? _operationCts;
+        private TaskCompletionSource<bool>? _fileLoaded;
         public MainWindow()
         {
-            InitializeComponent();
-            VideoHost.Child = _videoPanel;
-            _mpvService.MessageReceived += OnMpvMessageReceived;
+            InitializeComponent();VideoHost.Child=_videoPanel;
+            ClipRangesListBox.ItemsSource=_clips;UpdateRangeHint();
+            PreviewKeyDown+=OnPreviewKeyDown;
+            _saveTimer.Tick+=(_,__)=>SaveSession();
         }
-
-
-        private async void VideoScaleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void Window_Loaded(object sender,RoutedEventArgs e)
         {
-            if (!_ready || _closing || VideoScaleBox.SelectedItem is not ComboBoxItem selected)
-                return;
-
-            string mode = selected.Tag?.ToString() ?? "fit";
             try
             {
-                if (mode == "fill")
-                {
-                    // mpv panscan=1 skaluje obraz do wypełnienia całego obszaru,
-                    // przycinając nadmiar przy zachowaniu proporcji.
-                    await SendAsync("set_property", "video-zoom", 0.0);
-                    await SendAsync("set_property", "panscan", 1.0);
-                }
-                else if (mode == "fit")
-                {
-                    await SendAsync("set_property", "panscan", 0.0);
-                    await SendAsync("set_property", "video-zoom", 0.0);
-                }
-                else if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1.0)
-                {
-                    // video-zoom w mpv jest wyrażony w skali logarytmicznej o podstawie 2.
-                    await SendAsync("set_property", "panscan", 0.0);
-                    await SendAsync("set_property", "video-zoom", Math.Log(factor, 2.0));
-                }
+                _historyService=new HistoryService();_reviews=new ReviewRepository();
+                _exports=new ExportService(_ffmpegService);_reports=new ReportService(_exports);
+                LoadHistory();RefreshHistoryControls();
+                await StartPlayerAsync();_saveTimer.Start();
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
-                StatusText.Text = "Nie udało się zmienić skalowania obrazu: " + ex.Message;
+                StatusText.Text="Błąd inicjalizacji: "+ex.Message;
+                MessageBox.Show(this,ex.Message+"\nSprawdź uprawnienia do katalogu programu i pliki mpv/FFmpeg.","Błąd uruchamiania");
             }
         }
-
-        private void ExitMenu_Click(object sender, RoutedEventArgs e)
+        private async Task StartPlayerAsync()
         {
-            Close();
+            _mpvService.MessageReceived+=OnMpvMessageReceived;
+            _mpvService.Disconnected+=OnDisconnected;
+            await _mpvService.StartAsync(Path.Combine(AppContext.BaseDirectory,"mpv","mpv.exe"),_videoPanel.Handle);
+            _ready=true;
+            string[] props={"time-pos","duration","eof-reached","pause","video-zoom","video-pan-x","video-pan-y","panscan"};
+            for(int i=0;i<props.Length;i++)await _mpvService.SendAsync("observe_property",i+1,props[i]);
+            StatusText.Text="Gotowy. Otwórz film. Kółko: zoom; przeciąganie: przesuwanie; R: reset widoku.";
         }
-
-        private void About_Click(object sender, RoutedEventArgs e)
+        private void OnDisconnected(string reason)
         {
-            MessageBox.Show(
-                this,
-                "Odtwarzacz wideo\n" +
-                "Wersja: 1.0\n\n" +
-                "Aplikacja do odtwarzania nagrań wideo, przeglądania nagrań z monitoringu, " +
-                "zaznaczania i eksportowania fragmentów oraz zapisywania pojedynczych klatek.\n\n" +
-                "Silnik odtwarzania: mpv\n" +
-                "Przetwarzanie i eksport: FFmpeg\n\n" +
-                "Autor: Rafał Bonna\n" +
-                "© 2026",
-                "Informacje o programie",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            if(_closing)return;
+            _fileLoaded?.TrySetException(new IOException(reason));
+            _=Dispatcher.InvokeAsync(()=>{if(_closing)return;_ready=false;_screenshotBusy=false;ScreenshotButton.IsEnabled=true;StatusText.Text="Utracono mpv: "+reason+" Użyj Uruchom ponownie mpv.";});
         }
-
-        private void BasicHelp_Click(object sender, RoutedEventArgs e)
-        {
-            var helpWindow = new BasicHelpWindow
-            {
-                Owner = this,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner
-            };
-            helpWindow.ShowDialog();
-        }
-
-        private async void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            LoadHistory();
-            RefreshHistoryControls();
-            try
-            {
-                await _mpvService.StartAsync(
-                    Path.Combine(AppContext.BaseDirectory, "mpv", "mpv.exe"),
-                    _videoPanel.Handle);
-                if (_closing) return;
-                _ready = true;
-
-                await SendAsync("observe_property", 1, "time-pos");
-                await SendAsync("observe_property", 2, "duration");
-                await SendAsync("observe_property", 3, "eof-reached");
-                await SendAsync("observe_property", 4, "pause");
-                await SendAsync("set_property", "speed", GetSelectedSpeed());
-                StatusText.Text = "Gotowy. Otwórz film.";
-            }
-            catch (Exception ex)
-            {
-                if (!_closing)
-                {
-                    StatusText.Text = "Nie udało się uruchomić odtwarzacza.";
-                    MessageBox.Show(this, ex.Message, "Błąd uruchamiania",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-        }
-
         private void OnMpvMessageReceived(JsonElement message)
         {
-            if (_closing) return;
-            _ = Dispatcher.InvokeAsync(() => HandleMessage(message));
+            if(message.TryGetProperty("event",out var ev)&&ev.GetString()=="file-loaded")_fileLoaded?.TrySetResult(true);
+            if(message.TryGetProperty("event",out ev)&&ev.GetString()=="end-file"&&message.TryGetProperty("reason",out var reason)&&reason.GetString()=="error")
+                _fileLoaded?.TrySetException(new IOException("mpv nie otworzył nagrania."));
+            if(!_closing)_=Dispatcher.InvokeAsync(()=>HandleMessage(message));
         }
-
+        private async void RestartMpv_Click(object sender,RoutedEventArgs e)
+        {
+            if(_exporting||_opening||_shutdownRequested)return;
+            SaveSession();_ready=false;_opening=true;
+            try
+            {
+                await _mpvService.DisposeAsync();_mpvService=new MpvService();await StartPlayerAsync();
+                string? path=_sourceFilePath;_opening=false;
+                if(path!=null&&File.Exists(path))await OpenMediaAsync(path);
+            }
+            catch(Exception ex){StatusText.Text=ex.Message;}finally{_opening=false;}
+        }
+        private async void VideoScaleBox_SelectionChanged(object sender,SelectionChangedEventArgs e)
+        {
+            if(!_ready||_closing||_opening||_restoring||_changingScale||VideoScaleBox.SelectedItem is not ComboBoxItem item)return;
+            _changingScale=true;
+            try
+            {
+                string mode=item.Tag?.ToString()??"fit";
+                double z=0,p=mode=="fill"?1:0;
+                if(double.TryParse(mode,NumberStyles.Float,CultureInfo.InvariantCulture,out double factor)&&factor>=1)z=Math.Log(factor,2);
+                await SetViewAsync(z,0,0,p);SaveSession();
+            }catch(Exception ex){StatusText.Text=ex.Message;}finally{_changingScale=false;}
+        }
+        private async Task SetViewAsync(double zoom,double x,double y,double panscan)
+        {
+            await _mpvService.SendAsync("set_property","panscan",panscan);
+            await _mpvService.SendAsync("set_property","video-zoom",zoom);
+            await _mpvService.SendAsync("set_property","video-pan-x",x);
+            await _mpvService.SendAsync("set_property","video-pan-y",y);
+            _zoom=zoom;_panX=x;_panY=y;_panscan=panscan;
+        }
+        private async void ResetView_Click(object sender,RoutedEventArgs e)
+        {if(!_ready||_opening)return;try{await SetViewAsync(0,0,0,0);_restoring=true;VideoScaleBox.SelectedIndex=0;_restoring=false;SaveSession();}catch(Exception ex){_restoring=false;StatusText.Text=ex.Message;}}
+        private void SaveSession_Click(object sender,RoutedEventArgs e){SaveSession(true);}
+        private void SaveSession(bool show=false)
+        {
+            if(_reviews==null||_opening||_restoring||string.IsNullOrWhiteSpace(_sourceFilePath))return;
+            try
+            {
+                _reviews.Save(_sourceFilePath,new ReviewSession { Position=PositionSlider.Value,Speed=GetSelectedSpeed(),Paused=_paused,
+                    Zoom=_zoom,PanX=_panX,PanY=_panY,Panscan=_panscan,ClipStart=_clipStart,ClipEnd=_clipEnd,Clips=new List<ClipRange>(_clips)});
+                if(show)StatusText.Text="Sesja została zapisana.";
+            }catch(Exception ex){if(!_closing)StatusText.Text="Błąd zapisu sesji: "+ex.Message;}
+        }
+        private async void OnPreviewKeyDown(object sender,KeyEventArgs e)
+        {
+            if(_opening||_shutdownRequested)return;
+            bool ctrl=(Keyboard.Modifiers&ModifierKeys.Control)!=0;
+            if(ctrl&&e.Key==Key.O){e.Handled=true;Open_Click(this,new RoutedEventArgs());return;}
+            if(Keyboard.Modifiers!=ModifierKeys.None)return;
+            if(Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase||Keyboard.FocusedElement is ComboBox)return;
+            string? action=e.Key switch {Key.Space=>"play",Key.Left=>"previous",Key.Right=>"next",Key.I=>"start",Key.O=>"end",Key.S=>"screenshot",Key.R=>"reset",_=>null};
+            if(action==null)return;e.Handled=true;await DispatchActionAsync(action);
+        }
+        private Task DispatchActionAsync(string action)
+        {
+            if(_opening||_shutdownRequested)return Task.CompletedTask;
+            switch(action)
+            {
+                case "play":PlayPause_Click(this,new RoutedEventArgs());break;
+                case "previous":PreviousFrame_Click(this,new RoutedEventArgs());break;
+                case "next":NextFrame_Click(this,new RoutedEventArgs());break;
+                case "start":MarkStart_Click(this,new RoutedEventArgs());break;
+                case "end":MarkEnd_Click(this,new RoutedEventArgs());break;
+                case "screenshot":Screenshot_Click(this,new RoutedEventArgs());break;
+                case "open":Open_Click(this,new RoutedEventArgs());break;
+                case "reset":ResetView_Click(this,new RoutedEventArgs());break;
+            }
+            return Task.CompletedTask;
+        }
+        private void ExitMenu_Click(object sender,RoutedEventArgs e)=>Close();
+        private void BasicHelp_Click(object sender,RoutedEventArgs e)=>new BasicHelpWindow {Owner=this}.ShowDialog();
+        private void About_Click(object sender,RoutedEventArgs e)=>MessageBox.Show(this,"VideoPlayer 1.1.1\nAutor: Rafał Bonna\nmpv + FFmpeg\nSesje, zakresy i raporty zdarzeń.","Informacje");
     }
 }

@@ -127,24 +127,8 @@ namespace VideoPlayer
 
         private async void OpenRecent_Click(object sender, RoutedEventArgs e)
         {
-            if (RecentFilesBox.SelectedItem is not ComboBoxItem item || item.Tag is not string path || !File.Exists(path))
-            { MessageBox.Show(this, "Wybierz istniejący plik z historii.", "Historia nagrań"); return; }
-            if (!_ready) { MessageBox.Show(this, "Silnik odtwarzacza nie jest gotowy.", "Odtwarzacz"); return; }
-            _sourceFilePath = path;
-            LoadTimelineMarkers();
-            _fileName = Path.GetFileName(path);
-            _clipStart = null; _clipEnd = null; _currentMediaInfo = null;
-            UpdateClipRangeText();
-            _eofReached = false; _dragging = false; _updatingSlider = true;
-            try { PositionSlider.Value = 0; PositionSlider.Maximum = 1; PositionSlider.IsEnabled = false; }
-            finally { _updatingSlider = false; }
-            PositionText.Text = "00:00:00"; DurationText.Text = "00:00:00"; StatusText.Text = _fileName;
-            AddRecentFile(path);
-            MediaInfoText.Text = "Odczytywanie parametrów nagrania…";
-            _ = UpdateMediaInfoAsync(path);
-            await SendAsync("loadfile", path, "replace");
-            await SendAsync("set_property", "speed", GetSelectedSpeed());
-            await SendAsync("set_property", "pause", false);
+            if (RecentFilesBox.SelectedItem is ComboBoxItem item && item.Tag is string path)
+                await OpenMediaAsync(path);
         }
 
         private void OpenScreenshot_Click(object sender, RoutedEventArgs e)

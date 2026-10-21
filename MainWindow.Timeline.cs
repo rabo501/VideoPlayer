@@ -24,10 +24,10 @@ namespace VideoPlayer
     object sender,
     RoutedEventArgs e)
         {
-            if (!_ready || !PositionSlider.IsEnabled)
+            if (!_ready || _opening || !PositionSlider.IsEnabled)
                 return;
 
-            if (!Equals(PlayButton.Content, "Play"))
+            if (!_paused)
             {
                 MessageBox.Show(
                     this,
@@ -56,10 +56,10 @@ namespace VideoPlayer
             object sender,
             RoutedEventArgs e)
         {
-            if (!_ready || !PositionSlider.IsEnabled)
+            if (!_ready || _opening || !PositionSlider.IsEnabled)
                 return;
 
-            if (!Equals(PlayButton.Content, "Play"))
+            if (!_paused)
             {
                 MessageBox.Show(
                     this,
@@ -109,6 +109,7 @@ namespace VideoPlayer
 
         private void UpdateClipRangeText()
         {
+            UpdateRangeHint();
             string start = _clipStart.HasValue
                 ? FormatClipTime(_clipStart.Value)
                 : "—";
