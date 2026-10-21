@@ -1,87 +1,21 @@
-<Window x:Class="VideoPlayer.BasicHelpWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Podstawowe funkcje programu"
-        Width="760"
-        Height="700"
-        MinWidth="600"
-        MinHeight="480"
-        Background="#171A20"
-        Foreground="#F1F3F5"
-        FontFamily="Segoe UI"
-        FontSize="13"
-        WindowStartupLocation="CenterOwner">
-    <Grid Margin="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0" Margin="0,0,0,18">
-            <TextBlock Text="Podstawowe funkcje programu"
-                       FontSize="24" FontWeight="SemiBold" Foreground="#FFFFFF" />
-            <TextBlock Text="Krótki przewodnik po obsłudze odtwarzacza nagrań wideo."
-                       Margin="0,6,0,0" Foreground="#AEB7C4" TextWrapping="Wrap" />
-        </StackPanel>
-
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="VideoPlayer.BasicHelpWindow" Title="Obsługa VideoPlayer 1.2" Width="670" Height="580" MinWidth="480" MinHeight="350" WindowStartupLocation="CenterOwner" Background="#20242C" Foreground="#E6EAF0">
+    <DockPanel Margin="20">
+        <Button DockPanel.Dock="Bottom" Content="Zamknij" Click="Close_Click" HorizontalAlignment="Right" Padding="20,7" Margin="0,12,0,0" />
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="1. Otwieranie nagrania" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="Wybierz Plik → Otwórz film lub kliknij przycisk „Otwórz film”. Następnie wybierz lokalny plik wideo." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="2. Odtwarzanie i nawigacja" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="Przycisk Odtwarzaj / Pauza steruje odtwarzaniem. Suwak osi czasu pozwala przejść do wybranego momentu. Przyciski Poprzednia klatka i Następna klatka służą do dokładniejszego przeglądania, a lista prędkości pozwala zwolnić lub przyspieszyć nagranie." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="3. Zapis klatki JPG" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="Zatrzymaj nagranie na wybranym obrazie, kliknij Zapisz klatkę JPG i wskaż nazwę oraz folder pliku. Zapisane obrazy pojawiają się na liście zrzutów." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="4. Zaznaczanie fragmentu" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="Ustaw odtwarzanie w miejscu początku i kliknij ustawienie początku fragmentu. Następnie przejdź do końca i ustaw koniec. Jeśli widoczne są uchwyty osi czasu, możesz także przeciągać je myszą." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="5. Eksport fragmentu" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="Wybierz profil eksportu i wskaż plik wynikowy. Czas eksportu zależy m.in. od długości nagrania, rozdzielczości i profilu. Obserwuj pasek postępu; jeśli dostępna jest funkcja anulowania, możesz przerwać operację. Oryginalne nagranie pozostaje bez zmian — eksport zapisuje nowy plik." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="6. Informacje o nagraniu i historia" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="W panelu sterowania sprawdzisz parametry pliku oraz szacowany rozmiar zaznaczonego fragmentu. Listy ostatnich nagrań i zrzutów ułatwiają ponowne otwieranie wcześniej używanych plików." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="7. Rozmiar i skalowanie obrazu" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="Wysokość obszaru obrazu zmienisz, przeciągając poziomy separator między nagraniem a panelem sterowania. Lista Skalowanie obrazu pozwala dopasować cały obraz, wypełnić obszar albo ustawić powiększenie 125%, 150% lub 200%." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <Border Background="#222731" CornerRadius="8" Padding="16" Margin="0,0,0,10">
-                    <StackPanel>
-                        <TextBlock Text="8. Punkty zdarzeń na osi czasu" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <TextBlock Text="Wpisz opis zdarzenia i kliknij Dodaj w bieżącej pozycji. Znaczniki są zapisywane osobno dla każdego nagrania. Wybierz znacznik, aby zmienić opis, przejść do jego czasu lub go usunąć. Możesz też dwukrotnie kliknąć pozycję na liście albo kliknąć pomarańczowy punkt na osi czasu." TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <TextBlock Text="Uwaga: nazwy przycisków i dostępność opcji mogą zależeć od wersji aplikacji." Foreground="#AEB7C4" TextWrapping="Wrap" Margin="2,4,2,12" />
+                <TextBlock Text="VideoPlayer — nowy układ" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,14" />
+                <TextBlock TextWrapping="Wrap" Text="Podgląd jest po lewej. Oś czasu i przyciski odtwarzania pozostają na dole, niezależnie od wybranej zakładki. Prawy panel zmienia szerokość po przeciągnięciu separatora; można go ukryć przyciskiem u góry albo w menu Widok." Margin="0,0,0,16" />
+                <TextBlock Text="Fragmenty" FontWeight="Bold" />
+                <TextBlock TextWrapping="Wrap" Text="Zatrzymaj film, ustaw początek, przejdź do późniejszej pozycji i ustaw koniec. Wpisz nazwę i dodaj zaznaczenie. Na liście można wczytywać, aktualizować i usuwać zakresy." Margin="0,4,0,12" />
+                <TextBlock Text="Zdarzenia" FontWeight="Bold" />
+                <TextBlock TextWrapping="Wrap" Text="Wpisz opis i dodaj zdarzenie. Dwuklik na pozycji przenosi do zdarzenia. Tu są również raporty CSV i PDF." Margin="0,4,0,12" />
+                <TextBlock Text="Eksport" FontWeight="Bold" />
+                <TextBlock TextWrapping="Wrap" Text="Wybierz profil i zapisz zaznaczenie albo wszystkie nazwane fragmenty. Możesz też utworzyć film bez zaznaczenia. Oryginał pozostaje bez zmian. Postęp i anulowanie są zawsze na dole." Margin="0,4,0,12" />
+                <TextBlock Text="Pliki" FontWeight="Bold" />
+                <TextBlock TextWrapping="Wrap" Text="Historia nagrań, zapisane klatki, informacje o filmie i opcje sesji. Skalowanie i reset są też w menu Widok; restart mpv jest w menu Pomoc." Margin="0,4,0,12" />
+                <TextBlock Text="Skróty i mysz" FontWeight="Bold" />
+                <TextBlock TextWrapping="Wrap" Text="Spacja: Play/pauza. Strzałki: pojedyncze klatki. I/O: początek/koniec. S: klatka JPG. Ctrl+O: otwórz. R: reset widoku. Kółko: zoom. Lewy przycisk: przesuwanie. Prawy przycisk: menu obrazu. Zwykłe skróty są wyłączone w polach tekstowych." Margin="0,4,0,12" />
             </StackPanel>
         </ScrollViewer>
-
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-            <Button Content="Zamknij" Width="110" Height="36" IsDefault="True" Click="Close_Click"
-                    Background="#367BF5" Foreground="White" BorderThickness="0" />
-        </StackPanel>
-    </Grid>
+    </DockPanel>
 </Window>

@@ -44,7 +44,9 @@ namespace VideoPlayer
             InitializeComponent();VideoHost.Child=_videoPanel;
             ClipRangesListBox.ItemsSource=_clips;UpdateRangeHint();
             PreviewKeyDown+=OnPreviewKeyDown;
+            SizeChanged+=(_,__)=>ConstrainToolsWidth();
             _saveTimer.Tick+=(_,__)=>SaveSession();
+            Closed+=(_,__)=>{_mouseSendTimer.Stop();_videoMouse?.Dispose();};
         }
         private async void Window_Loaded(object sender,RoutedEventArgs e)
         {
@@ -53,7 +55,7 @@ namespace VideoPlayer
                 _historyService=new HistoryService();_reviews=new ReviewRepository();
                 _exports=new ExportService(_ffmpegService);_reports=new ReportService(_exports);
                 LoadHistory();RefreshHistoryControls();
-                await StartPlayerAsync();_saveTimer.Start();
+                await StartPlayerAsync();InitializeVideoMouseInput();_saveTimer.Start();
             }
             catch(Exception ex)
             {
@@ -144,6 +146,7 @@ namespace VideoPlayer
             if(_opening||_shutdownRequested)return Task.CompletedTask;
             switch(action)
             {
+                case "context":ShowVideoContextMenu();break;
                 case "play":PlayPause_Click(this,new RoutedEventArgs());break;
                 case "previous":PreviousFrame_Click(this,new RoutedEventArgs());break;
                 case "next":NextFrame_Click(this,new RoutedEventArgs());break;
@@ -157,6 +160,6 @@ namespace VideoPlayer
         }
         private void ExitMenu_Click(object sender,RoutedEventArgs e)=>Close();
         private void BasicHelp_Click(object sender,RoutedEventArgs e)=>new BasicHelpWindow {Owner=this}.ShowDialog();
-        private void About_Click(object sender,RoutedEventArgs e)=>MessageBox.Show(this,"VideoPlayer 1.1.1\nAutor: Rafał Bonna\nmpv + FFmpeg\nSesje, zakresy i raporty zdarzeń.","Informacje");
+        private void About_Click(object sender,RoutedEventArgs e)=>MessageBox.Show(this,"VideoPlayer 1.2.1\nAutor: Rafał Bonna\nmpv + FFmpeg\nSesje, zakresy i raporty zdarzeń.","Informacje");
     }
 }
