@@ -6,16 +6,21 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Version>1.3.2</Version>
     <PlatformTarget>x64</PlatformTarget>
+    <ApplicationIcon>VideoPlayer.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <PackageReference Include="PDFsharp-WPF" Version="6.2.4" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="mpv\**\*;ffmpeg\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
+	  <Content Include="mpv\**\*">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		  <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+	  </Content>
+	  <Content Include="ffmpeg\**\*">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		  <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+	  </Content>
     <Content Include="scripts\**\*">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
@@ -26,6 +31,14 @@
     <Content Include="x64\**\*;tessdata\**\*;licenses\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="VideoPlayer.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="VideoPlayer.ico">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 </Project>
