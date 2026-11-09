@@ -200,6 +200,17 @@ namespace VideoPlayer
                     PRIMARY KEY (SourcePath, Id)
                 );
                 CREATE INDEX IF NOT EXISTS IX_TimelineMarkers_SourceSeconds ON TimelineMarkers (SourcePath, Seconds);
+                CREATE TABLE IF NOT EXISTS ExportHistory (
+                    Id TEXT PRIMARY KEY,
+                    SourcePath TEXT NOT NULL,
+                    OutputPath TEXT NOT NULL,
+                    Operation TEXT NOT NULL,
+                    StartSeconds REAL NULL,
+                    EndSeconds REAL NULL,
+                    CreatedLocal TEXT NOT NULL,
+                    Details TEXT NOT NULL DEFAULT ''
+                );
+                CREATE INDEX IF NOT EXISTS IX_ExportHistory_SourceCreated ON ExportHistory (SourcePath, CreatedLocal);
             ";
             command.ExecuteNonQuery();
 
@@ -287,8 +298,65 @@ namespace VideoPlayer
             }
         }
 
+        public void AddExport(ExportHistoryItem item)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"INSERT INTO ExportHistory
+                (Id, SourcePath, OutputPath, Operation, StartSeconds, EndSeconds, CreatedLocal, Details)
+                VALUES ($id, $source, $output, $operation, $start, $end, $created, $details);";
+            command.Parameters.AddWithValue("$id", item.Id.ToString("D"));
+            command.Parameters.AddWithValue("$source", NormalizePath(item.SourcePath));
+            command.Parameters.AddWithValue("$output", item.OutputPath ?? string.Empty);
+            command.Parameters.AddWithValue("$operation", item.Operation ?? string.Empty);
+            command.Parameters.AddWithValue("$start", (object?)item.StartSeconds ?? DBNull.Value);
+            command.Parameters.AddWithValue("$end", (object?)item.EndSeconds ?? DBNull.Value);
+            command.Parameters.AddWithValue("$created", item.CreatedLocal.ToString("yyyy-MM-dd HH:mm:ss"));
+            command.Parameters.AddWithValue("$details", item.Details ?? string.Empty);
+            command.ExecuteNonQuery();
+        }
+
+        public List<ExportHistoryItem> LoadExports(string sourcePath)
+        {
+            var items = new List<ExportHistoryItem>();
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"SELECT Id, OutputPath, Operation, StartSeconds, EndSeconds, CreatedLocal, Details
+                                    FROM ExportHistory WHERE SourcePath=$source ORDER BY CreatedLocal;";
+            command.Parameters.AddWithValue("$source", NormalizePath(sourcePath));
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (!Guid.TryParse(reader.GetString(0), out Guid id)) id = Guid.NewGuid();
+                items.Add(new ExportHistoryItem
+                {
+                    Id = id,
+                    SourcePath = sourcePath,
+                    OutputPath = reader.GetString(1),
+                    Operation = reader.GetString(2),
+                    StartSeconds = reader.IsDBNull(3) ? null : reader.GetDouble(3),
+                    EndSeconds = reader.IsDBNull(4) ? null : reader.GetDouble(4),
+                    CreatedLocal = DateTime.TryParse(reader.GetString(5), out var created) ? created : DateTime.MinValue,
+                    Details = reader.GetString(6)
+                });
+            }
+            return items;
+        }
+
         private static string NormalizePath(string path) => Path.GetFullPath(path)
             .TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+    }
+
+    internal sealed class ExportHistoryItem
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string SourcePath { get; set; } = "";
+        public string OutputPath { get; set; } = "";
+        public string Operation { get; set; } = "";
+        public double? StartSeconds { get; set; }
+        public double? EndSeconds { get; set; }
+        public DateTime CreatedLocal { get; set; } = DateTime.Now;
+        public string Details { get; set; } = "";
     }
 
     internal sealed class PlateSearchResult
