@@ -132,7 +132,7 @@ namespace VideoPlayer
             string plate = NormalizePlateSearch(plateNumber);
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
-            var filters = new List<string>();
+            var filters = new List<string> { "Description LIKE 'Tablica rejestracyjna:%'" };
             if (plate.Length > 0)
             {
                 filters.Add("REPLACE(REPLACE(REPLACE(UPPER(Description), ' ', ''), '-', ''), ':', '') LIKE $plate");
@@ -309,7 +309,7 @@ namespace VideoPlayer
                 return (end >= 0 ? value.Substring(0, end) : value).Trim();
             }
         }
-        public string TimeText => TimeSpan.FromSeconds(Math.Max(0, Seconds)).ToString(@"hh\\:mm\\:ss\\.fff");
+        public string TimeText => TimeSpan.FromSeconds(Math.Max(0, Seconds)).ToString(@"hh\:mm\:ss\.fff");
         public override string ToString() =>
             $"{PlateNumber} | {(string.IsNullOrWhiteSpace(VehicleMake) ? "marka niepodana" : VehicleMake)} | {TimeText} | {Path.GetFileName(SourcePath)}";
     }
