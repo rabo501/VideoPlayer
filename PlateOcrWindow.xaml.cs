@@ -28,6 +28,7 @@ namespace VideoPlayer
         private byte[]? _rectifiedPng;
         private CancellationTokenSource? _workCts;
         public string PlateNumber{get;private set;}="";
+        public string VehicleMake{get;private set;}="";
         internal PlateOcrWindow(BitmapSource frame,double seconds)
         {
             InitializeComponent();_frame=frame;FrameImage.Source=frame;
@@ -210,7 +211,9 @@ namespace VideoPlayer
         private void Save_Click(object sender,RoutedEventArgs e)
         {
             UpdateSave();if(!SaveButton.IsEnabled)return;
-            PlateNumber=PlateOcrService.Normalize(PlateBox.Text);DialogResult=true;
+            PlateNumber=PlateOcrService.Normalize(PlateBox.Text);
+            VehicleMake=VehicleMakeBox.Text.Trim();
+            DialogResult=true;
         }
         private void Cancel_Click(object sender,RoutedEventArgs e)=>Close();
         private void Window_Closing(object? sender,CancelEventArgs e)

@@ -83,7 +83,7 @@ namespace VideoPlayer
                 return $"Zapisano {clips.Count} fragmentów: {folder}";
             });
         }
-        private List<TimelineMarker> MarkerSnapshot()=>_timelineMarkers.OrderBy(m=>m.Seconds).Select(m=>new TimelineMarker{Id=m.Id,Seconds=m.Seconds,Description=m.Description}).ToList();
+        private List<TimelineMarker> MarkerSnapshot()=>_timelineMarkers.OrderBy(m=>m.Seconds).Select(m=>new TimelineMarker{Id=m.Id,Seconds=m.Seconds,Description=m.Description,VehicleMake=m.VehicleMake}).ToList();
         private async void CsvReport_Click(object sender,RoutedEventArgs e)
         {
             if(!CanOperate()||_timelineMarkers.Count==0){StatusText.Text="Dodaj znaczniki zdarzeń do filmu.";return;}
