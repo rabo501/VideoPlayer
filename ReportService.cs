@@ -32,11 +32,11 @@ namespace VideoPlayer
                 await using(var stream=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,true))
                 await using(var writer=new StreamWriter(stream,new UTF8Encoding(true)))
                 {
-                    await writer.WriteLineAsync("Plik;Czas;Sekundy;Opis".AsMemory(),ct);
+                    await writer.WriteLineAsync("Plik;Czas;Sekundy;Opis;Marka pojazdu".AsMemory(),ct);
                     foreach(var m in markers)
                     {
                         ct.ThrowIfCancellationRequested();
-                        string line=string.Join(";",CsvCell(source),CsvCell(Timestamp(m.Seconds)),CsvCell(m.Seconds.ToString("0.###",CultureInfo.InvariantCulture)),CsvCell(m.Description));
+                        string line=string.Join(";",CsvCell(source),CsvCell(Timestamp(m.Seconds)),CsvCell(m.Seconds.ToString("0.###",CultureInfo.InvariantCulture)),CsvCell(m.Description),CsvCell(m.VehicleMake));
                         await writer.WriteLineAsync(line.AsMemory(),ct);
                     }
                 }
@@ -193,7 +193,10 @@ namespace VideoPlayer
                 foreach(var m in markers)
                 {
                     ct.ThrowIfCancellationRequested();if(y+60>bottom)Page();
-                    Text(Timestamp(m.Seconds),bold);Text(m.Description,font);
+                    Text(Timestamp(m.Seconds),bold);
+                    if(!string.IsNullOrWhiteSpace(m.VehicleMake))
+                        Text("Marka pojazdu: "+m.VehicleMake,font);
+                    Text(m.Description,font);
                     if(images.TryGetValue(m.Id,out string? image))
                     {
                         using var pic=XImage.FromFile(image);double h=Math.Min(160,260*pic.PixelHeight/(double)pic.PixelWidth);
