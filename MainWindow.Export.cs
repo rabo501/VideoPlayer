@@ -63,7 +63,9 @@ namespace VideoPlayer
             await RunOperationAsync("Eksport: "+Path.GetFileName(source),async ct=>
             {
                 await _exports.ExportAsync(source,output,start,end,profile,copy,OperationProgress(ct),ct);
-                return "Zapisano: "+output+" | "+FormatFileSize(new FileInfo(output).Length);
+                long size=new FileInfo(output).Length;
+                RecordExport(source,output,"Eksport fragmentu",start,end,$"Profil: {profile}; kopiowanie strumieni: {(copy?"tak":"nie")}; rozmiar: {FormatFileSize(size)}");
+                return "Zapisano: "+output+" | "+FormatFileSize(size);
             });
         }
         private async void RemoveClip_Click(object sender,RoutedEventArgs e)
@@ -76,6 +78,7 @@ namespace VideoPlayer
             {
                 var info=await _exports.ProbeAsync(source,ct);
                 await _exports.RemoveAsync(source,output,start,end,info.Duration,info.HasAudio,OperationProgress(ct),ct);
+                RecordExport(source,output,"Usunięcie fragmentu",start,end,$"Utworzono nowy plik; oryginał bez zmian; rozmiar: {FormatFileSize(new FileInfo(output).Length)}");
                 return "Zapisano: "+output;
             });
         }
