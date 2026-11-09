@@ -197,6 +197,7 @@
             <Menu Background="#1B1F27" Padding="2,4">
                 <MenuItem Header="_Plik">
                     <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click" />
+                    <MenuItem Header="Wyszukaj tablicę / pojazd…" Click="PlateSearch_Click" />
                     <MenuItem Header="Zapisz sesję" Click="SaveSession_Click" />
                     <Separator />
                     <MenuItem Header="Zakończ" Click="ExitMenu_Click" />
