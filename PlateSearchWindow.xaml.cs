@@ -8,9 +8,9 @@ namespace VideoPlayer
     public partial class PlateSearchWindow : Window
     {
         private readonly HistoryService _history;
-        public PlateSearchResult? SelectedResult { get; private set; }
+        internal PlateSearchResult? SelectedResult { get; private set; }
 
-        public PlateSearchWindow(HistoryService history)
+        internal PlateSearchWindow(HistoryService history)
         {
             InitializeComponent();
             _history = history;
