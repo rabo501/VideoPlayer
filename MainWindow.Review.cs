@@ -79,6 +79,7 @@ namespace VideoPlayer
                     ct.ThrowIfCancellationRequested();ClipRange c=clips[i];
                     string output=Path.Combine(folder,$"{i+1:000}_{SafeName(c.Name)}.mp4");
                     await _exports.ExportAsync(source,output,c.Start,c.End,profile,copy,OperationProgress(ct,$"Plik {i+1}/{clips.Count}: ",i,clips.Count),ct);
+                    RecordExport(source,output,"Eksport seryjny",c.Start,c.End,$"Fragment: {c.Name}; profil: {profile}; kopiowanie strumieni: {(copy?"tak":"nie")}; rozmiar: {FormatFileSize(new FileInfo(output).Length)}");
                 }
                 return $"Zapisano {clips.Count} fragmentów: {folder}";
             });
