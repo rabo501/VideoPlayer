@@ -33,8 +33,6 @@ namespace VideoPlayer
                         if(dialog.ShowDialog()!=true)return "Anulowano. Nagranie pozostaje zatrzymane.";
                         ct.ThrowIfCancellationRequested();
                         string description="Tablica rejestracyjna: "+dialog.PlateNumber+" (numer potwierdzony ręcznie)";
-                        if(!string.IsNullOrWhiteSpace(dialog.VehicleMake))
-                            description+=" | Marka pojazdu: "+dialog.VehicleMake;
                         var marker=new TimelineMarker{Id=Guid.NewGuid(),Seconds=seconds,Description=description,VehicleMake=dialog.VehicleMake};
                         _timelineMarkers.Add(marker);SaveTimelineMarkers();RefreshTimelineMarkerList();UpdateTimelineOverlay();
                         TimelineMarkersListBox.SelectedItem=marker;TimelineMarkersListBox.ScrollIntoView(marker);
