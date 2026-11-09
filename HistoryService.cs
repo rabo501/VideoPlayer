@@ -126,6 +126,51 @@ namespace VideoPlayer
             transaction.Commit();
         }
 
+        public List<PlateSearchResult> SearchMarkers(string plateNumber, string vehicleMake, string sourcePath)
+        {
+            var results = new List<PlateSearchResult>();
+            string plate = NormalizePlateSearch(plateNumber);
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            var filters = new List<string>();
+            if (plate.Length > 0)
+            {
+                filters.Add("REPLACE(REPLACE(REPLACE(UPPER(Description), ' ', ''), '-', ''), ':', '') LIKE $plate");
+                command.Parameters.AddWithValue("$plate", "%" + plate + "%");
+            }
+            if (!string.IsNullOrWhiteSpace(vehicleMake))
+            {
+                filters.Add("instr(lower(VehicleMake), lower($make)) > 0");
+                command.Parameters.AddWithValue("$make", vehicleMake.Trim());
+            }
+            if (!string.IsNullOrWhiteSpace(sourcePath))
+            {
+                filters.Add("instr(lower(SourcePath), lower($source)) > 0");
+                command.Parameters.AddWithValue("$source", sourcePath.Trim());
+            }
+            command.CommandText = @"SELECT Id, SourcePath, Seconds, Description, VehicleMake
+                                    FROM TimelineMarkers " +
+                (filters.Count > 0 ? "WHERE " + string.Join(" AND ", filters) : "") +
+                " ORDER BY SourcePath, Seconds LIMIT 1000;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                Guid.TryParse(reader.GetString(0), out Guid id);
+                results.Add(new PlateSearchResult
+                {
+                    Id = id,
+                    SourcePath = reader.GetString(1),
+                    Seconds = reader.GetDouble(2),
+                    Description = reader.GetString(3),
+                    VehicleMake = reader.GetString(4)
+                });
+            }
+            return results;
+        }
+
+        private static string NormalizePlateSearch(string value) =>
+            new string((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+
         private SqliteConnection OpenConnection()
         {
             var connection = new SqliteConnection(_connectionString);
@@ -244,6 +289,29 @@ namespace VideoPlayer
 
         private static string NormalizePath(string path) => Path.GetFullPath(path)
             .TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+    }
+
+    internal sealed class PlateSearchResult
+    {
+        public Guid Id { get; set; }
+        public string SourcePath { get; set; } = "";
+        public double Seconds { get; set; }
+        public string Description { get; set; } = "";
+        public string VehicleMake { get; set; } = "";
+        public string PlateNumber
+        {
+            get
+            {
+                const string prefix = "Tablica rejestracyjna: ";
+                if (!Description.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return "";
+                string value = Description.Substring(prefix.Length);
+                int end = value.IndexOf(" (", StringComparison.Ordinal);
+                return (end >= 0 ? value.Substring(0, end) : value).Trim();
+            }
+        }
+        public string TimeText => TimeSpan.FromSeconds(Math.Max(0, Seconds)).ToString(@"hh\\:mm\\:ss\\.fff");
+        public override string ToString() =>
+            $"{PlateNumber} | {(string.IsNullOrWhiteSpace(VehicleMake) ? "marka niepodana" : VehicleMake)} | {TimeText} | {Path.GetFileName(SourcePath)}";
     }
 
     internal sealed class AppHistoryData
