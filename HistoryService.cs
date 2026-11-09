@@ -261,7 +261,8 @@ namespace VideoPlayer
         public override string ToString()
         {
             TimeSpan time = TimeSpan.FromSeconds(Math.Max(0, Seconds));
-            return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00} — {Description}";
+            string make = string.IsNullOrWhiteSpace(VehicleMake) ? "" : " | Marka: " + VehicleMake;
+            return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00} — {Description}{make}";
         }
     }
 
