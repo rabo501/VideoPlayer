@@ -1,0 +1,55 @@
+<Window x:Class="VideoPlayer.PlateSearchWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Wyszukiwarka tablic i pojazdów" Width="1050" Height="650"
+        MinWidth="650" MinHeight="420" WindowStartupLocation="CenterOwner"
+        Background="#20242C" Foreground="#F1F3F5">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock Text="Numer tablicy" Margin="0,0,0,5"/>
+                <TextBox x:Name="PlateFilterBox" Padding="8" FontSize="15" CharacterCasing="Upper"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                <TextBlock Text="Marka pojazdu" Margin="0,0,0,5"/>
+                <TextBox x:Name="MakeFilterBox" Padding="8" FontSize="15"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                <TextBlock Text="Nagranie / ścieżka" Margin="0,0,0,5"/>
+                <TextBox x:Name="SourceFilterBox" Padding="8" FontSize="15"/>
+            </StackPanel>
+            <Button Grid.Column="3" Content="Szukaj" Click="Search_Click" Padding="18,8" VerticalAlignment="Bottom" MinWidth="90"/>
+        </Grid>
+        <DockPanel Grid.Row="1">
+            <TextBlock x:Name="ResultCountText" DockPanel.Dock="Top" Text="Wpisz kryteria lub kliknij Szukaj, aby wyświetlić wszystkie zapisane zdarzenia." Margin="0,0,0,8" Foreground="#AEB9CA"/>
+            <ListView x:Name="ResultsList" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#454C59"
+                      MouseDoubleClick="ResultsList_MouseDoubleClick">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Numer tablicy" Width="150" DisplayMemberBinding="{Binding PlateNumber}"/>
+                        <GridViewColumn Header="Marka" Width="130" DisplayMemberBinding="{Binding VehicleMake}"/>
+                        <GridViewColumn Header="Czas" Width="115" DisplayMemberBinding="{Binding TimeText}"/>
+                        <GridViewColumn Header="Nagranie" Width="300" DisplayMemberBinding="{Binding SourcePath}"/>
+                        <GridViewColumn Header="Opis" Width="260" DisplayMemberBinding="{Binding Description}"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+        <DockPanel Grid.Row="2" Margin="0,12,0,0">
+            <TextBlock Text="Dwuklik na wyniku otwiera nagranie i ustawia odtwarzanie na zapisanym czasie." Foreground="#AEB9CA" VerticalAlignment="Center"/>
+            <Button Content="Otwórz wybrane" Click="OpenSelected_Click" Padding="14,8" DockPanel.Dock="Right" Margin="8,0,0,0"/>
+            <Button Content="Zamknij" Click="Close_Click" Padding="14,8" DockPanel.Dock="Right"/>
+        </DockPanel>
+    </Grid>
+</Window>
