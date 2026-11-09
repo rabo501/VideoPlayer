@@ -79,9 +79,25 @@ namespace VideoPlayer
                     ct.ThrowIfCancellationRequested();ClipRange c=clips[i];
                     string output=Path.Combine(folder,$"{i+1:000}_{SafeName(c.Name)}.mp4");
                     await _exports.ExportAsync(source,output,c.Start,c.End,profile,copy,OperationProgress(ct,$"Plik {i+1}/{clips.Count}: ",i,clips.Count),ct);
+                    RecordExport(source,output,"Eksport seryjny",c.Start,c.End,$"Fragment: {c.Name}; profil: {profile}; kopiowanie strumieni: {(copy?"tak":"nie")}; rozmiar: {FormatFileSize(new FileInfo(output).Length)}");
                 }
                 return $"Zapisano {clips.Count} fragmentów: {folder}";
             });
+        }
+        private void RecordExport(string source,string output,string operation,double? start,double? end,string details)
+        {
+            try
+            {
+                _historyService.AddExport(new ExportHistoryItem
+                {
+                    SourcePath=source,OutputPath=output,Operation=operation,
+                    StartSeconds=start,EndSeconds=end,CreatedLocal=DateTime.Now,Details=details
+                });
+            }
+            catch(Exception ex)
+            {
+                StatusText.Text="Plik został utworzony, ale nie udało się zapisać historii eksportu: "+ex.Message;
+            }
         }
         private List<TimelineMarker> MarkerSnapshot()=>_timelineMarkers.OrderBy(m=>m.Seconds).Select(m=>new TimelineMarker{Id=m.Id,Seconds=m.Seconds,Description=m.Description,VehicleMake=m.VehicleMake}).ToList();
         private async void CsvReport_Click(object sender,RoutedEventArgs e)
@@ -95,8 +111,17 @@ namespace VideoPlayer
         {
             if(!CanOperate()||_timelineMarkers.Count==0){StatusText.Text="Dodaj znaczniki zdarzeń do filmu.";return;}
             string source=_sourceFilePath!;var markers=MarkerSnapshot();bool images=ReportThumbnailsCheckBox.IsChecked==true;
-            string? output=ChooseOutput("Raport PDF",Path.GetFileNameWithoutExtension(source)+"_zdarzenia.pdf","pdf");if(output==null)return;
-            await RunOperationAsync("Raport PDF",async ct=>{await _reports.PdfAsync(source,markers,output,images,OperationProgress(ct),ct);return "Zapisano raport: "+output;});
+            var detailsDialog=new ReportDetailsWindow { Owner=this };
+            if(detailsDialog.ShowDialog()!=true)return;
+            ReportMetadata metadata=detailsDialog.Metadata;
+            MediaInfoData? mediaInfo=_currentMediaInfo;
+            List<ExportHistoryItem> exports=_historyService.LoadExports(source);
+            string? output=ChooseOutput("Raport PDF",Path.GetFileNameWithoutExtension(source)+"_raport.pdf","pdf");if(output==null)return;
+            await RunOperationAsync("Raport PDF",async ct=>
+            {
+                await _reports.PdfAsync(source,markers,output,images,metadata,mediaInfo,exports,OperationProgress(ct),ct);
+                return "Zapisano raport PDF: "+output;
+            });
         }
     }
 }
