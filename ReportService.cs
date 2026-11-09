@@ -43,7 +43,7 @@ namespace VideoPlayer
                 ExportService.Commit(temp,output,ct);
             }finally{ExportService.Cleanup(temp);}
         }
-        public async Task PdfAsync(string source,List<TimelineMarker> markers,string output,bool thumbnails,IProgress<ExportProgress> progress,CancellationToken ct)
+        public async Task PdfAsync(string source,List<TimelineMarker> markers,string output,bool thumbnails,ReportMetadata metadata,MediaInfoData? mediaInfo,List<ExportHistoryItem> exports,IProgress<ExportProgress> progress,CancellationToken ct)
         {
             // Resolve the full display name before switching to the dedicated STA thread.
             string generatedBy=GetReportUser();
@@ -62,7 +62,7 @@ namespace VideoPlayer
                     }
                 }
                 // WPF-backed PDFsharp is used on a dedicated STA thread, not the UI thread.
-                await RunStaAsync(()=>WritePdf(source,markers,temp,images,generatedBy,ct)).ConfigureAwait(false);
+                await RunStaAsync(()=>WritePdf(source,markers,temp,images,generatedBy,metadata,mediaInfo,exports,ct)).ConfigureAwait(false);
                 ExportService.Commit(temp,output,ct);progress.Report(new(100,"Raport gotowy"));
             }
             finally{ExportService.Cleanup(temp);try{Directory.Delete(scratch,true);}catch{}}
@@ -138,7 +138,7 @@ namespace VideoPlayer
             var thread=new Thread(()=>{try{work();done.TrySetResult(true);}catch(OperationCanceledException){done.TrySetCanceled();}catch(Exception e){done.TrySetException(e);}}){IsBackground=true};
             thread.SetApartmentState(ApartmentState.STA);thread.Start();return done.Task;
         }
-        private static void WritePdf(string source,List<TimelineMarker> markers,string temp,Dictionary<Guid,string> images,string generatedBy,CancellationToken ct)
+        private static void WritePdf(string source,List<TimelineMarker> markers,string temp,Dictionary<Guid,string> images,string generatedBy,ReportMetadata metadata,MediaInfoData? mediaInfo,List<ExportHistoryItem> exports,CancellationToken ct)
         {
             using var doc=new PdfDocument();doc.Info.Title="VideoPlayer — raport zdarzeń";doc.Info.Author=generatedBy;
             var options=new XPdfFontOptions(PdfFontEncoding.Unicode);
@@ -188,15 +188,46 @@ namespace VideoPlayer
             }
             try
             {
-                Page();Text("Źródło: "+source,font);Text("Utworzono: "+DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),font);
-                Text("Znaczniki: "+markers.Count+". Czasy liczone od początku pliku, nie zegar kamery.",font);y+=12;
+                Page();
+                Text("RAPORT ANALIZY NAGRANIA",bold);
+                if(!string.IsNullOrWhiteSpace(metadata.CaseNumber))Text("Numer sprawy: "+metadata.CaseNumber,font);
+                if(!string.IsNullOrWhiteSpace(metadata.CaseTitle))Text("Tytuł: "+metadata.CaseTitle,font);
+                if(!string.IsNullOrWhiteSpace(metadata.Location))Text("Miejsce: "+metadata.Location,font);
+                if(!string.IsNullOrWhiteSpace(metadata.Notes))Text("Uwagi: "+metadata.Notes,font);
+                Text("Źródło: "+source,font);
+                Text("Nazwa pliku: "+Path.GetFileName(source),font);
+                Text("Utworzono: "+DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),font);
+                if(mediaInfo!=null)
+                {
+                    Text("Parametry nagrania: "+mediaInfo.VideoCodec+", "+mediaInfo.Resolution+", "+mediaInfo.Fps+" FPS, bitrate "+mediaInfo.Bitrate+", audio: "+mediaInfo.AudioCodec,font);
+                    Text("Czas trwania: "+Timestamp(mediaInfo.Duration)+" | Rozmiar: "+mediaInfo.FileSize.ToString("N0",CultureInfo.GetCultureInfo("pl-PL"))+" B",font);
+                }
+                var sourceInfo=new FileInfo(source);
+                Text("Rozmiar pliku źródłowego: "+sourceInfo.Length.ToString("N0",CultureInfo.GetCultureInfo("pl-PL"))+" B",font);
+                Text("Liczba zdarzeń: "+markers.Count+". Czasy liczone od początku pliku, nie zegar kamery.",font);
+                y+=10;
+                if(!string.IsNullOrWhiteSpace(metadata.Notes))y+=4;
+                if(exports.Count>0)
+                {
+                    Text("ZAREJESTROWANE EKSPORTY",bold);
+                    foreach(var export in exports.OrderBy(e=>e.CreatedLocal))
+                    {
+                        string range=export.StartSeconds.HasValue&&export.EndSeconds.HasValue
+                            ? Timestamp(export.StartSeconds.Value)+" – "+Timestamp(export.EndSeconds.Value) : "cały materiał / zakres nieokreślony";
+                        Text(export.CreatedLocal.ToString("yyyy-MM-dd HH:mm:ss")+" | "+export.Operation+" | "+range,font);
+                        Text("Plik wynikowy: "+export.OutputPath,font);
+                        if(!string.IsNullOrWhiteSpace(export.Details))Text("Szczegóły: "+export.Details,font);
+                    }
+                    y+=8;
+                }
+                Text("ZESTAWIENIE ZDARZEŃ",bold);
                 foreach(var m in markers)
                 {
                     ct.ThrowIfCancellationRequested();if(y+60>bottom)Page();
-                    Text(Timestamp(m.Seconds),bold);
+                    Text("Czas od początku nagrania: "+Timestamp(m.Seconds),bold);
                     if(!string.IsNullOrWhiteSpace(m.VehicleMake))
-                        Text("Marka pojazdu: "+m.VehicleMake,font);
-                    Text(m.Description,font);
+                        Text("Marka pojazdu (wpisana ręcznie): "+m.VehicleMake,font);
+                    Text("Opis: "+m.Description,font);
                     if(images.TryGetValue(m.Id,out string? image))
                     {
                         using var pic=XImage.FromFile(image);double h=Math.Min(160,260*pic.PixelHeight/(double)pic.PixelWidth);
