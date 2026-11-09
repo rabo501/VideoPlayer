@@ -77,7 +77,7 @@ namespace VideoPlayer
             string key = NormalizePath(sourcePath);
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
-            command.CommandText = @"SELECT Id, Seconds, Description FROM TimelineMarkers
+            command.CommandText = @"SELECT Id, Seconds, Description, VehicleMake FROM TimelineMarkers
                                     WHERE SourcePath = $sourcePath ORDER BY Seconds;";
             command.Parameters.AddWithValue("$sourcePath", key);
             using var reader = command.ExecuteReader();
@@ -88,7 +88,8 @@ namespace VideoPlayer
                 {
                     Id = id,
                     Seconds = reader.GetDouble(1),
-                    Description = reader.GetString(2)
+                    Description = reader.GetString(2),
+                    VehicleMake = reader.GetString(3)
                 });
             }
             return markers;
@@ -113,12 +114,13 @@ namespace VideoPlayer
             {
                 using var insert = connection.CreateCommand();
                 insert.Transaction = transaction;
-                insert.CommandText = @"INSERT INTO TimelineMarkers (Id, SourcePath, Seconds, Description)
-                                       VALUES ($id, $sourcePath, $seconds, $description);";
+                insert.CommandText = @"INSERT INTO TimelineMarkers (Id, SourcePath, Seconds, Description, VehicleMake)
+                                       VALUES ($id, $sourcePath, $seconds, $description, $vehicleMake);";
                 insert.Parameters.AddWithValue("$id", marker.Id.ToString("D"));
                 insert.Parameters.AddWithValue("$sourcePath", key);
                 insert.Parameters.AddWithValue("$seconds", marker.Seconds);
                 insert.Parameters.AddWithValue("$description", marker.Description ?? string.Empty);
+                insert.Parameters.AddWithValue("$vehicleMake", marker.VehicleMake ?? string.Empty);
                 insert.ExecuteNonQuery();
             }
             transaction.Commit();
@@ -149,11 +151,29 @@ namespace VideoPlayer
                     SourcePath TEXT NOT NULL,
                     Seconds REAL NOT NULL,
                     Description TEXT NOT NULL DEFAULT '',
+                    VehicleMake TEXT NOT NULL DEFAULT '',
                     PRIMARY KEY (SourcePath, Id)
                 );
                 CREATE INDEX IF NOT EXISTS IX_TimelineMarkers_SourceSeconds ON TimelineMarkers (SourcePath, Seconds);
             ";
             command.ExecuteNonQuery();
+
+            // Add the new field to existing portable databases without losing saved markers.
+            bool hasVehicleMake = false;
+            using (var columns = connection.CreateCommand())
+            {
+                columns.CommandText = "PRAGMA table_info(TimelineMarkers);";
+                using var reader = columns.ExecuteReader();
+                while (reader.Read())
+                    if (string.Equals(reader.GetString(1), "VehicleMake", StringComparison.OrdinalIgnoreCase))
+                        hasVehicleMake = true;
+            }
+            if (!hasVehicleMake)
+            {
+                using var alter = connection.CreateCommand();
+                alter.CommandText = "ALTER TABLE TimelineMarkers ADD COLUMN VehicleMake TEXT NOT NULL DEFAULT '';"; 
+                alter.ExecuteNonQuery();
+            }
         }
 
         private void InsertRecentItems(SqliteConnection connection, SqliteTransaction transaction, string kind, IEnumerable<string> paths)
@@ -205,12 +225,13 @@ namespace VideoPlayer
                                 if (!double.IsFinite(marker.Seconds) || marker.Seconds < 0) continue;
                                 using var command = connection.CreateCommand();
                                 command.Transaction = transaction;
-                                command.CommandText = @"INSERT OR REPLACE INTO TimelineMarkers (Id, SourcePath, Seconds, Description)
-                                                        VALUES ($id, $sourcePath, $seconds, $description);";
+                                command.CommandText = @"INSERT OR REPLACE INTO TimelineMarkers (Id, SourcePath, Seconds, Description, VehicleMake)
+                                                        VALUES ($id, $sourcePath, $seconds, $description, $vehicleMake);";
                                 command.Parameters.AddWithValue("$id", marker.Id.ToString("D"));
                                 command.Parameters.AddWithValue("$sourcePath", NormalizePath(pair.Key));
                                 command.Parameters.AddWithValue("$seconds", marker.Seconds);
                                 command.Parameters.AddWithValue("$description", marker.Description ?? string.Empty);
+                                command.Parameters.AddWithValue("$vehicleMake", marker.VehicleMake ?? string.Empty);
                                 command.ExecuteNonQuery();
                             }
                             transaction.Commit();
@@ -236,6 +257,7 @@ namespace VideoPlayer
         public Guid Id { get; set; } = Guid.NewGuid();
         public double Seconds { get; set; }
         public string Description { get; set; } = "";
+        public string VehicleMake { get; set; } = "";
         public override string ToString()
         {
             TimeSpan time = TimeSpan.FromSeconds(Math.Max(0, Seconds));
