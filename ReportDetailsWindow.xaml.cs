@@ -2,7 +2,7 @@ using System.Windows;
 
 namespace VideoPlayer
 {
-    internal partial class ReportDetailsWindow : Window
+    public partial class ReportDetailsWindow : Window
     {
         internal ReportMetadata Metadata { get; private set; } = new ReportMetadata();
 
