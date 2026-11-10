@@ -160,6 +160,6 @@ namespace VideoPlayer
         }
         private void ExitMenu_Click(object sender,RoutedEventArgs e)=>Close();
         private void BasicHelp_Click(object sender,RoutedEventArgs e)=>new BasicHelpWindow {Owner=this}.ShowDialog();
-        private void About_Click(object sender,RoutedEventArgs e)=>MessageBox.Show(this,"VideoPlayer 1.2.1\nAutor: Rafał Bonna\nmpv + FFmpeg\nSesje, zakresy i raporty zdarzeń.","Informacje");
+        private void About_Click(object sender,RoutedEventArgs e)=>new AboutWindow { Owner=this }.ShowDialog();
     }
 }
