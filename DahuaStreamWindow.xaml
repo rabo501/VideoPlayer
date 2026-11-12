@@ -192,7 +192,7 @@
                         <Setter Property="Foreground" Value="#F8FAFC" />
                         <Setter Property="BorderBrush" Value="#64748B" />
                         <Setter Property="BorderThickness" Value="1" />
-                        <Setter Property="DayButtonStyle">
+                        <Setter Property="CalendarDayButtonStyle">
                             <Setter.Value>
                                 <Style TargetType="{x:Type CalendarDayButton}">
                                     <Setter Property="Background" Value="#1F2937" />
