@@ -440,17 +440,17 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
-                                    <Button Grid.Row="0" Grid.Column="1" Content="▲" PreviewMouseDown="PtzUp_Down" PreviewMouseUp="Ptz_Up" Margin="2" Padding="0" />
-                                    <Button Grid.Row="1" Grid.Column="0" Content="◀" PreviewMouseDown="PtzLeft_Down" PreviewMouseUp="Ptz_Up" Margin="2" Padding="0" />
-                                    <Button Grid.Row="1" Grid.Column="2" Content="▶" PreviewMouseDown="PtzRight_Down" PreviewMouseUp="Ptz_Up" Margin="2" Padding="0" />
-                                    <Button Grid.Row="2" Grid.Column="1" Content="▼" PreviewMouseDown="PtzDown_Down" PreviewMouseUp="Ptz_Up" Margin="2" Padding="0" />
+                                    <Button Grid.Row="0" Grid.Column="1" Content="▲" PreviewMouseDown="PtzUp_Down" PreviewMouseUp="Ptz_Stop" Margin="2" Padding="0"  Tag="UP"/>
+                                    <Button Grid.Row="1" Grid.Column="0" Content="◀" PreviewMouseDown="PtzLeft_Down" PreviewMouseUp="Ptz_Stop" Margin="2" Padding="0"  Tag="LEFT"/>
+                                    <Button Grid.Row="1" Grid.Column="2" Content="▶" PreviewMouseDown="PtzRight_Down" PreviewMouseUp="Ptz_Stop" Margin="2" Padding="0"  Tag="RIGHT"/>
+                                    <Button Grid.Row="2" Grid.Column="1" Content="▼" PreviewMouseDown="PtzDown_Down" PreviewMouseUp="Ptz_Stop" Margin="2" Padding="0"  Tag="DOWN"/>
                                 </Grid>
 
                                 <WrapPanel Margin="0,0,0,10">
-                                    <Button Content="Zoom +" PreviewMouseDown="PtzZoomIn_Down" PreviewMouseUp="Ptz_Up" Padding="10,5" />
-                                    <Button Content="Zoom -" PreviewMouseDown="PtzZoomOut_Down" PreviewMouseUp="Ptz_Up" Padding="10,5" />
-                                    <Button Content="Focus +" PreviewMouseDown="PtzFocusIn_Down" PreviewMouseUp="Ptz_Up" Padding="10,5" />
-                                    <Button Content="Focus -" PreviewMouseDown="PtzFocusOut_Down" PreviewMouseUp="Ptz_Up" Padding="10,5" />
+                                    <Button Content="Zoom +" PreviewMouseDown="PtzZoomIn_Down" PreviewMouseUp="Ptz_Stop" Padding="10,5"  Tag="ZOOM_IN"/>
+                                    <Button Content="Zoom -" PreviewMouseDown="PtzZoomOut_Down" PreviewMouseUp="Ptz_Stop" Padding="10,5"  Tag="ZOOM_OUT"/>
+                                    <Button Content="Focus +" PreviewMouseDown="PtzFocusIn_Down" PreviewMouseUp="Ptz_Stop" Padding="10,5"  Tag="FOCUS_IN"/>
+                                    <Button Content="Focus -" PreviewMouseDown="PtzFocusOut_Down" PreviewMouseUp="Ptz_Stop" Padding="10,5"  Tag="FOCUS_OUT"/>
                                 </WrapPanel>
                             </StackPanel>
                         </ScrollViewer>

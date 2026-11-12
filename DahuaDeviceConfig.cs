@@ -91,18 +91,11 @@ namespace VideoPlayer
 
         public void EnsureDefaultChannels(int maxCount = 16)
         {
-            string[] defaultNames = {
-                "Brama główna", "Parking VIP", "Magazyn / Rampa", "Wejście do biura",
-                "Plac manewrowy", "Strefa dostaw", "Ogrodzenie wschód", "Ogrodzenie zachód",
-                "Recepcja", "Hala produkcyjna", "Kotłownia / Serwerownia", "Wjazd boczny",
-                "Parking pracowniczy", "Szlaban wyjazd", "Wiata magazynowa", "Dach / Panorama"
-            };
-
             for (int i = 1; i <= maxCount; i++)
             {
                 if (!Channels.Any(c => c.Number == i))
                 {
-                    string name = (i <= defaultNames.Length) ? defaultNames[i - 1] : $"Kamera {i}";
+                    string name = $"Kanał {i}";
                     Channels.Add(new DahuaChannelInfo { Number = i, Name = name });
                 }
             }
@@ -110,13 +103,8 @@ namespace VideoPlayer
 
         public void EnsureDefaultPresets()
         {
-            if (Presets.Count == 0)
-            {
-                Presets.Add(new DahuaPresetItem { PresetNumber = 1, Name = "Brama wjazdowa (Szeroki kąt)" });
-                Presets.Add(new DahuaPresetItem { PresetNumber = 2, Name = "Szlaban / Tablice rej." });
-                Presets.Add(new DahuaPresetItem { PresetNumber = 3, Name = "Rampa rozładunkowa" });
-                Presets.Add(new DahuaPresetItem { PresetNumber = 4, Name = "Parking główny" });
-            }
+            // Do not invent PTZ presets: the local list must contain only presets
+            // read from the device or explicitly created by the operator.
         }
     }
 
