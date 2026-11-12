@@ -131,10 +131,24 @@ namespace VideoPlayer
 
     public static class DahuaConfigService
     {
-        private static readonly string ConfigPath = Path.Combine(AppContext.BaseDirectory, "dahua_devices.json");
+        private static readonly string ConfigDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VideoPlayer");
+        private static readonly string ConfigPath = Path.Combine(ConfigDirectory, "dahua_devices.json");
+        private static readonly string LegacyConfigPath = Path.Combine(AppContext.BaseDirectory, "dahua_devices.json");
+
+        private static void MigrateLegacyConfigIfNeeded()
+        {
+            Directory.CreateDirectory(ConfigDirectory);
+            if (!File.Exists(ConfigPath) && File.Exists(LegacyConfigPath))
+            {
+                // Copy, never move: the original portable configuration remains as backup.
+                File.Copy(LegacyConfigPath, ConfigPath, overwrite: false);
+            }
+        }
 
         public static List<DahuaDeviceItem> LoadDevices()
         {
+            MigrateLegacyConfigIfNeeded();
             if (File.Exists(ConfigPath))
             {
                 try
@@ -236,12 +250,21 @@ namespace VideoPlayer
 
         public static void SaveDevices(List<DahuaDeviceItem> devices)
         {
-            try
+            Directory.CreateDirectory(ConfigDirectory);
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            string json = JsonSerializer.Serialize(devices, options);
+            string tempPath = ConfigPath + ".tmp";
+            File.WriteAllText(tempPath, json);
+            if (File.Exists(ConfigPath))
             {
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                string json = JsonSerializer.Serialize(devices, options);
-                File.WriteAllText(ConfigPath, json);
+                string backupPath = ConfigPath + ".bak";
+                File.Replace(tempPath, ConfigPath, backupPath, ignoreMetadataErrors: true);
             }
+            else
+            {
+                File.Move(tempPath, ConfigPath);
+            }
+        }
             catch { }
         }
     }
