@@ -184,12 +184,12 @@ namespace VideoPlayer
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
         public static extern IntPtr CLIENT_Login(
-            string pchDVRIP,
+            [MarshalAs(UnmanagedType.LPStr)] string pchDVRIP,
             ushort wDVRPort,
-            string pchUserName,
-            string pchPassword,
-            out NET_DEVICEINFO lpDeviceInfo,
-            out int error);
+            [MarshalAs(UnmanagedType.LPStr)] string pchUserName,
+            [MarshalAs(UnmanagedType.LPStr)] string pchPassword,
+            ref NET_DEVICEINFO lpDeviceInfo,
+            ref int error);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
 
