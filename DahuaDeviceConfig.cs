@@ -40,13 +40,17 @@ namespace VideoPlayer
             clearText = string.Empty;
             isLegacyPlainText = false;
 
-            if (string.IsNullOrEmpty(value) || !value.StartsWith(Prefix, StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(value) || !value.StartsWith("dpapi:", StringComparison.Ordinal))
             {
                 // Backward compatibility: older JSON files stored credentials as plain text.
                 clearText = value ?? string.Empty;
                 isLegacyPlainText = true;
                 return true;
             }
+
+            // A value marked as DPAPI but using an unknown version must never be treated as plaintext.
+            if (!value.StartsWith(Prefix, StringComparison.Ordinal))
+                return false;
 
             byte[]? cipherBytes = null;
             byte[]? clearBytes = null;
@@ -87,7 +91,7 @@ namespace VideoPlayer
         public DateTime EndTime { get; set; }
         public uint SizeKb { get; set; }
         public int RecordType { get; set; }
-        public string DurationText => (EndTime - StartTime).ToString(@"hh\\:mm\\:ss");
+        public string DurationText => (EndTime - StartTime).ToString(@"hh\:mm\:ss");
         public string SizeText => SizeKb >= 1024
             ? $"{SizeKb / 1024.0:N1} MB"
             : $"{SizeKb:N0} KB";
