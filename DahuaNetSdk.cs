@@ -361,36 +361,48 @@ namespace VideoPlayer
             var list = new List<DahuaChannelInfo>();
             if (lLoginID == IntPtr.Zero) return list;
 
-            // Avoid CLIENT_QueryChannelName here. Some NetSDK builds/devices expose
-            // incompatible implementations of this legacy API; a bad native write
-            // can terminate the entire WPF process before managed exception handling.
-            // Use the bounded GetNewDevConfig API instead.
+            // CLIENT_QueryChannelName returns a fixed 32-byte slot per channel.
+            // Allocate the complete output area (channelCount * 32), not one string.
+            // Do not use CLIENT_GetNewDevConfig("ChannelTitle"): this call terminated
+            // the process on the user's recorder/SDK combination.
             try
             {
-                byte[] cfgBuf = new byte[16384];
-                int err = 0;
-                bool success = CLIENT_GetNewDevConfig(
-                    lLoginID, "ChannelTitle", -1, cfgBuf, cfgBuf.Length, out err, 3000);
+                int requestedCount = Math.Max(1, Math.Min(fallbackChannelCount, 256));
+                const int nameSlotSize = 32;
+                byte[] nameBuffer = new byte[requestedCount * nameSlotSize];
+                int returnedCount = 0;
 
-                if (success)
+                bool success = CLIENT_QueryChannelName(
+                    lLoginID, nameBuffer, nameBuffer.Length, out returnedCount, 3000);
+
+                if (!success)
+                    return list;
+
+                int count = Math.Min(
+                    Math.Min(returnedCount, requestedCount),
+                    nameBuffer.Length / nameSlotSize);
+
+                for (int i = 0; i < count; i++)
                 {
-                    string json = System.Text.Encoding.UTF8.GetString(cfgBuf).TrimEnd('\0');
-                    var matches = System.Text.RegularExpressions.Regex.Matches(
-                        json, @"""Name""\s*:\s*""([^""]+)""",
-                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    int offset = i * nameSlotSize;
+                    int length = 0;
+                    while (length < nameSlotSize && nameBuffer[offset + length] != 0)
+                        length++;
 
-                    for (int i = 0; i < matches.Count; i++)
-                    {
-                        string name = matches[i].Groups[1].Value.Trim();
-                        if (!string.IsNullOrWhiteSpace(name))
-                            list.Add(new DahuaChannelInfo { Number = i + 1, Name = name });
-                    }
+                    if (length == 0)
+                        continue;
+
+                    string name = System.Text.Encoding.Default
+                        .GetString(nameBuffer, offset, length).Trim();
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                        list.Add(new DahuaChannelInfo { Number = i + 1, Name = name });
                 }
             }
             catch
             {
-                // A device may not expose ChannelTitle through this config command.
-                // Keep the operator's existing channel list unchanged in that case.
+                // If the SDK rejects this operation, return an empty list.
+                // The caller preserves the local operator configuration.
             }
 
             return list;
