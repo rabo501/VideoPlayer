@@ -85,6 +85,13 @@ Kompilacja i testy z fizycznym urządzeniem są wymagane. W tym środowisku nie 
 
 
 
-## Diagnostyka przycisku „Odczytaj z kamery/NVR” (2026-11-12)
+## Odczyt nazw kanałów z rejestratora (2026-11-12)
 
-Log użytkownika kończył się bezpośrednio po wpisie `Manual device read started.`, co oznaczało zakończenie procesu wewnątrz natywnego `CLIENT_GetNewDevConfig("ChannelTitle")` przed powrotem do kodu zarządzanego. Wyłączono to wywołanie z ogólnego odczytu. Liczba kanałów jest teraz pobierana z `NET_DEVICEINFO.byChanNum` już zwróconego przez udane `CLIENT_Login` (w teście użytkownika: 64) i zapamiętywana. Przycisk wykorzystuje tę liczbę do uzupełnienia lokalnej listy kanałów, zachowując nazwy operatora i presety. Nie wykonuje żadnego nowego wywołania natywnego SDK. Nazwy kanałów/presety z urządzenia wymagają osobnej implementacji po potwierdzeniu poprawnego wariantu API i struktur dla konkretnej wersji NetSDK.
+Przycisk **Wczytaj z kamery/NVR** korzysta z liczby kanałów zwróconej podczas logowania (`NET_DEVICEINFO.byChanNum`), a następnie próbuje pobrać ich nazwy przez `CLIENT_QueryChannelName`.
+
+- Bufor jest ograniczony do maksymalnie 256 kanałów i przydzielany jako 32 bajty na kanał.
+- Nie jest wywoływane `CLIENT_GetNewDevConfig("ChannelTitle")`, które w konfiguracji użytkownika kończyło proces.
+- Wyniki są porównywane z nazwami zapisanymi lokalnie.
+- Operator zatwierdza zastosowanie zmian w osobnym oknie; identyfikatory kanałów pozostają niezmienione.
+- Jeśli odczyt się nie powiedzie, zwróci pustą listę albo operator odrzuci zmiany, lokalne nazwy pozostają bez zmian.
+- Presety PTZ nie są w tym etapie pobierane ani modyfikowane.
