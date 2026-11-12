@@ -280,28 +280,31 @@ namespace VideoPlayer
 
             try
             {
-                // 1. Odczyt nazw kanałów z kamery lub rejestratora
+                WriteSdkDiagnostic("Manual device read started.");
+                // Używamy ograniczonego GetNewDevConfig zamiast starszego
+                // CLIENT_QueryChannelName, który bywa niezgodny z wersją SDK.
                 var readChannels = DahuaNetSdk.QueryChannelNamesFromDevice(_loginId);
+                WriteSdkDiagnostic($"Channel metadata read returned {readChannels.Count} items.");
                 int chCount = readChannels.Count;
                 if (chCount > 0)
                 {
                     _currentDevice.UpdateFromDeviceChannels(readChannels);
                 }
 
-                // 2. Odczyt presetów PTZ z kamery
-                int channelIndex = Math.Max(0, _currentChannel - 1);
-                var readPresets = DahuaNetSdk.QueryPresetsFromDevice(_loginId, channelIndex);
-                int pCount = readPresets.Count;
-                if (pCount > 0)
-                {
-                    _currentDevice.UpdateFromDevicePresets(readPresets);
-                }
+                // PTZ preset retrieval uses a separate vendor configuration command.
+                // Do not invoke it as part of this general read operation: some recorder
+                // firmware/SDK combinations terminate the process inside that native call.
+                // Keep the locally configured presets intact.
+                int pCount = 0;
+                WriteSdkDiagnostic("PTZ preset query skipped in safe device-read mode.");
 
                 DahuaConfigService.SaveDevices(_devices);
                 RefreshChannelLists();
                 RefreshPresetsList();
 
-                string msg = $"Odczytano z urządzenia: {chCount} kanałów oraz {pCount} presetów PTZ.";
+                string msg = chCount > 0
+                    ? $"Odczytano {chCount} nazw kanałów. Presety PTZ pozostawiono bez zmian."
+                    : "Urządzenie nie udostępniło nazw kanałów. Dotychczasowa konfiguracja została zachowana.";
                 StatusLabel.Text = msg;
 
                 if (showDialog)
@@ -1001,6 +1004,29 @@ namespace VideoPlayer
             return EndDatePicker.SelectedDate.Value.Date + time;
         }
 
+        private static void ConfigureDahuaRecordModes(IntPtr login)
+        {
+            if (login == IntPtr.Zero)
+                throw new InvalidOperationException("Brak aktywnego uchwytu logowania Dahua.");
+
+            // EM_USEDEV_MODE values from the SDK header are sequential:
+            // DH_RECORD_STREAM_TYPE = 6, DH_RECORD_TYPE = 8.
+            // 0 means main+sub stream and NET_RECORD_TYPE_ALL respectively.
+            int streamType = 0;
+            bool streamOk = DahuaNetSdk.CLIENT_SetDeviceMode(login, 6, ref streamType);
+            uint streamError = streamOk ? 0u : DahuaNetSdk.CLIENT_GetLastError();
+            WriteSdkDiagnostic($"SetDeviceMode(DH_RECORD_STREAM_TYPE=6, value=0): ok={streamOk}; error=0x{streamError:X8}.");
+
+            int recordType = 0;
+            bool typeOk = DahuaNetSdk.CLIENT_SetDeviceMode(login, 8, ref recordType);
+            uint typeError = typeOk ? 0u : DahuaNetSdk.CLIENT_GetLastError();
+            WriteSdkDiagnostic($"SetDeviceMode(DH_RECORD_TYPE=8, value=0/ALL): ok={typeOk}; error=0x{typeError:X8}.");
+
+            // Older firmware may reject one of these optional modes. Keep the
+            // failure in the diagnostic log and allow the actual archive API call
+            // to return its own, more specific error code.
+        }
+
         private int GetSelectedArchiveChannel()
         {
             if (ArchiveChannelBox.SelectedItem is ComboBoxItem item && item.Tag is int ch) return ch;
@@ -1054,9 +1080,13 @@ namespace VideoPlayer
                     {
                         for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(buffer, i, 0);
                         int count;
+                        ConfigureDahuaRecordModes(login);
+
+                        WriteSdkDiagnostic($"CLIENT_QueryRecordFile: channel={channelIndex}; recordType=0 (ALL); timeRange={start.Value:O}..{end.Value:O}; bTime=true; recordInfoSize={itemSize}; bufferSize={bufferSize}.");
                         bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
-                            login, channelIndex, 255, ref tmStart, ref tmEnd, null,
-                            buffer, bufferSize, out count, 5000, false);
+                            login, channelIndex, 0, ref tmStart, ref tmEnd, null,
+                            buffer, bufferSize, out count, 8000, false);
+                        WriteSdkDiagnostic($"CLIENT_QueryRecordFile returned ok={ok}; count={count}; lastError=0x{(ok ? 0u : DahuaNetSdk.CLIENT_GetLastError()):X8}.");
 
                         if (!ok)
                         {
@@ -1293,15 +1323,18 @@ namespace VideoPlayer
                 int channelIndex = Math.Max(0, channel - 1);
                 var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
                 var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
-                int recordType = ArchiveRecordsGrid.SelectedItem is DahuaRecordItem selectedRecord &&
-                    selectedRecord.StartTime == start.Value && selectedRecord.EndTime == end.Value
-                    ? selectedRecord.RecordType : 0;
+                // CLIENT_DownloadByTimeEx expects the SDK query record type,
+                // not NET_RECORDFILE_INFO.nRecordFileType from the returned file row.
+                // Use NET_RECORD_TYPE_ALL (0) for a time-range download.
+                int recordType = 0;
                 IntPtr activeLoginId = _loginId;
 
                 bool downloadFinished = false;
 
                 await Task.Run(async () =>
                 {
+                    ConfigureDahuaRecordModes(activeLoginId);
+
                     // Native download is asynchronous. Do not stop it after a fixed
                     // 15-second delay: larger archive segments need substantially longer.
                     // Keep the wait handle alive until the native download has stopped;
@@ -1316,9 +1349,18 @@ namespace VideoPlayer
                                 completed.Set();
                         };
 
+                    WriteSdkDiagnostic($"Calling CLIENT_DownloadByTimeEx: channel={channelIndex}; recordType={recordType}; start={start.Value:O}; end={end.Value:O}; file={davFilePath}.");
                     IntPtr hDown = DahuaNetSdk.CLIENT_DownloadByTimeEx(
                         activeLoginId, channelIndex, recordType, ref tmStart, ref tmEnd, davFilePath,
                         progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                    WriteSdkDiagnostic($"CLIENT_DownloadByTimeEx returned handle=0x{hDown.ToInt64():X}.");
+
+                    if (hDown == IntPtr.Zero)
+                    {
+                        uint downloadError = DahuaNetSdk.CLIENT_GetLastError();
+                        throw new InvalidOperationException(
+                            $"CLIENT_DownloadByTimeEx: {DahuaNetSdk.GetErrorDescription(downloadError)}");
+                    }
 
                     if (hDown != IntPtr.Zero)
                     {
@@ -1420,6 +1462,7 @@ namespace VideoPlayer
                     _playbackHandle = IntPtr.Zero;
                 }
 
+                ConfigureDahuaRecordModes(_loginId);
                 var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
                 var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
 

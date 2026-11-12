@@ -284,6 +284,14 @@ namespace VideoPlayer
             out int pRetLen,
             int waittime = 2000);
 
+        // EM_USEDEV_MODE.DH_RECORD_STREAM_TYPE = 6 in the Dahua NetSDK enum.
+        // pValue is an int* (0=main+sub stream, 1=main, 2=sub).
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
+        public static extern bool CLIENT_SetDeviceMode(
+            IntPtr lLoginID,
+            int emType,
+            ref int pValue);
+
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
         public static extern bool CLIENT_QueryRecordFile(
             IntPtr lLoginID,
@@ -353,56 +361,37 @@ namespace VideoPlayer
             var list = new List<DahuaChannelInfo>();
             if (lLoginID == IntPtr.Zero) return list;
 
+            // Avoid CLIENT_QueryChannelName here. Some NetSDK builds/devices expose
+            // incompatible implementations of this legacy API; a bad native write
+            // can terminate the entire WPF process before managed exception handling.
+            // Use the bounded GetNewDevConfig API instead.
             try
             {
-                // 1. CLIENT_QueryChannelName: bufor dla maks. 64 kanałów po 32 bajty
-                const int maxChannels = 64;
-                const int nameLen = 32;
-                byte[] buffer = new byte[maxChannels * nameLen];
-                int channelCount = 0;
-
-                bool success = CLIENT_QueryChannelName(lLoginID, buffer, buffer.Length, out channelCount, 2500);
-                if (success && channelCount > 0)
-                {
-                    for (int i = 0; i < channelCount; i++)
-                    {
-                        int offset = i * nameLen;
-                        int len = 0;
-                        while (len < nameLen && buffer[offset + len] != 0) len++;
-
-                        string rawName = System.Text.Encoding.Default.GetString(buffer, offset, len).Trim();
-                        string name = string.IsNullOrWhiteSpace(rawName) ? $"Kamera {i + 1}" : rawName;
-                        list.Add(new DahuaChannelInfo { Number = i + 1, Name = name });
-                    }
-                    if (list.Count > 0) return list;
-                }
-            }
-            catch { }
-
-            try
-            {
-                // 2. CLIENT_GetNewDevConfig("ChannelTitle")
                 byte[] cfgBuf = new byte[16384];
                 int err = 0;
-                if (CLIENT_GetNewDevConfig(lLoginID, "ChannelTitle", -1, cfgBuf, cfgBuf.Length, out err, 2000))
+                bool success = CLIENT_GetNewDevConfig(
+                    lLoginID, "ChannelTitle", -1, cfgBuf, cfgBuf.Length, out err, 3000);
+
+                if (success)
                 {
                     string json = System.Text.Encoding.UTF8.GetString(cfgBuf).TrimEnd('\0');
-                    if (!string.IsNullOrEmpty(json) && json.Contains("Name"))
+                    var matches = System.Text.RegularExpressions.Regex.Matches(
+                        json, @"""Name""\s*:\s*""([^""]+)""",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                    for (int i = 0; i < matches.Count; i++)
                     {
-                        // Proste wyciąganie nazw kanałów z JSON
-                        var matches = System.Text.RegularExpressions.Regex.Matches(json, @"""Name""\s*:\s*""([^""]+)""");
-                        if (matches.Count > 0)
-                        {
-                            for (int i = 0; i < matches.Count; i++)
-                            {
-                                list.Add(new DahuaChannelInfo { Number = i + 1, Name = matches[i].Groups[1].Value.Trim() });
-                            }
-                            return list;
-                        }
+                        string name = matches[i].Groups[1].Value.Trim();
+                        if (!string.IsNullOrWhiteSpace(name))
+                            list.Add(new DahuaChannelInfo { Number = i + 1, Name = name });
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // A device may not expose ChannelTitle through this config command.
+                // Keep the operator's existing channel list unchanged in that case.
+            }
 
             return list;
         }
@@ -493,6 +482,7 @@ namespace VideoPlayer
                 2147483673 or 0x80000019 => "Błąd 2147483673 (0x80000019): NET_ERROR_NO_SUCH_CHANNEL — podany kanał nie istnieje na rejestratorze.",
                 2147483672 or 0x80000018 => "Błąd 2147483672 (0x80000018): NET_ERROR_NETWORK_ERROR — błąd sieci lub timeout.",
                 2147483679 or 0x8000001F => "Błąd 2147483679 (0x8000001F): Błędna nazwa użytkownika lub hasło.",
+                2147483727 or 0x8000004F => "Błąd 2147483727 (0x8000004F): NET_UNSUPPORTED — rejestrator lub użyta wersja NetSDK nie obsługuje tej operacji. Sprawdź tryb strumienia nagrań, typ nagrania i obsługę funkcji przez firmware urządzenia.",
                 _ => $"Kod błędu Dahua: {errorCode} (0x{errorCode:X8})"
             };
         }
