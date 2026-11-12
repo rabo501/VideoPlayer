@@ -85,13 +85,29 @@ Kompilacja i testy z fizycznym urządzeniem są wymagane. W tym środowisku nie 
 
 
 
-## Odczyt nazw kanałów z rejestratora (2026-11-12)
+## Odczyt nazw kanałów i obsługa presetów PTZ (2026-11-12)
 
-Przycisk **Wczytaj z kamery/NVR** korzysta z liczby kanałów zwróconej podczas logowania (`NET_DEVICEINFO.byChanNum`), a następnie próbuje pobrać ich nazwy przez `CLIENT_QueryChannelName`.
+### Nazwy kanałów i kodowanie
+- Nazwy z `CLIENT_QueryChannelName` są dekodowane najpierw jako UTF-8 (tryb ścisły), a w razie nieprawidłowej sekwencji jako Windows-1250.
+- Nie jest używane `Encoding.Default`, którego wynik zależy od ustawień systemu Windows.
+- Bufor nazw kanałów ma 32 bajty na pozycję; liczba pozycji jest ograniczona do 256.
 
-- Bufor jest ograniczony do maksymalnie 256 kanałów i przydzielany jako 32 bajty na kanał.
-- Nie jest wywoływane `CLIENT_GetNewDevConfig("ChannelTitle")`, które w konfiguracji użytkownika kończyło proces.
-- Wyniki są porównywane z nazwami zapisanymi lokalnie.
-- Operator zatwierdza zastosowanie zmian w osobnym oknie; identyfikatory kanałów pozostają niezmienione.
-- Jeśli odczyt się nie powiedzie, zwróci pustą listę albo operator odrzuci zmiany, lokalne nazwy pozostają bez zmian.
-- Presety PTZ nie są w tym etapie pobierane ani modyfikowane.
+### Presety PTZ
+Odczyt i modyfikacja presetów wykorzystują udokumentowane Dahua HTTP CGI API:
+- odczyt: `/cgi-bin/ptz.cgi?action=getPresets&channel=N`;
+- zapis bieżącej pozycji: `action=start&code=SetPreset&arg1=0&arg2=N&arg3=0`;
+- zmiana nazwy: `action=setPreset&arg1=N&arg2=NAZWA`;
+- usunięcie: `action=start&code=ClearPreset&arg1=0&arg2=N&arg3=0`.
+
+CGI używa numeru kanału od 1. Port HTTP jest konfigurowalny dla każdego urządzenia (domyślnie 80), a dane logowania są takie same jak dla NetSDK. `HttpClientHandler` obsługuje uwierzytelnianie Basic/Digest; timeout wynosi 8 sekund. Nazwy są kodowane w URL jako UTF-8 przez `Uri.EscapeDataString`. Zmiana lokalnej listy następuje dopiero po potwierdzeniu sukcesu przez urządzenie; przy błędzie lista lokalna pozostaje bez zmian. Odczyt z urządzenia zastępuje lokalną listę, aby usunięte presety nie pozostawały jako nieaktualne wpisy.
+
+Panel PTZ udostępnia odświeżanie listy, przejście do presetu, zapis bieżącej pozycji, zmianę nazwy i usunięcie presetu. Operacje odczytu/zapisu wymagają aktywnego połączenia i włączonego HTTP CGI na urządzeniu. Port HTTP ustawisz w polu **Port HTTP** w parametrach urządzenia. Nie zmienia on portu NetSDK (domyślnie 37777).
+
+### Testy na rejestratorze
+1. Wykonaj odczyt kanałów i sprawdź nazwy zawierające `ą ć ę ł ń ó ś ź ż`.
+2. Wybierz kanał z kamerą PTZ i użyj **Odczytaj presety**.
+3. Wybierz istniejący preset i sprawdź **Idź do presetu**.
+4. Zapisz nową pozycję pod wolnym numerem, odczytaj ponownie listę i sprawdź nazwę.
+5. Zmień nazwę istniejącego presetu, ponownie odczytaj listę.
+6. Usuń testowy preset i ponownie odczytaj listę.
+7. Sprawdź zachowanie przy błędnym haśle lub wyłączonym HTTP CGI — program ma pokazać błąd i nie zmieniać lokalnej listy.
