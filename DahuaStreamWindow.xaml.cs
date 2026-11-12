@@ -1004,6 +1004,32 @@ namespace VideoPlayer
             return EndDatePicker.SelectedDate.Value.Date + time;
         }
 
+        private static void ConfigureDahuaRecordModes(IntPtr login)
+        {
+            if (login == IntPtr.Zero)
+                throw new InvalidOperationException("Brak aktywnego uchwytu logowania Dahua.");
+
+            // EM_USEDEV_MODE values from the SDK header are sequential:
+            // DH_RECORD_STREAM_TYPE = 6, DH_RECORD_TYPE = 8.
+            // 0 means main+sub stream and NET_RECORD_TYPE_ALL respectively.
+            int streamType = 0;
+            bool streamOk = DahuaNetSdk.CLIENT_SetDeviceMode(login, 6, ref streamType);
+            uint streamError = streamOk ? 0u : DahuaNetSdk.CLIENT_GetLastError();
+            WriteSdkDiagnostic($"SetDeviceMode(DH_RECORD_STREAM_TYPE=6, value=0): ok={streamOk}; error=0x{streamError:X8}.");
+
+            int recordType = 0;
+            bool typeOk = DahuaNetSdk.CLIENT_SetDeviceMode(login, 8, ref recordType);
+            uint typeError = typeOk ? 0u : DahuaNetSdk.CLIENT_GetLastError();
+            WriteSdkDiagnostic($"SetDeviceMode(DH_RECORD_TYPE=8, value=0/ALL): ok={typeOk}; error=0x{typeError:X8}.");
+
+            // The stream mode is required for archive search on some Dahua devices.
+            // Record type mode is optional on older firmware; the explicit type=ALL
+            // argument is also supplied to the individual search/download APIs.
+            if (!streamOk)
+                throw new InvalidOperationException(
+                    $"Rejestrator odrzucił ustawienie trybu strumienia nagrań (0x{streamError:X8}).");
+        }
+
         private int GetSelectedArchiveChannel()
         {
             if (ArchiveChannelBox.SelectedItem is ComboBoxItem item && item.Tag is int ch) return ch;
@@ -1057,15 +1083,7 @@ namespace VideoPlayer
                     {
                         for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(buffer, i, 0);
                         int count;
-                        // DH_RECORD_STREAM_TYPE = 6; value 0 selects main + sub stream.
-                        int recordStreamMode = 0;
-                        if (!DahuaNetSdk.CLIENT_SetDeviceMode(login, 6, ref recordStreamMode))
-                        {
-                            uint modeError = DahuaNetSdk.CLIENT_GetLastError();
-                            // Firmware may not implement this mode. Keep its default and
-                            // inspect the actual archive query result below.
-                            WriteSdkDiagnostic($"CLIENT_SetDeviceMode(DH_RECORD_STREAM_TYPE) failed: 0x{modeError:X8}.");
-                        }
+                        ConfigureDahuaRecordModes(login);
 
                         WriteSdkDiagnostic($"CLIENT_QueryRecordFile: channel={channelIndex}; recordType=0 (ALL); timeRange={start.Value:O}..{end.Value:O}; bTime=true; recordInfoSize={itemSize}; bufferSize={bufferSize}.");
                         bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
@@ -1308,15 +1326,18 @@ namespace VideoPlayer
                 int channelIndex = Math.Max(0, channel - 1);
                 var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
                 var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
-                int recordType = ArchiveRecordsGrid.SelectedItem is DahuaRecordItem selectedRecord &&
-                    selectedRecord.StartTime == start.Value && selectedRecord.EndTime == end.Value
-                    ? selectedRecord.RecordType : 0;
+                // CLIENT_DownloadByTimeEx expects the SDK query record type,
+                // not NET_RECORDFILE_INFO.nRecordFileType from the returned file row.
+                // Use NET_RECORD_TYPE_ALL (0) for a time-range download.
+                int recordType = 0;
                 IntPtr activeLoginId = _loginId;
 
                 bool downloadFinished = false;
 
                 await Task.Run(async () =>
                 {
+                    ConfigureDahuaRecordModes(activeLoginId);
+
                     // Native download is asynchronous. Do not stop it after a fixed
                     // 15-second delay: larger archive segments need substantially longer.
                     // Keep the wait handle alive until the native download has stopped;
@@ -1435,6 +1456,7 @@ namespace VideoPlayer
                     _playbackHandle = IntPtr.Zero;
                 }
 
+                ConfigureDahuaRecordModes(_loginId);
                 var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
                 var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
 
