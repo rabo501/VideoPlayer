@@ -61,10 +61,36 @@ namespace VideoPlayer
             LoadDeviceList();
         }
 
+        private static void WriteSdkDiagnostic(string message)
+        {
+            try
+            {
+                string directory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "VideoPlayer", "logs");
+                Directory.CreateDirectory(directory);
+                File.AppendAllText(
+                    Path.Combine(directory, "dahua-sdk.log"),
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
+            }
+            catch
+            {
+                // Diagnostics must never prevent the application from running.
+            }
+        }
+
         private void InitializeSdk()
         {
             try
             {
+                int deviceInfoSize = Marshal.SizeOf<DahuaNetSdk.NET_DEVICEINFO>();
+                WriteSdkDiagnostic($"InitializeSdk started. NET_DEVICEINFO size={deviceInfoSize} bytes; process={Environment.Is64BitProcess switch { true => "x64", false => "x86" }}.");
+                if (deviceInfoSize != 53)
+                {
+                    throw new InvalidOperationException(
+                        $"Nieprawidłowy rozmiar NET_DEVICEINFO: {deviceInfoSize} bajtów (oczekiwano 53).");
+                }
+
                 var missingDlls = DahuaNetSdk.CheckDependencies();
                 if (missingDlls.Count > 0)
                 {
@@ -78,7 +104,9 @@ namespace VideoPlayer
                 _disConnectCallback = OnSdkDisconnected;
                 _haveReConnectCallback = OnSdkReconnected;
 
+                WriteSdkDiagnostic("Calling CLIENT_Init.");
                 bool initOk = DahuaNetSdk.CLIENT_Init(_disConnectCallback, IntPtr.Zero);
+                WriteSdkDiagnostic($"CLIENT_Init returned: {initOk}.");
                 if (initOk)
                 {
                     _sdkInitialized = true;
@@ -684,12 +712,17 @@ namespace VideoPlayer
             string pass = _currentDevice.Password;
 
             StatusLabel.Text = $"Logowanie do {ip}:{port}…";
+            WriteSdkDiagnostic($"Connect requested. Host={ip}; port={port}; username length={user?.Length ?? 0}.");
 
             try
             {
-                var deviceInfo = new DahuaNetSdk.NET_DEVICEINFO();
+                // NET_DEVICEINFO is a 53-byte native structure with a fixed 48-byte serial buffer.
+                // Initialize it explicitly and pass it by reference to CLIENT_Login.
+                var deviceInfo = DahuaNetSdk.NET_DEVICEINFO.Create();
                 int err = 0;
-                _loginId = DahuaNetSdk.CLIENT_Login(ip, port, user, pass, out deviceInfo, out err);
+                WriteSdkDiagnostic("Calling CLIENT_Login.");
+                _loginId = DahuaNetSdk.CLIENT_Login(ip, port, user, pass, ref deviceInfo, ref err);
+                WriteSdkDiagnostic($"CLIENT_Login returned. LoginId=0x{_loginId.ToInt64():X}; error={err}; channel count={deviceInfo.byChanNum}.");
 
                 if (_loginId == IntPtr.Zero)
                 {
@@ -703,13 +736,16 @@ namespace VideoPlayer
                 DisconnectButton.IsEnabled = true;
                 StreamOverlay.Visibility = Visibility.Collapsed;
 
-                // Automatyczny odczyt nazw kanałów i presetów z urządzenia przy połączeniu
-                QueryDeviceState(showDialog: false);
-
+                // Start the live stream first. Channel-name and PTZ-preset queries are
+                // optional and are deliberately left to the explicit "read from device"
+                // action so a metadata call cannot take down an otherwise valid login.
+                WriteSdkDiagnostic("Login succeeded; starting live stream.");
                 StartLiveStreamForChannel(_currentChannel);
+                WriteSdkDiagnostic("Live stream start routine returned.");
             }
             catch (Exception ex)
             {
+                WriteSdkDiagnostic($"Connect exception: {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
                 StatusLabel.Text = $"Błąd połączenia: {ex.Message}";
             }
         }
@@ -739,10 +775,14 @@ namespace VideoPlayer
                 int channelIndex = Math.Max(0, channelNumber - 1);
                 var streamType = StreamTypeBox.SelectedIndex == 1 ? DahuaNetSdk.EM_RealPlayType.Realplay_1 : DahuaNetSdk.EM_RealPlayType.Realplay;
 
+                WriteSdkDiagnostic($"Calling CLIENT_RealPlayEx. Channel={channelIndex}; window=0x{_primaryPictureBox.Handle.ToInt64():X}; stream={streamType}.");
                 _realPlayHandle = DahuaNetSdk.CLIENT_RealPlayEx(_loginId, channelIndex, _primaryPictureBox.Handle, streamType);
+                WriteSdkDiagnostic($"CLIENT_RealPlayEx returned: 0x{_realPlayHandle.ToInt64():X}.");
                 if (_realPlayHandle == IntPtr.Zero)
                 {
+                    WriteSdkDiagnostic("Calling legacy CLIENT_RealPlay fallback.");
                     _realPlayHandle = DahuaNetSdk.CLIENT_RealPlay(_loginId, channelIndex, _primaryPictureBox.Handle);
+                    WriteSdkDiagnostic($"CLIENT_RealPlay returned: 0x{_realPlayHandle.ToInt64():X}.");
                 }
 
                 string chName = _currentDevice?.GetChannelName(channelNumber) ?? $"Kanał {channelNumber}";
