@@ -29,7 +29,8 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Tesseract"><HintPath>lib\Tesseract.dll</HintPath><Private>true</Private></Reference>
-    <Content Include="x64\**\*;dahua\**\*;tessdata\**\*;licenses\**\*">
+    <!-- Biblioteki SDK (zarówno natywne DLL, jak i pozostałe pliki) pozostają w katalogu lib. -->
+    <Content Include="lib\**\*;tessdata\**\*;licenses\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
@@ -41,5 +42,37 @@
     <Content Include="VideoPlayer.ico">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="lib\avnetsdk.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\dhconfigsdk.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\dhnetsdk.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\Infra.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\IvsDrawer.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\libeay32.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\dhplay.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\RenderEngine.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\ssleay32.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="lib\StreamConvertor.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
