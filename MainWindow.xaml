@@ -1,4 +1,4 @@
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="VideoPlayer.MainWindow" Title="VideoPlayer 1.2.1 — analiza nagrań" Width="1280" Height="780" MinWidth="900" MinHeight="600" Background="#111318" Foreground="#F1F3F5" FontFamily="Segoe UI" FontSize="13" Loaded="Window_Loaded" Closing="Window_Closing" WindowStartupLocation="CenterScreen">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="VideoPlayer.MainWindow" Title="VideoPlayer 1.4.0 — analiza nagrań" Width="1280" Height="780" MinWidth="900" MinHeight="600" Background="#111318" Foreground="#F1F3F5" FontFamily="Segoe UI" FontSize="13" Loaded="Window_Loaded" Closing="Window_Closing" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <Style TargetType="Button">
             <Setter Property="Background" Value="#292D36" />
@@ -191,12 +191,14 @@
         </Grid.RowDefinitions>
         <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="True">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Kamery Dahua IP" Click="DahuaStream_Click" Background="#16A34A" BorderBrush="#15803D" Margin="0,0,8,0" Padding="12,7" ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua" />
                 <Button Content="Otwórz nagranie" Click="Open_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="12,7" />
                 <Button x:Name="PanelToggleButton" Content="Ukryj panel ▶" Click="ToggleTools_Click" Margin="0" Padding="12,7" ToolTip="Pokaż lub ukryj prawy panel narzędzi" />
             </StackPanel>
             <Menu Background="#1B1F27" Padding="2,4">
                 <MenuItem Header="_Plik">
                     <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click" />
+                    <MenuItem Header="Kamery Dahua IP (Live)…" InputGestureText="Ctrl+D" Click="DahuaStream_Click" />
                     <MenuItem Header="Wyszukaj tablicę / pojazd…" Click="PlateSearch_Click" />
                     <MenuItem Header="Zapisz sesję" Click="SaveSession_Click" />
                     <Separator />

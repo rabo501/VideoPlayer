@@ -4,13 +4,14 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <Version>1.3.2</Version>
+    <Version>1.4.0</Version>
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationIcon>VideoPlayer.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <PackageReference Include="PDFsharp-WPF" Version="6.2.4" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
 	  <Content Include="mpv\**\*">
@@ -28,7 +29,7 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Tesseract"><HintPath>lib\Tesseract.dll</HintPath><Private>true</Private></Reference>
-    <Content Include="x64\**\*;tessdata\**\*;licenses\**\*">
+    <Content Include="x64\**\*;dahua\**\*;tessdata\**\*;licenses\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>

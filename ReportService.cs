@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using PdfSharp;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
-using System.Linq;
+
 namespace VideoPlayer
 {
     internal sealed class ReportService
