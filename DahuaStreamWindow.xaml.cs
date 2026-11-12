@@ -625,7 +625,7 @@ namespace VideoPlayer
 
             try
             {
-                var deviceInfo = new DahuaNetSdk.NET_DEVICEINFO_Ex();
+                var deviceInfo = new DahuaNetSdk.NET_DEVICEINFO();
                 int err = 0;
                 _loginId = DahuaNetSdk.CLIENT_Login(ip, port, user, pass, out deviceInfo, out err);
 
@@ -789,9 +789,14 @@ namespace VideoPlayer
         private void PtzFocusIn_Down(object sender, MouseButtonEventArgs e) => SendPtz(DahuaNetSdk.EM_PTZ_COMMAND.FOCUS_IN, false);
         private void PtzFocusOut_Down(object sender, MouseButtonEventArgs e) => SendPtz(DahuaNetSdk.EM_PTZ_COMMAND.FOCUS_OUT, false);
 
-        private void Ptz_Up(object sender, MouseButtonEventArgs e)
+        // Stop must use the same command as the movement that was started.
+        private void Ptz_Stop(object sender, MouseButtonEventArgs e)
         {
-            SendPtz(DahuaNetSdk.EM_PTZ_COMMAND.UP, true);
+            if (sender is Button button &&
+                Enum.TryParse(button.Tag?.ToString(), true, out DahuaNetSdk.EM_PTZ_COMMAND command))
+            {
+                SendPtz(command, true);
+            }
         }
 
         #endregion
@@ -876,14 +881,18 @@ namespace VideoPlayer
         private DateTime? GetStartDateTime()
         {
             if (StartDatePicker.SelectedDate == null) return null;
-            if (!TimeSpan.TryParse(StartTimeBox.Text.Trim(), out var time)) time = TimeSpan.Zero;
+            if (!TimeSpan.TryParse(StartTimeBox.Text.Trim(), out var time) ||
+                time < TimeSpan.Zero || time >= TimeSpan.FromDays(1))
+                return null;
             return StartDatePicker.SelectedDate.Value.Date + time;
         }
 
         private DateTime? GetEndDateTime()
         {
             if (EndDatePicker.SelectedDate == null) return null;
-            if (!TimeSpan.TryParse(EndTimeBox.Text.Trim(), out var time)) time = new TimeSpan(23, 59, 59);
+            if (!TimeSpan.TryParse(EndTimeBox.Text.Trim(), out var time) ||
+                time < TimeSpan.Zero || time >= TimeSpan.FromDays(1))
+                return null;
             return EndDatePicker.SelectedDate.Value.Date + time;
         }
 
@@ -915,12 +924,12 @@ namespace VideoPlayer
 
             if (_loginId == IntPtr.Zero)
             {
-                var deviceInfo = new DahuaNetSdk.NET_DEVICEINFO_Ex();
-                int err = 0;
-                _loginId = DahuaNetSdk.CLIENT_Login(ip, port, user, pass, out deviceInfo, out err);
+                // Reuse the standard connection path so CLIENT_Init and callbacks
+                // are always configured before any login attempt.
+                Connect_Click(sender, e);
                 if (_loginId == IntPtr.Zero)
                 {
-                    MessageBox.Show("Nie można zalogować się do rejestratora. Sprawdź połączenie.", "Błąd logowania", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Nie udało się połączyć z rejestratorem. Sprawdź stan SDK, adres, port i dane logowania.", "Błąd logowania", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
             }
