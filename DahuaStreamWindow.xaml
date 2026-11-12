@@ -492,6 +492,26 @@
                                     <TextBox x:Name="EndTimeBox" Grid.Column="1" Text="12:15:00" ToolTip="Godzina:Minuta:Sekunda (np. 14:45:00)" FontWeight="Bold" />
                                 </Grid>
 
+                                <Button Content="🔎 Wyszukaj nagrania na rejestratorze" Click="SearchArchive_Click" Style="{StaticResource BlueButton}" Padding="12,8" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
+                                <TextBlock Text="NAGRANIA ZNALEZIONE NA URZĄDZENIU" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                <DataGrid x:Name="ArchiveRecordsGrid" Height="190" AutoGenerateColumns="False"
+                                          IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
+                                          CanUserAddRows="False" CanUserDeleteRows="False"
+                                          Background="#13161F" Foreground="#E2E8F0"
+                                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                          Margin="0,0,0,8">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Początek" Binding="{Binding StartTime, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="*" />
+                                        <DataGridTextColumn Header="Koniec" Binding="{Binding EndTime, StringFormat=HH:mm:ss}" Width="85" />
+                                        <DataGridTextColumn Header="Czas" Binding="{Binding DurationText}" Width="70" />
+                                        <DataGridTextColumn Header="Rozmiar" Binding="{Binding SizeText}" Width="75" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <WrapPanel Margin="0,0,0,10">
+                                    <Button Content="▶ Odtwórz zaznaczone w oknie Dahua" Click="PlaySelectedRecord_Click" Margin="0,0,6,6" />
+                                    <Button Content="★ Wczytaj zaznaczone do głównego odtwarzacza" Click="LoadSelectedRecord_Click" Style="{StaticResource GreenButton}" Margin="0,0,0,6" />
+                                </WrapPanel>
+
                                 <ProgressBar x:Name="DownloadProgressBar" Height="8" Margin="0,0,0,8" Visibility="Collapsed" Background="#13161F" Foreground="#22C55E" />
                                 <TextBlock x:Name="DownloadStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#4ADE80" Margin="0,0,0,8" Visibility="Collapsed" TextWrapping="Wrap" />
 
