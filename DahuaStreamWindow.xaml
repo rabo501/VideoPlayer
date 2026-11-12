@@ -294,9 +294,6 @@
                         <TextBlock Text="Zaznacz kanały do podglądu lub zsynchronizowanego odtwarzania archiwum."
                                    Foreground="#CBD5E1" FontSize="10" TextWrapping="Wrap" Margin="2,0,0,6"/>
                     </StackPanel>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="ModernChannelChecksPanel"/>
-                    </ScrollViewer>
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                         <TextBlock Text="UKŁAD PODGLĄDU" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,0,0,5"/>
                         <ComboBox x:Name="ModernGridModeBox" SelectedIndex="1" SelectionChanged="ModernGridModeBox_SelectionChanged">
@@ -308,6 +305,9 @@
                         <Button Content="▶ Podgląd zaznaczonych" Click="StartMultiLive_Click" Style="{StaticResource GreenButton}"
                                 HorizontalAlignment="Stretch" Margin="0,7,0,0"/>
                     </StackPanel>
+                    <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ModernChannelChecksPanel"/>
+                    </ScrollViewer>
                 </DockPanel>
             </Border>
 
@@ -367,7 +367,8 @@
                                        FontWeight="Bold" FontSize="11" HorizontalAlignment="Right"/>
                         </DockPanel>
                         <Slider x:Name="PlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
-                                IsEnabled="False" PreviewMouseLeftButtonUp="PlaybackSlider_MouseLeftButtonUp"
+                                IsEnabled="False" PreviewMouseLeftButtonDown="PlaybackSlider_MouseLeftButtonDown"
+                                PreviewMouseLeftButtonUp="PlaybackSlider_MouseLeftButtonUp"
                                 TickFrequency="60" IsSnapToTickEnabled="False"/>
                         <DockPanel Margin="0,4,0,0">
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
