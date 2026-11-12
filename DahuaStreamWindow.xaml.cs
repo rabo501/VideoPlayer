@@ -335,17 +335,15 @@ namespace VideoPlayer
         private void OpenConfiguration_Click(object sender, RoutedEventArgs e)
         {
             var window = new DahuaConfigurationWindow(_devices) { Owner = this };
-            if (window.ShowDialog() == true)
-            {
-                _devices = DahuaConfigService.LoadDevices();
-                DevicesListBox.ItemsSource = null;
-                DevicesListBox.ItemsSource = _devices;
-                ModernDevicesListBox.ItemsSource = null;
-                ModernDevicesListBox.ItemsSource = _devices;
-                if (_devices.Count > 0)
-                    DevicesListBox.SelectedIndex = 0;
-                StatusLabel.Text = "Konfiguracja urządzeń została zapisana.";
-            }
+            window.ShowDialog();
+            _devices = DahuaConfigService.LoadDevices();
+            DevicesListBox.ItemsSource = null;
+            DevicesListBox.ItemsSource = _devices;
+            ModernDevicesListBox.ItemsSource = null;
+            ModernDevicesListBox.ItemsSource = _devices;
+            if (_devices.Count > 0)
+                DevicesListBox.SelectedIndex = 0;
+            StatusLabel.Text = "Zamknięto konfigurację urządzeń.";
         }
 
         #region Device Management for Operator
@@ -1299,7 +1297,16 @@ namespace VideoPlayer
                 check.Unchecked += ModernChannelCheck_Changed;
                 ModernChannelChecksPanel.Children.Add(check);
             }
-            ModernGridModeBox_SelectionChanged(ModernGridModeBox, new SelectionChangedEventArgs(Selector.SelectionChangedEvent, Selector.SelectedEvent, new List<object>(), new List<object>()));
+            int capacity = GetMultiViewCapacity();
+            int selectedCount = GetModernSelectedChannels().Count;
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsEnabled = check.IsChecked == true || selectedCount < capacity;
+        }
+
+        private void SelectModernChannel(int channelNumber)
+        {
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsChecked = check.Tag is int value && value == channelNumber;
         }
 
         private List<int> GetModernSelectedChannels()
@@ -1343,6 +1350,12 @@ namespace VideoPlayer
         {
             StopMultiLiveStreams();
             StopPlaybackHandlesOnly();
+            foreach (var oldSlot in _multiViewSlots)
+            {
+                try { oldSlot.Host.Child = null; } catch { }
+                try { oldSlot.PictureBox.Dispose(); } catch { }
+                try { oldSlot.Host.Dispose(); } catch { }
+            }
             _multiViewSlots.Clear();
             MultiVideoGrid.Children.Clear();
 
@@ -1503,9 +1516,14 @@ namespace VideoPlayer
             }
         }
 
+        private void PlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isSeekingPlayback = true;
+        }
+
         private void PlaybackUiTimer_Tick(object? sender, EventArgs e)
         {
-            if (_synchronizedPlaybackPaused || _multiPlaybackHandles.Count == 0) return;
+            if (_isSeekingPlayback || _synchronizedPlaybackPaused || _multiPlaybackHandles.Count == 0) return;
             double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
             elapsed = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
             PlaybackPositionSlider.Value = elapsed;
@@ -1547,6 +1565,7 @@ namespace VideoPlayer
 
         private void PlaybackSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            _isSeekingPlayback = false;
             if (_multiPlaybackHandles.Count == 0) return;
             int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, PlaybackPositionSlider.Maximum);
             int succeeded = 0;
@@ -1923,7 +1942,8 @@ namespace VideoPlayer
                 return;
             }
             ApplyRecordRange(record);
-            PlayArchiveInWindow_Click(sender, e);
+            SelectModernChannel(record.Channel);
+            StartSynchronizedPlayback_Click(sender, e);
         }
 
         private void LoadSelectedRecord_Click(object sender, RoutedEventArgs e)
@@ -2173,6 +2193,9 @@ namespace VideoPlayer
 
         private void PlayArchiveInWindow_Click(object sender, RoutedEventArgs e)
         {
+            StartSynchronizedPlayback_Click(sender, e);
+            return;
+
             if (_currentDevice == null) return;
 
             var start = GetStartDateTime();
