@@ -290,7 +290,9 @@ namespace VideoPlayer
             ref NET_TIME lpStopTime,
             IntPtr hWnd,
             IntPtr cbDownLoadPos,
-            IntPtr dwUserData);
+            IntPtr dwPosUser,
+            IntPtr fDownLoadDataCallBack,
+            IntPtr dwDataUser);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
 
