@@ -1291,7 +1291,9 @@ namespace VideoPlayer
                 var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
                 var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
 
-                _playbackHandle = DahuaNetSdk.CLIENT_PlayBackByTimeEx(_loginId, channelIndex, ref tmStart, ref tmEnd, _primaryPictureBox.Handle, IntPtr.Zero, IntPtr.Zero);
+                _playbackHandle = DahuaNetSdk.CLIENT_PlayBackByTimeEx(
+                    _loginId, channelIndex, ref tmStart, ref tmEnd, _primaryPictureBox.Handle,
+                    IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
                 string chName = _currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}";
 
                 if (_playbackHandle == IntPtr.Zero)
