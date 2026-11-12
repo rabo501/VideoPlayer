@@ -697,14 +697,15 @@ namespace VideoPlayer
                 }
             }
 
+            SelectModernChannel(channelNumber);
             if (_loginId != IntPtr.Zero)
             {
-                StartLiveStreamForChannel(_currentChannel);
+                StartMultiLiveForSelectedChannels();
             }
             else
             {
                 string name = _currentDevice?.GetChannelName(channelNumber) ?? $"Kanał {channelNumber}";
-                StatusLabel.Text = $"Wybrano: {name} (CH {channelNumber}). Kliknij 'Połącz ze strumieniem'.";
+                StatusLabel.Text = $"Wybrano: {name} (CH {channelNumber}). Kliknij „Podgląd zaznaczonych”.";
             }
         }
 
@@ -1046,10 +1047,11 @@ namespace VideoPlayer
 
         private void StreamTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_loginId != IntPtr.Zero && _realPlayHandle != IntPtr.Zero)
-            {
+            if (_loginId == IntPtr.Zero) return;
+            if (_multiViewSlots.Any(slot => slot.StreamHandle != IntPtr.Zero))
+                StartMultiLiveForSelectedChannels();
+            else if (_realPlayHandle != IntPtr.Zero)
                 StartLiveStreamForChannel(_currentChannel);
-            }
         }
 
         private static bool IsValidEndpoint(string address, string portText, out ushort port, out string error)
@@ -1268,7 +1270,7 @@ namespace VideoPlayer
             Dispatcher.Invoke(() =>
             {
                 StatusLabel.Text = $"Przywrócono połączenie z {pchDVRIP}:{nDVRPort}.";
-                StartLiveStreamForChannel(_currentChannel);
+                StartMultiLiveForSelectedChannels();
             });
         }
 
@@ -1363,7 +1365,7 @@ namespace VideoPlayer
             int capacity = GetMultiViewCapacity();
             int columns = capacity == 1 ? 1 : capacity == 4 ? 2 : capacity == 9 ? 3 : 4;
             MultiVideoGrid.Columns = columns;
-            MultiVideoGrid.Rows = (int)Math.Ceiling(count / (double)columns);
+            MultiVideoGrid.Rows = capacity / columns;
 
             foreach (int channel in channels.Take(capacity))
             {
@@ -2194,63 +2196,6 @@ namespace VideoPlayer
         private void PlayArchiveInWindow_Click(object sender, RoutedEventArgs e)
         {
             StartSynchronizedPlayback_Click(sender, e);
-            return;
-
-            if (_currentDevice == null) return;
-
-            var start = GetStartDateTime();
-            var end = GetEndDateTime();
-            if (start == null || end == null || end <= start)
-            {
-                MessageBox.Show("Wybierz poprawny przedział czasu.", "Błędny zakres dat", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            int channel = GetSelectedArchiveChannel();
-            int channelIndex = Math.Max(0, channel - 1);
-
-            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice?.Id, StringComparison.Ordinal))
-            {
-                Connect_Click(sender, e);
-                if (_loginId == IntPtr.Zero) return;
-            }
-
-            try
-            {
-                if (_realPlayHandle != IntPtr.Zero)
-                {
-                    DahuaNetSdk.CLIENT_StopRealPlayEx(_realPlayHandle);
-                    _realPlayHandle = IntPtr.Zero;
-                }
-                if (_playbackHandle != IntPtr.Zero)
-                {
-                    DahuaNetSdk.CLIENT_StopPlayBack(_playbackHandle);
-                    _playbackHandle = IntPtr.Zero;
-                }
-
-                ConfigureDahuaRecordModes(_loginId);
-                var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
-                var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
-
-                _playbackHandle = DahuaNetSdk.CLIENT_PlayBackByTimeEx(
-                    _loginId, channelIndex, ref tmStart, ref tmEnd, _primaryPictureBox.Handle,
-                    IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-                string chName = _currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}";
-
-                if (_playbackHandle == IntPtr.Zero)
-                {
-                    uint err = DahuaNetSdk.CLIENT_GetLastError();
-                    StatusLabel.Text = $"Błąd odtwarzania archiwalnego: {DahuaNetSdk.GetErrorDescription(err)}";
-                }
-                else
-                {
-                    StatusLabel.Text = $"Odtwarzanie archiwalne: {chName} ({start.Value:g} — {end.Value:g})";
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusLabel.Text = $"Wyjątek odtwarzania archiwalnego: {ex.Message}";
-            }
         }
 
         #endregion
