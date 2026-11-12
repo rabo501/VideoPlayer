@@ -291,29 +291,20 @@ namespace VideoPlayer
                     _currentDevice.UpdateFromDeviceChannels(readChannels);
                 }
 
-                // 2. Odczyt presetów PTZ z kamery
-                int channelIndex = Math.Max(0, _currentChannel - 1);
-                List<DahuaPresetItem> readPresets = new List<DahuaPresetItem>();
-                try
-                {
-                    readPresets = DahuaNetSdk.QueryPresetsFromDevice(_loginId, channelIndex);
-                }
-                catch (Exception presetEx)
-                {
-                    WriteSdkDiagnostic($"Preset read failed: {presetEx.GetType().Name}: {presetEx.Message}");
-                }
-                int pCount = readPresets.Count;
-                WriteSdkDiagnostic($"Preset metadata read returned {pCount} items.");
-                if (pCount > 0)
-                {
-                    _currentDevice.UpdateFromDevicePresets(readPresets);
-                }
+                // PTZ preset retrieval uses a separate vendor configuration command.
+                // Do not invoke it as part of this general read operation: some recorder
+                // firmware/SDK combinations terminate the process inside that native call.
+                // Keep the locally configured presets intact.
+                int pCount = 0;
+                WriteSdkDiagnostic("PTZ preset query skipped in safe device-read mode.");
 
                 DahuaConfigService.SaveDevices(_devices);
                 RefreshChannelLists();
                 RefreshPresetsList();
 
-                string msg = $"Odczytano z urządzenia: {chCount} kanałów oraz {pCount} presetów PTZ.";
+                string msg = chCount > 0
+                    ? $"Odczytano {chCount} nazw kanałów. Presety PTZ pozostawiono bez zmian."
+                    : "Urządzenie nie udostępniło nazw kanałów. Dotychczasowa konfiguracja została zachowana.";
                 StatusLabel.Text = msg;
 
                 if (showDialog)
@@ -1076,9 +1067,11 @@ namespace VideoPlayer
                             WriteSdkDiagnostic($"CLIENT_SetDeviceMode(DH_RECORD_STREAM_TYPE) failed: 0x{modeError:X8}.");
                         }
 
+                        WriteSdkDiagnostic($"CLIENT_QueryRecordFile: channel={channelIndex}; recordType=0 (ALL); timeRange={start.Value:O}..{end.Value:O}; bTime=true; recordInfoSize={itemSize}; bufferSize={bufferSize}.");
                         bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
                             login, channelIndex, 0, ref tmStart, ref tmEnd, null,
                             buffer, bufferSize, out count, 8000, true);
+                        WriteSdkDiagnostic($"CLIENT_QueryRecordFile returned ok={ok}; count={count}; lastError=0x{DahuaNetSdk.CLIENT_GetLastError():X8}.");
 
                         if (!ok)
                         {
