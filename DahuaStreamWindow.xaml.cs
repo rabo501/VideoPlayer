@@ -280,8 +280,11 @@ namespace VideoPlayer
 
             try
             {
-                // 1. Odczyt nazw kanałów z kamery lub rejestratora
+                WriteSdkDiagnostic("Manual device read started.");
+                // Używamy ograniczonego GetNewDevConfig zamiast starszego
+                // CLIENT_QueryChannelName, który bywa niezgodny z wersją SDK.
                 var readChannels = DahuaNetSdk.QueryChannelNamesFromDevice(_loginId);
+                WriteSdkDiagnostic($"Channel metadata read returned {readChannels.Count} items.");
                 int chCount = readChannels.Count;
                 if (chCount > 0)
                 {
@@ -290,8 +293,17 @@ namespace VideoPlayer
 
                 // 2. Odczyt presetów PTZ z kamery
                 int channelIndex = Math.Max(0, _currentChannel - 1);
-                var readPresets = DahuaNetSdk.QueryPresetsFromDevice(_loginId, channelIndex);
+                List<DahuaPresetItem> readPresets = new List<DahuaPresetItem>();
+                try
+                {
+                    readPresets = DahuaNetSdk.QueryPresetsFromDevice(_loginId, channelIndex);
+                }
+                catch (Exception presetEx)
+                {
+                    WriteSdkDiagnostic($"Preset read failed: {presetEx.GetType().Name}: {presetEx.Message}");
+                }
                 int pCount = readPresets.Count;
+                WriteSdkDiagnostic($"Preset metadata read returned {pCount} items.");
                 if (pCount > 0)
                 {
                     _currentDevice.UpdateFromDevicePresets(readPresets);
@@ -1054,9 +1066,19 @@ namespace VideoPlayer
                     {
                         for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(buffer, i, 0);
                         int count;
+                        // DH_RECORD_STREAM_TYPE = 6; value 0 selects main + sub stream.
+                        int recordStreamMode = 0;
+                        if (!DahuaNetSdk.CLIENT_SetDeviceMode(login, 6, ref recordStreamMode))
+                        {
+                            uint modeError = DahuaNetSdk.CLIENT_GetLastError();
+                            // Firmware may not implement this mode. Keep its default and
+                            // inspect the actual archive query result below.
+                            WriteSdkDiagnostic($"CLIENT_SetDeviceMode(DH_RECORD_STREAM_TYPE) failed: 0x{modeError:X8}.");
+                        }
+
                         bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
-                            login, channelIndex, 255, ref tmStart, ref tmEnd, null,
-                            buffer, bufferSize, out count, 5000, false);
+                            login, channelIndex, 0, ref tmStart, ref tmEnd, null,
+                            buffer, bufferSize, out count, 8000, true);
 
                         if (!ok)
                         {
