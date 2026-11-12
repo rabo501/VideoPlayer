@@ -1302,6 +1302,8 @@ namespace VideoPlayer
 
         private void PlayArchiveInWindow_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentDevice == null) return;
+
             var start = GetStartDateTime();
             var end = GetEndDateTime();
             if (start == null || end == null || end <= start)
