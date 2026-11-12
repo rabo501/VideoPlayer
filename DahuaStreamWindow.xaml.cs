@@ -1137,11 +1137,6 @@ namespace VideoPlayer
 
             int channel = GetSelectedArchiveChannel();
             string chName = _currentDevice.GetChannelName(channel);
-            string ip = _currentDevice.ConnectionAddress;
-            ushort port = _currentDevice.Port;
-            string user = _currentDevice.Username;
-            string pass = _currentDevice.Password;
-
             if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
             {
                 // Reconnect to the selected endpoint, not to a previously selected device.
@@ -1155,8 +1150,12 @@ namespace VideoPlayer
 
             string outputDir = Path.Combine(AppContext.BaseDirectory, "nagrania_dahua");
             Directory.CreateDirectory(outputDir);
-            string filename = $"Dahua_{chName.Replace(' ', '_')}_CH{channel}_{start.Value:yyyyMMdd_HHmmss}-{end.Value:HHmmss}.mp4";
-            string targetFilePath = Path.Combine(outputDir, filename);
+            string safeChannelName = string.Concat(chName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)).Replace(' ', '_');
+            string fileStem = $"Dahua_{safeChannelName}_CH{channel}_{start.Value:yyyyMMdd_HHmmss}-{end.Value:HHmmss}";
+            string davFilePath = Path.Combine(outputDir, fileStem + ".dav");
+            string targetFilePath = Path.Combine(outputDir, fileStem + ".mp4");
+            if (File.Exists(davFilePath)) File.Delete(davFilePath);
+            if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
 
             DownloadProgressBar.Visibility = Visibility.Visible;
             DownloadProgressBar.IsIndeterminate = true;
@@ -1185,7 +1184,7 @@ namespace VideoPlayer
                         };
 
                     IntPtr hDown = DahuaNetSdk.CLIENT_DownloadByTimeEx(
-                        _loginId, channelIndex, 0, ref tmStart, ref tmEnd, targetFilePath,
+                        _loginId, channelIndex, 0, ref tmStart, ref tmEnd, davFilePath,
                         progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
                     if (hDown != IntPtr.Zero)
@@ -1194,8 +1193,8 @@ namespace VideoPlayer
                         {
                             // Timeout prevents a hung SDK call from blocking the UI forever.
                             bool signaled = await Task.Run(() => completed.Wait(TimeSpan.FromMinutes(30)));
-                            if (signaled && File.Exists(targetFilePath) &&
-                                new FileInfo(targetFilePath).Length > 0)
+                            if (signaled && File.Exists(davFilePath) &&
+                                new FileInfo(davFilePath).Length > 0)
                                 downloadFinished = true;
                         }
                         finally
@@ -1205,42 +1204,13 @@ namespace VideoPlayer
                         }
                     }
 
-                    // 2. Fallback na wbudowany FFmpeg / RTSP playback
-                    if (!downloadFinished)
-                    {
-                        string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-                        if (File.Exists(ffmpegPath))
-                        {
-                            string rtspUrl = $"rtsp://{user}:{pass}@{ip}:554/cam/playback?channel={channel}&starttime={start.Value:yyyy_MM_dd_HH_mm_ss}&endtime={end.Value:yyyy_MM_dd_HH_mm_ss}";
-                            var psi = new ProcessStartInfo(ffmpegPath)
-                            {
-                                UseShellExecute = false,
-                                CreateNoWindow = true
-                            };
-                            psi.ArgumentList.Add("-y");
-                            psi.ArgumentList.Add("-rtsp_transport");
-                            psi.ArgumentList.Add("tcp");
-                            psi.ArgumentList.Add("-t");
-                            int durationSec = Math.Max(1, (int)Math.Ceiling((end.Value - start.Value).TotalSeconds));
-                            psi.ArgumentList.Add(durationSec.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                            psi.ArgumentList.Add("-i");
-                            psi.ArgumentList.Add(rtspUrl);
-                            psi.ArgumentList.Add("-c");
-                            psi.ArgumentList.Add("copy");
-                            psi.ArgumentList.Add(targetFilePath);
-
-                            using var proc = Process.Start(psi);
-                            if (proc != null)
-                            {
-                                await proc.WaitForExitAsync();
-                                if (File.Exists(targetFilePath) && new FileInfo(targetFilePath).Length > 0)
-                                {
-                                    downloadFinished = true;
-                                }
-                            }
-                        }
-                    }
                 });
+
+                if (!downloadFinished || !File.Exists(davFilePath) || new FileInfo(davFilePath).Length == 0)
+                    throw new InvalidOperationException("NetSDK nie zakończył pobierania pliku archiwum. Sprawdź dostępność nagrania i log SDK.");
+
+                DownloadStatusText.Text = "Pobrano plik DAV. Konwersja do MP4…";
+                await ConvertDahuaRecordingToMp4Async(davFilePath, targetFilePath);
 
                 if (File.Exists(targetFilePath) && new FileInfo(targetFilePath).Length > 0)
                 {
