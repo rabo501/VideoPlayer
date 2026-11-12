@@ -2,10 +2,83 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace VideoPlayer
 {
+    /// <summary>
+    /// Protects Dahua credentials with Windows DPAPI. The CurrentUser scope deliberately
+    /// prevents another Windows account (or another computer) from decrypting the values.
+    /// </summary>
+    internal static class DahuaCredentialProtection
+    {
+        private const string Prefix = "dpapi:v1:";
+        private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("VideoPlayer.Dahua.Credentials.v1");
+
+        public static string Protect(string value)
+        {
+            byte[] clearBytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
+            byte[] protectedBytes = ProtectedData.Protect(
+                clearBytes, Entropy, DataProtectionScope.CurrentUser);
+
+            try
+            {
+                return Prefix + Convert.ToBase64String(protectedBytes);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(clearBytes);
+                CryptographicOperations.ZeroMemory(protectedBytes);
+            }
+        }
+
+        public static bool TryUnprotect(string value, out string clearText, out bool isLegacyPlainText)
+        {
+            clearText = string.Empty;
+            isLegacyPlainText = false;
+
+            if (string.IsNullOrEmpty(value) || !value.StartsWith(Prefix, StringComparison.Ordinal))
+            {
+                // Backward compatibility: older JSON files stored credentials as plain text.
+                clearText = value ?? string.Empty;
+                isLegacyPlainText = true;
+                return true;
+            }
+
+            byte[]? cipherBytes = null;
+            byte[]? clearBytes = null;
+            try
+            {
+                cipherBytes = Convert.FromBase64String(value.Substring(Prefix.Length));
+                clearBytes = ProtectedData.Unprotect(
+                    cipherBytes, Entropy, DataProtectionScope.CurrentUser);
+                clearText = Encoding.UTF8.GetString(clearBytes);
+                return true;
+            }
+            catch (CryptographicException)
+            {
+                // Most commonly the file was copied to another PC or Windows account.
+                return false;
+            }
+            catch (FormatException)
+            {
+                // Treat a damaged protected value as unavailable; never reinterpret it as plain text.
+                return false;
+            }
+            finally
+            {
+                if (cipherBytes != null) CryptographicOperations.ZeroMemory(cipherBytes);
+                if (clearBytes != null) CryptographicOperations.ZeroMemory(clearBytes);
+            }
+        }
+
+        public static bool IsProtected(string value) =>
+            !string.IsNullOrEmpty(value) && value.StartsWith(Prefix, StringComparison.Ordinal);
+    }
+
     public sealed class DahuaRecordItem
     {
         public int Channel { get; set; }
@@ -14,7 +87,7 @@ namespace VideoPlayer
         public DateTime EndTime { get; set; }
         public uint SizeKb { get; set; }
         public int RecordType { get; set; }
-        public string DurationText => (EndTime - StartTime).ToString(@"hh\:mm\:ss");
+        public string DurationText => (EndTime - StartTime).ToString(@"hh\\:mm\\:ss");
         public string SizeText => SizeKb >= 1024
             ? $"{SizeKb / 1024.0:N1} MB"
             : $"{SizeKb:N0} KB";
@@ -40,13 +113,120 @@ namespace VideoPlayer
 
     public class DahuaDeviceItem
     {
+        private string _username = "admin";
+        private string _password = string.Empty;
+        private string? _usernameStoredValue;
+        private string? _passwordStoredValue;
+        private bool _usernameUnavailable;
+        private bool _passwordUnavailable;
+        private bool _usernameChanged;
+        private bool _passwordChanged;
+        private bool _usernameNeedsMigration;
+        private bool _passwordNeedsMigration;
+
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
         public string Name { get; set; } = "Kamera Dahua IP";
         public string IpAddress { get; set; } = "";
         public ushort Port { get; set; } = 37777;
         public ushort HttpPort { get; set; } = 80;
-        public string Username { get; set; } = "admin";
-        public string Password { get; set; } = "";
+
+        // Runtime values used by the SDK. They are never serialized directly.
+        [JsonIgnore]
+        public string Username
+        {
+            get => _username;
+            set
+            {
+                _username = value ?? string.Empty;
+                _usernameChanged = true;
+                _usernameUnavailable = false;
+                _usernameNeedsMigration = false;
+                _usernameStoredValue = null;
+            }
+        }
+
+        [JsonIgnore]
+        public string Password
+        {
+            get => _password;
+            set
+            {
+                _password = value ?? string.Empty;
+                _passwordChanged = true;
+                _passwordUnavailable = false;
+                _passwordNeedsMigration = false;
+                _passwordStoredValue = null;
+            }
+        }
+
+        // Keep the established JSON property names for compatibility, but store only DPAPI ciphertext.
+        [JsonPropertyName("Username")]
+        public string UsernameProtected
+        {
+            get => GetStoredCredential(_username, _usernameStoredValue, _usernameUnavailable, _usernameChanged);
+            set => SetStoredCredential(value, true);
+        }
+
+        [JsonPropertyName("Password")]
+        public string PasswordProtected
+        {
+            get => GetStoredCredential(_password, _passwordStoredValue, _passwordUnavailable, _passwordChanged);
+            set => SetStoredCredential(value, false);
+        }
+
+        [JsonIgnore]
+        public bool CredentialsUnavailable => _usernameUnavailable || _passwordUnavailable;
+
+        [JsonIgnore]
+        internal bool CredentialsNeedMigration => _usernameNeedsMigration || _passwordNeedsMigration;
+
+        private static string GetStoredCredential(string clearText, string? originalValue, bool unavailable, bool changed)
+        {
+            if (unavailable && !changed)
+                return originalValue ?? string.Empty;
+
+            return DahuaCredentialProtection.Protect(clearText);
+        }
+
+        private void SetStoredCredential(string? storedValue, bool isUsername)
+        {
+            bool ok = DahuaCredentialProtection.TryUnprotect(
+                storedValue ?? string.Empty, out string clearText, out bool isLegacyPlainText);
+
+            if (isUsername)
+            {
+                _usernameStoredValue = storedValue;
+                _username = ok ? clearText : string.Empty;
+                _usernameUnavailable = !ok;
+                _usernameChanged = false;
+                _usernameNeedsMigration = ok && isLegacyPlainText;
+            }
+            else
+            {
+                _passwordStoredValue = storedValue;
+                _password = ok ? clearText : string.Empty;
+                _passwordUnavailable = !ok;
+                _passwordChanged = false;
+                _passwordNeedsMigration = ok && isLegacyPlainText;
+            }
+        }
+
+        public void SetCredentials(string username, string password)
+        {
+            Username = username;
+            Password = password;
+        }
+
+        internal void MarkCredentialsPersisted()
+        {
+            _usernameNeedsMigration = false;
+            _passwordNeedsMigration = false;
+            _usernameChanged = false;
+            _passwordChanged = false;
+            if (!_usernameUnavailable) _usernameStoredValue = null;
+            if (!_passwordUnavailable) _passwordStoredValue = null;
+        }
+
         public int Channel { get; set; } = 1;
         public DahuaNetSdk.EM_RealPlayType StreamType { get; set; } = DahuaNetSdk.EM_RealPlayType.Realplay;
 
@@ -54,7 +234,7 @@ namespace VideoPlayer
         public List<DahuaPresetItem> Presets { get; set; } = new();
 
         // Name is a presentation-only label. All network operations must use ConnectionAddress.
-        [System.Text.Json.Serialization.JsonIgnore]
+        [JsonIgnore]
         public string ConnectionAddress => (IpAddress ?? string.Empty).Trim();
 
         public string DisplayLabel => string.IsNullOrWhiteSpace(IpAddress)
@@ -68,9 +248,7 @@ namespace VideoPlayer
             foreach (var dCh in deviceChannels)
             {
                 if (!string.IsNullOrWhiteSpace(dCh.Name))
-                {
                     SetChannelName(dCh.Number, dCh.Name);
-                }
             }
         }
 
@@ -78,17 +256,13 @@ namespace VideoPlayer
         {
             if (devicePresets == null) return;
 
-            // The camera is the source of truth for which preset numbers exist.
-            // Replace the list so deleted device presets do not remain as stale local entries.
             Presets = devicePresets
                 .Where(p => p.PresetNumber > 0)
                 .GroupBy(p => p.PresetNumber)
                 .Select(g => new DahuaPresetItem
                 {
                     PresetNumber = g.Key,
-                    Name = string.IsNullOrWhiteSpace(g.First().Name)
-                        ? $"Preset {g.Key}"
-                        : g.First().Name.Trim()
+                    Name = string.IsNullOrWhiteSpace(g.First().Name) ? $"Preset {g.Key}" : g.First().Name.Trim()
                 })
                 .OrderBy(p => p.PresetNumber)
                 .ToList();
@@ -104,13 +278,9 @@ namespace VideoPlayer
         {
             var match = Channels.FirstOrDefault(c => c.Number == channelNumber);
             if (match != null)
-            {
                 match.Name = newName.Trim();
-            }
             else
-            {
                 Channels.Add(new DahuaChannelInfo { Number = channelNumber, Name = newName.Trim() });
-            }
         }
 
         public void EnsureDefaultChannels(int maxCount = 16)
@@ -118,10 +288,7 @@ namespace VideoPlayer
             for (int i = 1; i <= maxCount; i++)
             {
                 if (!Channels.Any(c => c.Number == i))
-                {
-                    string name = $"Kanał {i}";
-                    Channels.Add(new DahuaChannelInfo { Number = i, Name = name });
-                }
+                    Channels.Add(new DahuaChannelInfo { Number = i, Name = $"Kanał {i}" });
             }
         }
 
@@ -144,7 +311,7 @@ namespace VideoPlayer
             Directory.CreateDirectory(ConfigDirectory);
             if (!File.Exists(ConfigPath) && File.Exists(LegacyConfigPath))
             {
-                // Copy, never move: the original portable configuration remains as backup.
+                // Copy first; the source is removed only after encrypted data has been saved successfully.
                 File.Copy(LegacyConfigPath, ConfigPath, overwrite: false);
             }
         }
@@ -162,8 +329,6 @@ namespace VideoPlayer
             if (extractedFromLabel)
                 candidate = candidate.Substring(openParen + 1, closeParen - openParen - 1).Trim();
 
-            // Do not reinterpret an ordinary operator label like "Rejestrator"
-            // as a DNS host merely because single-label URIs are syntactically valid.
             if (!extractedFromLabel && !candidate.Contains('.') && !candidate.Contains(':'))
                 return false;
 
@@ -197,9 +362,6 @@ namespace VideoPlayer
                     var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                     var list = JsonSerializer.Deserialize<List<DahuaDeviceItem>>(json, options) ?? new List<DahuaDeviceItem>();
 
-                    // Compatibility with older files where the IP address was stored
-                    // in Name (the UI used to display the address as the device label),
-                    // or where the endpoint property had a different name.
                     using var document = JsonDocument.Parse(json);
                     if (document.RootElement.ValueKind == JsonValueKind.Array)
                     {
@@ -227,8 +389,6 @@ namespace VideoPlayer
                             if (string.IsNullOrWhiteSpace(device.Name))
                                 device.Name = ReadString("Name", "DisplayName", "Title") ?? string.Empty;
 
-                            // Legacy schema: older versions stored the endpoint in Name
-                            // or in a combined display label such as "NVR (192.168.1.20:37777)".
                             if (string.IsNullOrWhiteSpace(device.IpAddress) &&
                                 TryExtractLegacyEndpoint(device.Name, out string legacyHost, out ushort legacyPort))
                             {
@@ -256,19 +416,22 @@ namespace VideoPlayer
                         }
                     }
 
+                    bool migratePlainTextCredentials = list.Any(d => d.CredentialsNeedMigration);
+                    if (migratePlainTextCredentials)
+                        SaveDevices(list); // Rewrites the JSON with DPAPI values and removes plaintext migration backups.
+                    else if (!list.Any(d => d.CredentialsUnavailable))
+                        TryDeleteFile(LegacyConfigPath); // Remove an obsolete portable copy containing old plaintext secrets.
+
                     return list;
                 }
                 catch (Exception ex)
                 {
-                    // Do not silently replace a damaged/old configuration with demo devices.
-                    // Keep the source file for recovery and let the operator see the problem.
                     throw new InvalidDataException(
                         $"Nie można odczytać konfiguracji urządzeń Dahua: {ConfigPath}. " +
                         "Plik nie został nadpisany. Szczegóły: " + ex.Message, ex);
                 }
             }
 
-            // First launch only: create demo entries when no configuration exists.
             var nvr = new DahuaDeviceItem
             {
                 Name = "Rejestrator NVR Dahua (8 kanałów)",
@@ -299,18 +462,56 @@ namespace VideoPlayer
         public static void SaveDevices(List<DahuaDeviceItem> devices)
         {
             Directory.CreateDirectory(ConfigDirectory);
+            bool credentialMigration = devices.Any(d => d.CredentialsNeedMigration);
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(devices, options);
             string tempPath = ConfigPath + ".tmp";
-            File.WriteAllText(tempPath, json);
-            if (File.Exists(ConfigPath))
+
+            File.WriteAllText(tempPath, json, new UTF8Encoding(false));
+            try
             {
-                string backupPath = ConfigPath + ".bak";
-                File.Replace(tempPath, ConfigPath, backupPath, ignoreMetadataErrors: true);
+                if (File.Exists(ConfigPath))
+                {
+                    if (credentialMigration)
+                    {
+                        // Never create a .bak containing the previous plaintext credentials.
+                        File.Replace(tempPath, ConfigPath, null, ignoreMetadataErrors: true);
+                    }
+                    else
+                    {
+                        string backupPath = ConfigPath + ".bak";
+                        File.Replace(tempPath, ConfigPath, backupPath, ignoreMetadataErrors: true);
+                    }
+                }
+                else
+                {
+                    File.Move(tempPath, ConfigPath);
+                }
+
+                foreach (var device in devices)
+                    device.MarkCredentialsPersisted();
+
+                if (credentialMigration)
+                {
+                    TryDeleteFile(ConfigPath + ".bak");
+                    TryDeleteFile(LegacyConfigPath);
+                }
             }
-            else
+            finally
             {
-                File.Move(tempPath, ConfigPath);
+                TryDeleteFile(tempPath);
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch
+            {
+                // Cleanup failure must not corrupt or prevent loading the encrypted configuration.
             }
         }
     }
