@@ -366,3 +366,5 @@ FodyWeavers.xsd
 /mpv/*.exe
 /Dokumentacja/Kod-projektu-31b87b1be61441aeb88ce54ad1c3301f.txt
 
+# Bibiliteki SDK dla Dahua
+.lib/
