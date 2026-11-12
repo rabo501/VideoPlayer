@@ -653,11 +653,17 @@ namespace VideoPlayer
             }
 
             string ip = _currentDevice.ConnectionAddress;
-            if (string.IsNullOrWhiteSpace(ip) ||
-                !IsValidEndpoint(ip, _currentDevice.Port.ToString(), out ushort validatedPort, out string validationError))
+            if (string.IsNullOrWhiteSpace(ip))
             {
-                StatusLabel.Text = string.IsNullOrWhiteSpace(ip) ? "Brak adresu IP/hosta urządzenia. Nazwa operatora nie jest adresem połączenia." : validationError;
+                StatusLabel.Text = "Brak adresu IP/hosta urządzenia. Nazwa operatora nie jest adresem połączenia.";
                 MessageBox.Show(StatusLabel.Text, "Nieprawidłowa konfiguracja urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!IsValidEndpoint(ip, _currentDevice.Port.ToString(), out ushort validatedPort, out string validationError))
+            {
+                StatusLabel.Text = validationError;
+                MessageBox.Show(validationError, "Nieprawidłowa konfiguracja urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
