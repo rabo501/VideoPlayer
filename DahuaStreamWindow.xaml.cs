@@ -1125,12 +1125,8 @@ namespace VideoPlayer
             LoadToPlayer_Click(sender, e);
         }
 
-        private async Task ConvertDahuaRecordingToMp4Async(string inputPath, string outputPath)
+        private async Task<string> RunFfmpegConversionAsync(string ffmpegPath, string inputPath, string outputPath, bool transcodeVideo)
         {
-            string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath))
-                throw new FileNotFoundException("Nie znaleziono ffmpeg.exe. Wymagany jest FFmpeg do konwersji pliku DAV do MP4.", ffmpegPath);
-
             var psi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
@@ -1143,9 +1139,27 @@ namespace VideoPlayer
             psi.ArgumentList.Add("-i");
             psi.ArgumentList.Add(inputPath);
             psi.ArgumentList.Add("-map");
-            psi.ArgumentList.Add("0");
-            psi.ArgumentList.Add("-c");
-            psi.ArgumentList.Add("copy");
+            psi.ArgumentList.Add("0:v:0");
+            psi.ArgumentList.Add("-map");
+            psi.ArgumentList.Add("0:a?");
+            if (transcodeVideo)
+            {
+                psi.ArgumentList.Add("-c:v");
+                psi.ArgumentList.Add("libx264");
+                psi.ArgumentList.Add("-preset");
+                psi.ArgumentList.Add("veryfast");
+                psi.ArgumentList.Add("-crf");
+                psi.ArgumentList.Add("20");
+            }
+            else
+            {
+                psi.ArgumentList.Add("-c:v");
+                psi.ArgumentList.Add("copy");
+            }
+            psi.ArgumentList.Add("-c:a");
+            psi.ArgumentList.Add("aac");
+            psi.ArgumentList.Add("-b:a");
+            psi.ArgumentList.Add("128k");
             psi.ArgumentList.Add("-movflags");
             psi.ArgumentList.Add("+faststart");
             psi.ArgumentList.Add(outputPath);
@@ -1155,7 +1169,37 @@ namespace VideoPlayer
             await process.WaitForExitAsync();
             string error = await errorTask;
             if (process.ExitCode != 0 || !File.Exists(outputPath) || new FileInfo(outputPath).Length == 0)
-                throw new InvalidOperationException("Konwersja DAV do MP4 nie powiodła się: " + error);
+                throw new InvalidOperationException(error);
+            return error;
+        }
+
+        private async Task ConvertDahuaRecordingToMp4Async(string inputPath, string outputPath)
+        {
+            string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
+            if (!File.Exists(ffmpegPath))
+                throw new FileNotFoundException("Nie znaleziono ffmpeg.exe. Wymagany jest FFmpeg do konwersji pliku DAV do MP4.", ffmpegPath);
+
+            try
+            {
+                // Prefer fast remuxing: keep the original video bitstream.
+                await RunFfmpegConversionAsync(ffmpegPath, inputPath, outputPath, transcodeVideo: false);
+            }
+            catch (Exception remuxError)
+            {
+                // Some DAV recordings contain video streams that cannot be muxed
+                // into MP4 as-is. Retry by encoding video to broadly supported H.264.
+                if (File.Exists(outputPath)) File.Delete(outputPath);
+                try
+                {
+                    await RunFfmpegConversionAsync(ffmpegPath, inputPath, outputPath, transcodeVideo: true);
+                }
+                catch (Exception transcodeError)
+                {
+                    throw new InvalidOperationException(
+                        "Konwersja DAV do MP4 nie powiodła się. Remux: " + remuxError.Message +
+                        " | Kodowanie H.264: " + transcodeError.Message, transcodeError);
+                }
+            }
         }
 
         private async void LoadToPlayer_Click(object sender, RoutedEventArgs e)
