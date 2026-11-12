@@ -29,7 +29,8 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Tesseract"><HintPath>lib\Tesseract.dll</HintPath><Private>true</Private></Reference>
-    <Content Include="x64\**\*;dahua\**\*;tessdata\**\*;licenses\**\*">
+    <!-- Biblioteki SDK (zarówno natywne DLL, jak i pozostałe pliki) pozostają w katalogu lib. -->
+    <Content Include="lib\**\*;tessdata\**\*;licenses\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
