@@ -144,6 +144,14 @@ namespace VideoPlayer
             public byte byDiskNum;
             public byte byDVRType;
             public byte byChanNum;
+
+            public static NET_DEVICEINFO Create()
+            {
+                return new NET_DEVICEINFO
+                {
+                    sSerialNumber = new byte[48]
+                };
+            }
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
