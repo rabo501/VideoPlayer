@@ -166,6 +166,7 @@ namespace VideoPlayer
                 DeviceCustomNameBox.Text = dev.Name;
                 DeviceIpBox.Text = dev.IpAddress;
                 DevicePortBox.Text = dev.Port.ToString();
+                DeviceHttpPortBox.Text = dev.HttpPort.ToString();
                 DeviceUserBox.Text = dev.Username;
                 DevicePassBox.Password = dev.Password;
 
@@ -197,6 +198,12 @@ namespace VideoPlayer
                 MessageBox.Show(validationError, "Nieprawidłowy adres urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+            if (!ushort.TryParse(DeviceHttpPortBox.Text, out ushort httpPort) || httpPort == 0)
+            {
+                MessageBox.Show("Port HTTP musi być liczbą z zakresu 1–65535.", "Nieprawidłowy port HTTP",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             if (string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
                 Disconnect();
@@ -204,6 +211,7 @@ namespace VideoPlayer
             _currentDevice.Name = name;
             _currentDevice.IpAddress = address;
             _currentDevice.Port = port;
+            _currentDevice.HttpPort = httpPort;
             _currentDevice.Username = DeviceUserBox.Text.Trim();
             _currentDevice.Password = DevicePassBox.Password;
 
@@ -221,6 +229,12 @@ namespace VideoPlayer
                 return;
             }
 
+            if (!ushort.TryParse(DeviceHttpPortBox.Text, out ushort httpPort) || httpPort == 0)
+            {
+                MessageBox.Show("Port HTTP musi być liczbą z zakresu 1–65535.", "Nieprawidłowy port HTTP",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             string name = DeviceCustomNameBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(name)) name = $"Urządzenie {address}";
 
@@ -229,6 +243,7 @@ namespace VideoPlayer
                 Name = name,
                 IpAddress = address,
                 Port = port,
+                HttpPort = httpPort,
                 Username = string.IsNullOrWhiteSpace(DeviceUserBox.Text) ? "admin" : DeviceUserBox.Text.Trim(),
                 Password = DevicePassBox.Password,
                 Channel = 1,
@@ -342,18 +357,40 @@ namespace VideoPlayer
                     }
                 }
 
+                int presetCount = -1;
+                try
+                {
+                    WriteSdkDiagnostic($"Reading PTZ presets over Dahua CGI. Channel={_currentChannel}; HTTP port={_currentDevice.HttpPort}.");
+                    var remotePresets = DahuaNetSdk.QueryPresetsFromDevice(
+                        _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
+                        _currentDevice.Password, _currentChannel);
+                    _currentDevice.UpdateFromDevicePresets(remotePresets);
+                    presetCount = remotePresets.Count;
+                    WriteSdkDiagnostic($"PTZ preset read returned {presetCount} entries.");
+                }
+                catch (Exception presetError)
+                {
+                    // A failed PTZ query must not undo channel-name synchronization.
+                    WriteSdkDiagnostic($"PTZ preset read failed; local list preserved. {presetError}");
+                }
+
                 // Keep local names if the native query fails/returns no names or
-                // the operator declines the proposed changes.
+                // the operator declines the proposed changes. Presets are only
+                // replaced after a successful CGI response.
                 DahuaConfigService.SaveDevices(_devices);
                 WriteSdkDiagnostic($"Device configuration saved; applied channel-name changes={appliedNames}.");
                 RefreshChannelLists();
                 WriteSdkDiagnostic("Live/archive channel lists refreshed.");
                 RefreshPresetsList();
-                WriteSdkDiagnostic("Preset list refreshed.");
+                WriteSdkDiagnostic($"Preset list refreshed. Device preset count={presetCount}.");
 
-                string msg = remoteNames.Count > 0
-                    ? $"Odczytano {remoteNames.Count} nazw kanałów. Zastosowano zmian: {appliedNames}. Presety lokalne zachowano."
-                    : $"Nie udało się pobrać nazw kanałów. Zachowano lokalne nazwy i presety. Liczba kanałów: {channelCount}.";
+                string channelMessage = remoteNames.Count > 0
+                    ? $"Nazwy kanałów: odczytano {remoteNames.Count}, zastosowano {appliedNames} zmian."
+                    : $"Nazwy kanałów: odczyt nieudany; zachowano lokalne etykiety (kanałów: {channelCount}).";
+                string presetMessage = presetCount >= 0
+                    ? $"Presety PTZ: odczytano {presetCount} pozycji."
+                    : "Presety PTZ: odczyt nieudany; zachowano dotychczasową listę.";
+                string msg = channelMessage + Environment.NewLine + presetMessage;
 
                 StatusLabel.Text = msg;
                 WriteSdkDiagnostic("Manual device read completed.");
@@ -569,6 +606,19 @@ namespace VideoPlayer
             }
         }
 
+        private void PresetsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (PresetsComboBox.SelectedItem is ComboBoxItem item && item.Tag is int presetNumber)
+            {
+                var preset = _currentDevice?.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
+                if (preset != null)
+                {
+                    PresetNumberBox.Text = preset.PresetNumber.ToString();
+                    PresetNameBox.Text = preset.Name;
+                }
+            }
+        }
+
         private void GotoPreset(int presetNumber)
         {
             if (_loginId == IntPtr.Zero)
@@ -620,80 +670,176 @@ namespace VideoPlayer
         private void SaveCurrentPositionAsPreset_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDevice == null) return;
-            if (!int.TryParse(PresetNumberBox.Text.Trim(), out int pNum) || pNum < 1 || pNum > 255)
+            if (_loginId == IntPtr.Zero ||
+                !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
             {
-                MessageBox.Show("Podaj prawidłowy numer presetu (1-255).", "Nieprawidłowy numer", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Najpierw połącz się z rejestratorem/kamerą.", "Brak połączenia",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            string pName = PresetNameBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(pName)) pName = $"Preset {pNum}";
-
-            int channelIndex = Math.Max(0, _currentChannel - 1);
-
-            // Zapisanie presetu w kamerze przez NetSDK
-            if (_loginId != IntPtr.Zero)
+            if (!int.TryParse(PresetNumberBox.Text.Trim(), out int presetNumber) ||
+                presetNumber < 1 || presetNumber > 255)
             {
-                try
-                {
-                    DahuaNetSdk.CLIENT_DHPTZControlEx2(
-                        _loginId,
-                        channelIndex,
-                        (uint)DahuaNetSdk.EM_PTZ_COMMAND.POINT_SET_CONTROL, // 11
-                        0,
-                        pNum,
-                        0,
-                        false,
-                        IntPtr.Zero);
-                }
-                catch { }
+                MessageBox.Show("Podaj prawidłowy numer presetu (1-255).", "Nieprawidłowy numer",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
 
-            // Zapisanie w konfiguracji lokalnej
-            var existing = _currentDevice.Presets.FirstOrDefault(p => p.PresetNumber == pNum);
-            if (existing != null)
+            string presetName = PresetNameBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(presetName))
+                presetName = $"Preset {presetNumber}";
+
+            try
             {
-                existing.Name = pName;
+                // CGI API: SetPreset zapisuje pozycję, setPreset ustawia jej nazwę.
+                DahuaNetSdk.SetDevicePresetPosition(
+                    _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
+                    _currentDevice.Password, _currentChannel, presetNumber);
+
+                DahuaNetSdk.SetDevicePresetName(
+                    _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
+                    _currentDevice.Password, _currentChannel, presetNumber, presetName);
+
+                var existing = _currentDevice.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
+                if (existing != null)
+                    existing.Name = presetName;
+                else
+                    _currentDevice.Presets.Add(new DahuaPresetItem { PresetNumber = presetNumber, Name = presetName });
+
+                DahuaConfigService.SaveDevices(_devices);
+                RefreshPresetsList();
+                PresetsComboBox.SelectedItem = PresetsComboBox.Items
+                    .OfType<ComboBoxItem>()
+                    .FirstOrDefault(item => item.Tag is int n && n == presetNumber);
+                StatusLabel.Text = $"Zapisano preset {presetNumber}: {presetName}.";
             }
-            else
+            catch (Exception ex)
             {
-                _currentDevice.Presets.Add(new DahuaPresetItem { PresetNumber = pNum, Name = pName });
+                WriteSdkDiagnostic($"Saving PTZ preset {presetNumber} failed: {ex}");
+                MessageBox.Show(
+                    $"Nie udało się zapisać presetu na urządzeniu. Lokalna lista nie została zmieniona.\\n\\n{ex.Message}",
+                    "Błąd zapisu presetu PTZ", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void RenameSelectedPreset_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDevice == null ||
+                PresetsComboBox.SelectedItem is not ComboBoxItem item ||
+                item.Tag is not int presetNumber)
+                return;
+
+            string newName = PresetNameBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                MessageBox.Show("Wpisz nową nazwę presetu.", "Brak nazwy",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
 
-            DahuaConfigService.SaveDevices(_devices);
-            RefreshPresetsList();
-            StatusLabel.Text = $"Zapisano bieżącą pozycję jako Preset {pNum} ('{pName}').";
+            if (_loginId == IntPtr.Zero ||
+                !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                MessageBox.Show("Najpierw połącz się z urządzeniem.", "Brak połączenia",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                DahuaNetSdk.SetDevicePresetName(
+                    _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
+                    _currentDevice.Password, _currentChannel, presetNumber, newName);
+
+                var preset = _currentDevice.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
+                if (preset != null) preset.Name = newName;
+                DahuaConfigService.SaveDevices(_devices);
+                RefreshPresetsList();
+                StatusLabel.Text = $"Zmieniono nazwę presetu {presetNumber} na '{newName}'.";
+            }
+            catch (Exception ex)
+            {
+                WriteSdkDiagnostic($"Renaming PTZ preset {presetNumber} failed: {ex}");
+                MessageBox.Show(ex.Message, "Błąd zmiany nazwy presetu",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void RefreshPresetsFromDevice_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDevice == null) return;
+            if (_loginId == IntPtr.Zero ||
+                !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                MessageBox.Show("Najpierw połącz się z urządzeniem.", "Brak połączenia",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var remotePresets = DahuaNetSdk.QueryPresetsFromDevice(
+                    _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
+                    _currentDevice.Password, _currentChannel);
+
+                _currentDevice.UpdateFromDevicePresets(remotePresets);
+                DahuaConfigService.SaveDevices(_devices);
+                RefreshPresetsList();
+                StatusLabel.Text = $"Odczytano {remotePresets.Count} presetów dla kanału {_currentChannel}.";
+                MessageBox.Show(
+                    $"Odczytano {remotePresets.Count} presetów PTZ z urządzenia dla kanału {_currentChannel}.",
+                    "Presety PTZ", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                WriteSdkDiagnostic($"Reading PTZ presets failed: {ex}");
+                MessageBox.Show(
+                    $"Nie udało się odczytać presetów. Lokalna lista pozostała bez zmian.\\n\\n{ex.Message}",
+                    "Błąd odczytu presetów PTZ", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void DeletePreset_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentDevice == null) return;
-            if (PresetsComboBox.SelectedItem is ComboBoxItem item && item.Tag is int pNum)
-            {
-                int channelIndex = Math.Max(0, _currentChannel - 1);
-                if (_loginId != IntPtr.Zero)
-                {
-                    try
-                    {
-                        DahuaNetSdk.CLIENT_DHPTZControlEx2(
-                            _loginId,
-                            channelIndex,
-                            (uint)DahuaNetSdk.EM_PTZ_COMMAND.POINT_DEL_CONTROL, // 12
-                            0,
-                            pNum,
-                            0,
-                            false,
-                            IntPtr.Zero);
-                    }
-                    catch { }
-                }
+            if (_currentDevice == null ||
+                PresetsComboBox.SelectedItem is not ComboBoxItem item ||
+                item.Tag is not int presetNumber)
+                return;
 
-                _currentDevice.Presets.RemoveAll(p => p.PresetNumber == pNum);
+            if (_loginId == IntPtr.Zero ||
+                !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                MessageBox.Show("Najpierw połącz się z urządzeniem.", "Brak połączenia",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"Czy na pewno usunąć preset {presetNumber} z urządzenia?",
+                "Potwierdź usunięcie presetu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                DahuaNetSdk.DeleteDevicePreset(
+                    _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
+                    _currentDevice.Password, _currentChannel, presetNumber);
+
+                _currentDevice.Presets.RemoveAll(p => p.PresetNumber == presetNumber);
                 DahuaConfigService.SaveDevices(_devices);
                 RefreshPresetsList();
-                StatusLabel.Text = $"Usunięto Preset {pNum}.";
+                StatusLabel.Text = $"Usunięto preset {presetNumber} z urządzenia.";
+            }
+            catch (Exception ex)
+            {
+                WriteSdkDiagnostic($"Deleting PTZ preset {presetNumber} failed: {ex}");
+                MessageBox.Show(
+                    $"Nie udało się usunąć presetu z urządzenia. Lokalna lista nie została zmieniona.\\n\\n{ex.Message}",
+                    "Błąd usuwania presetu PTZ", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
 
         #endregion
 
