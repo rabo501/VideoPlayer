@@ -14,7 +14,7 @@ namespace VideoPlayer
         public DateTime EndTime { get; set; }
         public uint SizeKb { get; set; }
         public int RecordType { get; set; }
-        public string DurationText => (EndTime - StartTime).ToString(@"hh\\:mm\\:ss");
+        public string DurationText => (EndTime - StartTime).ToString(@"hh\:mm\:ss");
         public string SizeText => SizeKb >= 1024
             ? $"{SizeKb / 1024.0:N1} MB"
             : $"{SizeKb:N0} KB";
