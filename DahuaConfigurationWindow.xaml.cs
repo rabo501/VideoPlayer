@@ -121,9 +121,21 @@ namespace VideoPlayer
 
         private void Add_Click(object sender, RoutedEventArgs e)
         {
-            ClearEditor();
-            DevicesList.SelectedItem = null;
+            var device = new DahuaDeviceItem
+            {
+                Name = "Nowe urządzenie Dahua",
+                IpAddress = string.Empty,
+                Port = 37777,
+                HttpPort = 80,
+                Channel = 1
+            };
+            device.EnsureDefaultChannels(16);
+            _devices.Add(device);
+            DevicesList.Items.Refresh();
+            DevicesList.SelectedItem = device;
+            LoadEditor(device);
             NameBox.Text = "Nowe urządzenie Dahua";
+            AddressBox.Focus();
         }
 
         private void Delete_Click(object sender, RoutedEventArgs e)
