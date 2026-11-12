@@ -1007,7 +1007,7 @@ namespace VideoPlayer
                         for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(buffer, i, 0);
                         int count;
                         bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
-                            login, channelIndex, 0, ref tmStart, ref tmEnd, null,
+                            login, channelIndex, 255, ref tmStart, ref tmEnd, null,
                             buffer, bufferSize, out count, 5000, false);
 
                         if (!ok)
@@ -1186,6 +1186,10 @@ namespace VideoPlayer
                 int channelIndex = Math.Max(0, channel - 1);
                 var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
                 var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
+                int recordType = ArchiveRecordsGrid.SelectedItem is DahuaRecordItem selectedRecord &&
+                    selectedRecord.StartTime == start.Value && selectedRecord.EndTime == end.Value
+                    ? selectedRecord.RecordType : 255;
+                IntPtr activeLoginId = _loginId;
 
                 bool downloadFinished = false;
 
@@ -1204,7 +1208,7 @@ namespace VideoPlayer
                         };
 
                     IntPtr hDown = DahuaNetSdk.CLIENT_DownloadByTimeEx(
-                        _loginId, channelIndex, 0, ref tmStart, ref tmEnd, davFilePath,
+                        activeLoginId, channelIndex, recordType, ref tmStart, ref tmEnd, davFilePath,
                         progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
                     if (hDown != IntPtr.Zero)
