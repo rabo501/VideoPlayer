@@ -1218,7 +1218,9 @@ namespace VideoPlayer
                 {
                     // Native download is asynchronous. Do not stop it after a fixed
                     // 15-second delay: larger archive segments need substantially longer.
-                    using var completed = new System.Threading.ManualResetEventSlim(false);
+                    // Keep the wait handle alive until the native download has stopped;
+                    // an unmanaged callback may arrive just after the completion signal.
+                    var completed = new System.Threading.ManualResetEventSlim(false);
                     DahuaNetSdk.fTimeDownLoadPosCallBack progressCallback =
                         (playHandle, totalSize, downloadedSize, index, recordInfo, userData) =>
                         {
