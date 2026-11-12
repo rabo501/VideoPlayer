@@ -92,7 +92,7 @@ namespace VideoPlayer
                 finally{_restoring=false;}
                 RefreshRanges();UpdateClipRangeText();
                 MediaInfoText.Text="Odczytywanie parametrów…";_=UpdateMediaInfoAsync(path);
-                Title="VideoPlayer 1.3.2 — "+_fileName;
+                Title="VideoPlayer 1.4.0 — "+_fileName;
                 StatusText.Text=restore?"Przywrócono sesję: "+_fileName:_fileName;
             }
             catch(Exception ex)
