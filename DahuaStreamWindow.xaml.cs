@@ -1571,12 +1571,19 @@ namespace VideoPlayer
         {
             if (_multiPlaybackHandles.Count == 0) return;
             bool pause = !_synchronizedPlaybackPaused;
-            int succeeded = 0;
+            var succeededHandles = new List<IntPtr>();
             foreach (IntPtr handle in _multiPlaybackHandles)
-                if (DahuaNetSdk.CLIENT_PausePlayBack(handle, pause)) succeeded++;
-            if (succeeded == 0)
+                if (DahuaNetSdk.CLIENT_PausePlayBack(handle, pause))
+                    succeededHandles.Add(handle);
+
+            if (succeededHandles.Count != _multiPlaybackHandles.Count)
             {
-                StatusLabel.Text = "Rejestrator odrzucił polecenie pauzy/wznowienia.";
+                // Roll back successful handles so the group does not knowingly drift
+                // into a mixed paused/playing state.
+                foreach (IntPtr handle in succeededHandles)
+                    DahuaNetSdk.CLIENT_PausePlayBack(handle, !pause);
+                StatusLabel.Text = $"Nie wszystkie kanały przyjęły polecenie pauzy/wznowienia ({succeededHandles.Count}/{_multiPlaybackHandles.Count}).";
+                PlaybackSyncStatusText.Text = "Nie udało się zsynchronizować sterowania";
                 return;
             }
             if (pause)
@@ -1602,9 +1609,10 @@ namespace VideoPlayer
             int succeeded = 0;
             foreach (IntPtr handle in _multiPlaybackHandles)
                 if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
-            if (succeeded == 0)
+            if (succeeded != _multiPlaybackHandles.Count)
             {
-                StatusLabel.Text = "Rejestrator nie obsłużył przewijania archiwum.";
+                StatusLabel.Text = $"Przewijanie nie powiodło się na wszystkich kanałach ({succeeded}/{_multiPlaybackHandles.Count}).";
+                PlaybackSyncStatusText.Text = "Pozycja kanałów może być różna";
                 return;
             }
             _playbackElapsedBeforePause = offsetSeconds;
@@ -2233,6 +2241,7 @@ namespace VideoPlayer
 
         private void PlayArchiveInWindow_Click(object sender, RoutedEventArgs e)
         {
+            SelectModernChannel(GetSelectedArchiveChannel());
             StartSynchronizedPlayback_Click(sender, e);
         }
 
