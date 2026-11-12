@@ -96,23 +96,22 @@ namespace VideoPlayer
             IntPtr recordfileinfo,
             IntPtr dwUser);
 
+        // CLIENT_Login (legacy API) expects NET_DEVICEINFO, not the extended structure.
+        // This exact native layout avoids overwriting managed memory during login.
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-        public struct NET_DEVICEINFO_Ex
+        public struct NET_DEVICEINFO
         {
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 48)]
             public byte[] sSerialNumber;
-            public int byAlarmInPortNum;
-            public int byAlarmOutPortNum;
-            public int byDiskNum;
-            public int byDVRType;
-            public int byChanNum;
+            public byte byAlarmInPortNum;
+            public byte byAlarmOutPortNum;
+            public byte byDiskNum;
+            public byte byDVRType;
+            public byte byChanNum;
             public byte byLimitLoginTime;
             public byte byLeftLogTimes;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
             public byte[] bReserved;
-            public int nLanguage;
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 24)]
-            public byte[] szSpecialCap;
         }
 
         #endregion
@@ -120,7 +119,7 @@ namespace VideoPlayer
         #region P/Invoke Native Functions
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_Init(fDisConnect cbDisConnect, IntPtr dwUser);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
@@ -135,11 +134,11 @@ namespace VideoPlayer
             ushort wDVRPort,
             string pchUserName,
             string pchPassword,
-            out NET_DEVICEINFO_Ex lpDeviceInfo,
+            out NET_DEVICEINFO lpDeviceInfo,
             out int error);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_Logout(IntPtr lLoginID);
 
         /// <summary>
@@ -162,11 +161,11 @@ namespace VideoPlayer
             IntPtr hWnd);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_StopRealPlayEx(IntPtr lRealHandle);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_DHPTZControlEx2(
             IntPtr lLoginID,
             int nChannelID,
@@ -174,11 +173,11 @@ namespace VideoPlayer
             int lParam1,
             int lParam2,
             int lParam3,
-            [MarshalAs(UnmanagedType.I1)] bool bStop,
+            bool bStop,
             IntPtr param4);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_CapturePictureEx(
             IntPtr hPlayHandle,
             string pchPicFileName,
@@ -188,7 +187,7 @@ namespace VideoPlayer
         /// Odczytuje nazwy kanałów bezpośrednio z urządzenia (kamery lub NVR).
         /// </summary>
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_QueryChannelName(
             IntPtr lLoginID,
             byte[] pChannelName,
@@ -200,7 +199,7 @@ namespace VideoPlayer
         /// Pobiera konfigurację z urządzenia w formacie JSON lub binarnym (np. Ptz, ChannelTitle).
         /// </summary>
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_GetNewDevConfig(
             IntPtr lLoginID,
             string szCommand,
@@ -214,7 +213,7 @@ namespace VideoPlayer
         /// Zapytanie o stan urządzenia (np. pozycje PTZ, status dysków).
         /// </summary>
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_QueryDevState(
             IntPtr lLoginID,
             int nType,
@@ -241,7 +240,7 @@ namespace VideoPlayer
             IntPtr reserved);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_StopDownload(IntPtr lFileHandle);
 
         /// <summary>
@@ -258,7 +257,7 @@ namespace VideoPlayer
             IntPtr dwUserData);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.I1)]
+
         public static extern bool CLIENT_StopPlayBack(IntPtr lPlayHandle);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
