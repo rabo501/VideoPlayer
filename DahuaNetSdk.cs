@@ -16,6 +16,42 @@ namespace VideoPlayer
         private const string NetSdkDll = "dhnetsdk.dll";
         private const string PlaySdkDll = "dhplay.dll";
 
+        static DahuaNetSdk()
+        {
+            // CheckDependencies accepts DLLs in root, x64 or dahua folders.
+            // Install the matching resolver so P/Invoke searches those same locations.
+            System.Runtime.InteropServices.NativeLibrary.SetDllImportResolver(
+                typeof(DahuaNetSdk).Assembly, ResolveDahuaLibrary);
+        }
+
+        private static IntPtr ResolveDahuaLibrary(
+            string libraryName,
+            System.Reflection.Assembly assembly,
+            DllImportSearchPath? searchPath)
+        {
+            string fileName = Path.GetFileName(libraryName);
+            if (!string.Equals(fileName, NetSdkDll, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(fileName, PlaySdkDll, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(fileName, "avnetsdk.dll", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(fileName, "dhconfigsdk.dll", StringComparison.OrdinalIgnoreCase))
+                return IntPtr.Zero;
+
+            string baseDir = AppContext.BaseDirectory;
+            string[] candidates =
+            {
+                Path.Combine(baseDir, fileName),
+                Path.Combine(baseDir, "x64", fileName),
+                Path.Combine(baseDir, "dahua", fileName)
+            };
+
+            foreach (string candidate in candidates)
+            {
+                if (File.Exists(candidate))
+                    return System.Runtime.InteropServices.NativeLibrary.Load(candidate);
+            }
+            return IntPtr.Zero;
+        }
+
         #region Enums & Structs
 
         public enum EM_LOGIN_SPAC_CAP_TYPE
@@ -108,10 +144,28 @@ namespace VideoPlayer
             public byte byDiskNum;
             public byte byDVRType;
             public byte byChanNum;
-            public byte byLimitLoginTime;
-            public byte byLeftLogTimes;
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-            public byte[] bReserved;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+        public struct NET_RECORDFILE_INFO
+        {
+            public uint ch;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 124)]
+            public byte[] filename;
+            public uint framenum;
+            public uint size;
+            public NET_TIME starttime;
+            public NET_TIME endtime;
+            public uint driveno;
+            public uint startcluster;
+            public byte nRecordFileType;
+            public byte bImportantRecID;
+            public byte bHint;
+            public byte bRecType;
+
+            public string FileName => filename == null
+                ? string.Empty
+                : System.Text.Encoding.Default.GetString(filename).TrimEnd('\0');
         }
 
         #endregion
@@ -222,6 +276,20 @@ namespace VideoPlayer
             out int pRetLen,
             int waittime = 2000);
 
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
+        public static extern bool CLIENT_QueryRecordFile(
+            IntPtr lLoginID,
+            int nChannelId,
+            int nRecordFileType,
+            ref NET_TIME tmStart,
+            ref NET_TIME tmEnd,
+            string? pchCardid,
+            IntPtr recordInfoBuffer,
+            int maxLength,
+            out int fileCount,
+            int waitTime,
+            bool bTime);
+
         /// <summary>
         /// Pobieranie nagrania z rejestratora wg czasu do pliku lokalnego
         /// </summary>
@@ -254,7 +322,9 @@ namespace VideoPlayer
             ref NET_TIME lpStopTime,
             IntPtr hWnd,
             IntPtr cbDownLoadPos,
-            IntPtr dwUserData);
+            IntPtr dwPosUser,
+            IntPtr fDownLoadDataCallBack,
+            IntPtr dwDataUser);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
 
