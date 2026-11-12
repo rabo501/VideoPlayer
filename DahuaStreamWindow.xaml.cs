@@ -167,8 +167,22 @@ namespace VideoPlayer
                 DeviceIpBox.Text = dev.IpAddress;
                 DevicePortBox.Text = dev.Port.ToString();
                 DeviceHttpPortBox.Text = dev.HttpPort.ToString();
-                DeviceUserBox.Text = dev.Username;
-                DevicePassBox.Password = dev.Password;
+                if (dev.CredentialsUnavailable)
+                {
+                    // DPAPI CurrentUser data cannot be decrypted under another Windows account.
+                    // Do not silently replace unavailable secrets with empty values.
+                    DeviceUserBox.Text = string.Empty;
+                    DevicePassBox.Password = string.Empty;
+                    CredentialsWarningText.Text = "Nie można odszyfrować zapisanych danych logowania (inne konto Windows lub komputer). Wpisz ponownie nazwę użytkownika i hasło, a następnie zapisz urządzenie.";
+                    CredentialsWarningText.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    DeviceUserBox.Text = dev.Username;
+                    DevicePassBox.Password = dev.Password;
+                    CredentialsWarningText.Text = "Dane logowania są chronione przez Windows DPAPI.";
+                    CredentialsWarningText.Visibility = Visibility.Visible;
+                }
 
                 _currentChannel = dev.Channel;
                 RefreshChannelLists();
@@ -212,10 +226,19 @@ namespace VideoPlayer
             _currentDevice.IpAddress = address;
             _currentDevice.Port = port;
             _currentDevice.HttpPort = httpPort;
-            _currentDevice.Username = DeviceUserBox.Text.Trim();
-            _currentDevice.Password = DevicePassBox.Password;
+            if (_currentDevice.CredentialsUnavailable &&
+                (string.IsNullOrWhiteSpace(DeviceUserBox.Text) || string.IsNullOrEmpty(DevicePassBox.Password)))
+            {
+                MessageBox.Show(
+                    "Nie można odszyfrować poprzednich danych logowania. Wpisz ponownie nazwę użytkownika i hasło przed zapisaniem urządzenia.",
+                    "Wymagane ponowne podanie danych", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
+            _currentDevice.SetCredentials(DeviceUserBox.Text.Trim(), DevicePassBox.Password);
             DahuaConfigService.SaveDevices(_devices);
+            CredentialsWarningText.Text = "Dane logowania są chronione przez Windows DPAPI.";
+            CredentialsWarningText.Visibility = Visibility.Visible;
             DevicesListBox.Items.Refresh();
             StatusLabel.Text = $"Zapisano urządzenie dla operatora: '{_currentDevice.Name}' ({_currentDevice.IpAddress}:{_currentDevice.Port})";
         }
@@ -244,11 +267,12 @@ namespace VideoPlayer
                 IpAddress = address,
                 Port = port,
                 HttpPort = httpPort,
-                Username = string.IsNullOrWhiteSpace(DeviceUserBox.Text) ? "admin" : DeviceUserBox.Text.Trim(),
-                Password = DevicePassBox.Password,
                 Channel = 1,
                 StreamType = DahuaNetSdk.EM_RealPlayType.Realplay
             };
+            newDev.SetCredentials(
+                string.IsNullOrWhiteSpace(DeviceUserBox.Text) ? "admin" : DeviceUserBox.Text.Trim(),
+                DevicePassBox.Password);
             newDev.EnsureDefaultChannels(16);
             newDev.EnsureDefaultPresets();
 
@@ -913,6 +937,14 @@ namespace VideoPlayer
                     MessageBox.Show("Nie zainicjalizowano Dahua NetSDK. Sprawdź czy pliki dhnetsdk.dll i dhplay.dll (x64) znajdują się w folderze aplikacji.", "Błąd SDK", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
+            }
+
+            if (_currentDevice.CredentialsUnavailable)
+            {
+                MessageBox.Show(
+                    "Zapisane dane logowania są zaszyfrowane dla innego konta Windows lub komputera. Wpisz ponownie nazwę użytkownika i hasło w sekcji urządzenia i zapisz konfigurację.",
+                    "Dane logowania niedostępne", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
 
             string ip = _currentDevice.ConnectionAddress;
