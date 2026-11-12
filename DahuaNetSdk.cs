@@ -354,6 +354,29 @@ namespace VideoPlayer
         #region Helper Methods for Querying Channels & Presets
 
         /// <summary>
+        /// Dekoduje tekst zwrócony przez urządzenie. Najpierw sprawdza UTF-8,
+        /// a dla starszych urządzeń używa Windows-1250 (Europa Środkowa).
+        /// </summary>
+        public static string DecodeDeviceText(byte[] buffer, int offset, int length)
+        {
+            if (buffer == null || length <= 0 || offset < 0 || offset + length > buffer.Length)
+                return string.Empty;
+
+            byte[] bytes = new byte[length];
+            Buffer.BlockCopy(buffer, offset, bytes, 0, length);
+
+            try
+            {
+                return new System.Text.UTF8Encoding(false, true).GetString(bytes);
+            }
+            catch (System.Text.DecoderFallbackException)
+            {
+                System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+                return System.Text.Encoding.GetEncoding(1250).GetString(bytes);
+            }
+        }
+
+        /// <summary>
         /// Odczytuje listę nazw kanałów bezpośrednio z rejestratora lub kamery Dahua przez NetSDK.
         /// </summary>
         public static List<DahuaChannelInfo> QueryChannelNamesFromDevice(IntPtr lLoginID, int fallbackChannelCount = 16)
@@ -392,8 +415,7 @@ namespace VideoPlayer
                     if (length == 0)
                         continue;
 
-                    string name = System.Text.Encoding.Default
-                        .GetString(nameBuffer, offset, length).Trim();
+                    string name = DecodeDeviceText(nameBuffer, offset, length).Trim();
 
                     if (!string.IsNullOrWhiteSpace(name))
                         list.Add(new DahuaChannelInfo { Number = i + 1, Name = name });
@@ -452,6 +474,127 @@ namespace VideoPlayer
             return presets;
         }
 
+
+        /// <summary>
+        /// Odczytuje presety przez udokumentowane Dahua HTTP API CGI.
+        /// Kanał w tym API jest numerowany od 1.
+        /// </summary>
+        public static List<DahuaPresetItem> QueryPresetsFromDevice(
+            string host, ushort httpPort, string username, string password, int channelNumber)
+        {
+            var presets = new List<DahuaPresetItem>();
+            if (string.IsNullOrWhiteSpace(host) || channelNumber < 1)
+                return presets;
+
+            string response = SendDahuaCgiRequest(
+                host, httpPort, username, password,
+                $"ptz.cgi?action=getPresets&channel={channelNumber}");
+
+            var indexMatches = System.Text.RegularExpressions.Regex.Matches(
+                response, @"presets\[(\d+)\]\.Index\s*=\s*(\d+)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            foreach (System.Text.RegularExpressions.Match match in indexMatches)
+            {
+                if (!int.TryParse(match.Groups[1].Value, out int arrayIndex) ||
+                    !int.TryParse(match.Groups[2].Value, out int presetNumber))
+                    continue;
+
+                string name = $"Preset {presetNumber}";
+                var nameMatch = System.Text.RegularExpressions.Regex.Match(
+                    response,
+                    $@"presets\[{arrayIndex}\]\.Name\s*=\s*([^\r\n]+)",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                if (nameMatch.Success)
+                    name = nameMatch.Groups[1].Value.Trim().Trim('"', '\'');
+
+                if (!presets.Any(p => p.PresetNumber == presetNumber))
+                    presets.Add(new DahuaPresetItem { PresetNumber = presetNumber, Name = name });
+            }
+
+            // Do not silently treat an unknown response format as an empty preset list.
+            if (presets.Count == 0 &&
+                !response.Contains("presets[", StringComparison.OrdinalIgnoreCase) &&
+                !response.Contains("preset", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Urządzenie zwróciło nieznany format listy presetów PTZ. Odpowiedź: " + response);
+            }
+
+            return presets.OrderBy(p => p.PresetNumber).ToList();
+        }
+
+        /// <summary>
+        /// Ustawia nazwę istniejącego presetu na urządzeniu.
+        /// </summary>
+        public static void SetDevicePresetName(
+            string host, ushort httpPort, string username, string password,
+            int channelNumber, int presetNumber, string presetName)
+        {
+            if (presetNumber < 1 || string.IsNullOrWhiteSpace(presetName))
+                throw new ArgumentException("Nieprawidłowy numer lub nazwa presetu.");
+
+            string query = "ptz.cgi?action=setPreset" +
+                $"&channel={channelNumber}&arg1={presetNumber}&arg2={Uri.EscapeDataString(presetName)}";
+            string response = SendDahuaCgiRequest(host, httpPort, username, password, query);
+            EnsureCgiSuccess(response, "zmiana nazwy presetu");
+        }
+
+        /// <summary>
+        /// Zapisuje bieżącą pozycję PTZ jako preset.
+        /// </summary>
+        public static void SetDevicePresetPosition(
+            string host, ushort httpPort, string username, string password,
+            int channelNumber, int presetNumber)
+        {
+            string query = $"ptz.cgi?action=start&channel={channelNumber}&code=SetPreset&arg1=0&arg2={presetNumber}&arg3=0";
+            string response = SendDahuaCgiRequest(host, httpPort, username, password, query);
+            EnsureCgiSuccess(response, "zapis pozycji PTZ");
+        }
+
+        /// <summary>
+        /// Usuwa preset z urządzenia.
+        /// </summary>
+        public static void DeleteDevicePreset(
+            string host, ushort httpPort, string username, string password,
+            int channelNumber, int presetNumber)
+        {
+            string query = $"ptz.cgi?action=start&channel={channelNumber}&code=ClearPreset&arg1=0&arg2={presetNumber}&arg3=0";
+            string response = SendDahuaCgiRequest(host, httpPort, username, password, query);
+            EnsureCgiSuccess(response, "usunięcie presetu");
+        }
+
+        private static string SendDahuaCgiRequest(
+            string host, ushort httpPort, string username, string password, string query)
+        {
+            var handler = new System.Net.Http.HttpClientHandler
+            {
+                Credentials = new System.Net.NetworkCredential(username ?? string.Empty, password ?? string.Empty),
+                PreAuthenticate = true,
+                UseDefaultCredentials = false
+            };
+            using var client = new System.Net.Http.HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(8)
+            };
+            string url = $"http://{host}:{httpPort}/cgi-bin/{query}";
+            using var response = client.GetAsync(url).GetAwaiter().GetResult();
+            byte[] responseBytes = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            response.EnsureSuccessStatusCode();
+            string body = DecodeDeviceText(responseBytes, 0, responseBytes.Length);
+            if (string.IsNullOrWhiteSpace(body) ||
+                body.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
+                body.Trim().Equals("ERROR", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Dahua CGI zwróciło błąd: {body}");
+            return body;
+        }
+
+        private static void EnsureCgiSuccess(string response, string operation)
+        {
+            if (!response.Trim().Equals("OK", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Dahua CGI: niepowodzenie operacji ({operation}). Odpowiedź: {response}");
+        }
         #endregion
 
         /// <summary>
