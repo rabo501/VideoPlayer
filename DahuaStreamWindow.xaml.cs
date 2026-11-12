@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -36,6 +37,8 @@ namespace VideoPlayer
         // vendor configuration call.
         private int _deviceChannelCount = 0;
         private readonly List<Button> _channelButtons = new();
+        private readonly HashSet<DateTime> _archiveAvailableDays = new();
+        private readonly HashSet<Calendar> _hookedArchiveCalendars = new();
 
         // Callback references to prevent GC collection
         private DahuaNetSdk.fDisConnect? _disConnectCallback;
@@ -57,6 +60,105 @@ namespace VideoPlayer
             EndDatePicker.SelectedDate = now;
             StartTimeBox.Text = now.AddHours(-1).ToString("HH:mm:ss");
             EndTimeBox.Text = now.ToString("HH:mm:ss");
+        }
+
+        private void ArchiveChannelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Calendar availability belongs to the last search for the selected channel.
+            _archiveAvailableDays.Clear();
+            RefreshOpenArchiveCalendars();
+        }
+
+        private void ArchiveDatePicker_CalendarOpened(object sender, RoutedEventArgs e)
+        {
+            if (sender is not DatePicker picker) return;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                picker.ApplyTemplate();
+                if (picker.Template.FindName("PART_Popup", picker) is not Popup popup ||
+                    popup.Child is not DependencyObject popupRoot)
+                    return;
+
+                Calendar? calendar = popupRoot as Calendar ?? FindVisualChild<Calendar>(popupRoot);
+                if (calendar == null) return;
+
+                if (_hookedArchiveCalendars.Add(calendar))
+                {
+                    calendar.DisplayDateChanged += (_, _) =>
+                        Dispatcher.BeginInvoke(new Action(() => RefreshCalendarButtons(calendar)));
+                }
+
+                RefreshCalendarButtons(calendar);
+            }));
+        }
+
+        private void RefreshOpenArchiveCalendars()
+        {
+            RefreshDatePickerCalendar(StartDatePicker);
+            RefreshDatePickerCalendar(EndDatePicker);
+        }
+
+        private void RefreshDatePickerCalendar(DatePicker picker)
+        {
+            if (picker.Template.FindName("PART_Popup", picker) is Popup popup &&
+                popup.IsOpen && popup.Child is DependencyObject popupRoot)
+            {
+                Calendar? calendar = popupRoot as Calendar ?? FindVisualChild<Calendar>(popupRoot);
+                if (calendar != null) RefreshCalendarButtons(calendar);
+            }
+        }
+
+        private void RefreshCalendarButtons(Calendar calendar)
+        {
+            foreach (CalendarDayButton dayButton in FindVisualChildren<CalendarDayButton>(calendar))
+            {
+                dayButton.ClearValue(Control.BackgroundProperty);
+                dayButton.ClearValue(Control.ForegroundProperty);
+                dayButton.ClearValue(Control.BorderBrushProperty);
+                dayButton.ClearValue(Control.BorderThicknessProperty);
+                dayButton.ClearValue(Control.FontWeightProperty);
+                dayButton.ClearValue(ToolTipService.ToolTipProperty);
+
+                if (dayButton.DataContext is DateTime date &&
+                    _archiveAvailableDays.Contains(date.Date))
+                {
+                    dayButton.ToolTip = $"Dostępne nagrania: {date:dd.MM.yyyy}";
+
+                    // Keep the native blue selection treatment distinct from the green
+                    // availability marker.
+                    if (calendar.SelectedDate?.Date != date.Date)
+                    {
+                        dayButton.Background = new SolidColorBrush(Color.FromRgb(22, 101, 52));
+                        dayButton.Foreground = Brushes.White;
+                        dayButton.BorderBrush = new SolidColorBrush(Color.FromRgb(74, 222, 128));
+                        dayButton.BorderThickness = new Thickness(1);
+                        dayButton.FontWeight = FontWeights.Bold;
+                    }
+                }
+            }
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match) return match;
+                T? nested = FindVisualChild<T>(child);
+                if (nested != null) return nested;
+            }
+            return null;
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match) yield return match;
+                foreach (T nested in FindVisualChildren<T>(child)) yield return nested;
+            }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -159,6 +261,8 @@ namespace VideoPlayer
                     Disconnect();
 
                 _currentDevice = dev;
+                _archiveAvailableDays.Clear();
+                RefreshOpenArchiveCalendars();
                 ArchiveRecordsGrid.ItemsSource = null;
                 _currentDevice.EnsureDefaultChannels(16);
                 _currentDevice.EnsureDefaultPresets();
@@ -1315,6 +1419,8 @@ namespace VideoPlayer
             DownloadStatusText.Visibility = Visibility.Visible;
             DownloadStatusText.Text = $"Wyszukiwanie nagrań: {_currentDevice.Name}, kanał {channel}…";
             ArchiveRecordsGrid.ItemsSource = null;
+            _archiveAvailableDays.Clear();
+            RefreshOpenArchiveCalendars();
             DevicesListBox.IsEnabled = false;
             ArchiveChannelBox.IsEnabled = false;
             StartDatePicker.IsEnabled = false;
@@ -1384,6 +1490,14 @@ namespace VideoPlayer
                 });
 
                 ArchiveRecordsGrid.ItemsSource = records;
+                foreach (DahuaRecordItem record in records)
+                {
+                    // Mark every calendar day touched by a returned recording.
+                    for (DateTime day = record.StartTime.Date; day <= record.EndTime.Date; day = day.AddDays(1))
+                        _archiveAvailableDays.Add(day);
+                }
+                RefreshOpenArchiveCalendars();
+
                 DownloadStatusText.Text = records.Count == 0
                     ? "Rejestrator nie zwrócił nagrań dla wybranego kanału i zakresu."
                     : records.Count >= 200

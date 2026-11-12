@@ -185,6 +185,46 @@
             <Setter Property="Padding" Value="4" />
             <Setter Property="Height" Value="34" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CalendarStyle">
+                <Setter.Value>
+                    <Style TargetType="{x:Type Calendar}">
+                        <Setter Property="Background" Value="#111827" />
+                        <Setter Property="Foreground" Value="#F8FAFC" />
+                        <Setter Property="BorderBrush" Value="#64748B" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Setter Property="CalendarDayButtonStyle">
+                            <Setter.Value>
+                                <Style TargetType="{x:Type CalendarDayButton}">
+                                    <Setter Property="Background" Value="#1F2937" />
+                                    <Setter Property="Foreground" Value="#F8FAFC" />
+                                    <Setter Property="BorderBrush" Value="#374151" />
+                                    <Setter Property="BorderThickness" Value="1" />
+                                    <Setter Property="Margin" Value="1" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsInactive" Value="True">
+                                            <Setter Property="Foreground" Value="#64748B" />
+                                        </Trigger>
+                                        <Trigger Property="IsToday" Value="True">
+                                            <Setter Property="BorderBrush" Value="#F59E0B" />
+                                            <Setter Property="BorderThickness" Value="2" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#1D4ED8" />
+                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                            <Setter Property="BorderBrush" Value="#93C5FD" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#475569" />
+                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="DatePickerTextBox">
             <Setter Property="Background" Value="#161922" />
@@ -486,7 +526,7 @@
                                 </Border>
 
                                 <TextBlock Text="WYBÓR KANAŁU KAMERY (WG NAZWY)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
-                                <ComboBox x:Name="ArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,12">
+                                <ComboBox x:Name="ArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,12" SelectionChanged="ArchiveChannelBox_SelectionChanged">
                                     <!-- Dynamicznie wypełniane z nazwami: Brama wjazdowa (CH 1), itd. -->
                                 </ComboBox>
 
@@ -496,7 +536,7 @@
                                         <ColumnDefinition Width="1.4*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <DatePicker x:Name="StartDatePicker" Grid.Column="0" Margin="0,0,6,0" />
+                                    <DatePicker x:Name="StartDatePicker" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="ArchiveDatePicker_CalendarOpened" />
                                     <TextBox x:Name="StartTimeBox" Grid.Column="1" Text="12:00:00" ToolTip="Godzina:Minuta:Sekunda (np. 14:30:00)" FontWeight="Bold" />
                                 </Grid>
 
@@ -506,23 +546,80 @@
                                         <ColumnDefinition Width="1.4*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <DatePicker x:Name="EndDatePicker" Grid.Column="0" Margin="0,0,6,0" />
+                                    <DatePicker x:Name="EndDatePicker" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="ArchiveDatePicker_CalendarOpened" />
                                     <TextBox x:Name="EndTimeBox" Grid.Column="1" Text="12:15:00" ToolTip="Godzina:Minuta:Sekunda (np. 14:45:00)" FontWeight="Bold" />
                                 </Grid>
 
+                                <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
+                                    <Border Width="12" Height="12" Background="#166534" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
+                                    <TextBlock Text="Dzień z nagraniami (ostatnie wyszukiwanie)" Foreground="#D1FAE5" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <Border Width="12" Height="12" Background="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
+                                    <TextBlock Text="Wybrany dzień" Foreground="#DBEAFE" FontSize="10" VerticalAlignment="Center" />
+                                </WrapPanel>
                                 <Button x:Name="SearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="SearchArchive_Click" Style="{StaticResource BlueButton}" Padding="12,8" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="NAGRANIA ZNALEZIONE NA URZĄDZENIU" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
-                                <DataGrid x:Name="ArchiveRecordsGrid" Height="190" AutoGenerateColumns="False"
+                                <DataGrid x:Name="ArchiveRecordsGrid" Height="210" AutoGenerateColumns="False"
                                           IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
                                           CanUserAddRows="False" CanUserDeleteRows="False"
-                                          Background="#13161F" Foreground="#E2E8F0"
+                                          Background="#101722" Foreground="#F8FAFC"
                                           HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                          HorizontalGridLinesBrush="#475569"
+                                          RowBackground="#1D2939" AlternatingRowBackground="#263548"
+                                          AlternationCount="2" RowHeight="34"
+                                          BorderBrush="#64748B" BorderThickness="1"
                                           Margin="0,0,0,8">
+                                    <DataGrid.Resources>
+                                        <Style TargetType="{x:Type DataGridColumnHeader}">
+                                            <Setter Property="Background" Value="#334155" />
+                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="FontSize" Value="11" />
+                                            <Setter Property="Padding" Value="8,7" />
+                                            <Setter Property="BorderBrush" Value="#64748B" />
+                                            <Setter Property="BorderThickness" Value="0,0,1,1" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                        </Style>
+                                        <Style TargetType="{x:Type DataGridCell}">
+                                            <Setter Property="Foreground" Value="#F8FAFC" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderBrush" Value="#475569" />
+                                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                            <Setter Property="Padding" Value="7,4" />
+                                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#1D4ED8" />
+                                                    <Setter Property="Foreground" Value="#FFFFFF" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                        <Style TargetType="{x:Type DataGridRow}">
+                                            <Setter Property="Foreground" Value="#F8FAFC" />
+                                            <Setter Property="Background" Value="#1D2939" />
+                                            <Setter Property="BorderBrush" Value="#475569" />
+                                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#3B4D63" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#1D4ED8" />
+                                                    <Setter Property="Foreground" Value="#FFFFFF" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                        <Style x:Key="ArchiveCellText" TargetType="{x:Type TextBlock}">
+                                            <Setter Property="Foreground" Value="#F8FAFC" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Setter Property="VerticalAlignment" Value="Center" />
+                                        </Style>
+                                    </DataGrid.Resources>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Początek" Binding="{Binding StartTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="*" />
-                                        <DataGridTextColumn Header="Koniec" Binding="{Binding EndTime, StringFormat={}{0:HH:mm:ss}}" Width="85" />
-                                        <DataGridTextColumn Header="Czas" Binding="{Binding DurationText}" Width="70" />
-                                        <DataGridTextColumn Header="Rozmiar" Binding="{Binding SizeText}" Width="75" />
+                                        <DataGridTextColumn Header="Początek" Binding="{Binding StartTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="*" ElementStyle="{StaticResource ArchiveCellText}" />
+                                        <DataGridTextColumn Header="Koniec" Binding="{Binding EndTime, StringFormat={}{0:HH:mm:ss}}" Width="85" ElementStyle="{StaticResource ArchiveCellText}" />
+                                        <DataGridTextColumn Header="Czas" Binding="{Binding DurationText}" Width="70" ElementStyle="{StaticResource ArchiveCellText}" />
+                                        <DataGridTextColumn Header="Rozmiar" Binding="{Binding SizeText}" Width="75" ElementStyle="{StaticResource ArchiveCellText}" />
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <WrapPanel Margin="0,0,0,10">
