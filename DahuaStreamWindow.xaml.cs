@@ -103,12 +103,19 @@ namespace VideoPlayer
 
         private void LoadDeviceList()
         {
-            _devices = DahuaConfigService.LoadDevices();
-            DevicesListBox.ItemsSource = null;
-            DevicesListBox.ItemsSource = _devices;
-            if (_devices.Count > 0)
+            try
             {
-                DevicesListBox.SelectedIndex = 0;
+                _devices = DahuaConfigService.LoadDevices();
+                DevicesListBox.ItemsSource = null;
+                DevicesListBox.ItemsSource = _devices;
+                if (_devices.Count > 0) DevicesListBox.SelectedIndex = 0;
+            }
+            catch (Exception ex)
+            {
+                _devices = new List<DahuaDeviceItem>();
+                DevicesListBox.ItemsSource = null;
+                StatusLabel.Text = "Nie można wczytać konfiguracji urządzeń. Oryginalny plik nie został nadpisany.";
+                MessageBox.Show(ex.Message, "Błąd konfiguracji Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -157,6 +164,9 @@ namespace VideoPlayer
                 MessageBox.Show(validationError, "Nieprawidłowy adres urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+
+            if (string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+                Disconnect();
 
             _currentDevice.Name = name;
             _currentDevice.IpAddress = address;
@@ -1154,7 +1164,9 @@ namespace VideoPlayer
                 }
             }
 
-            string outputDir = Path.Combine(AppContext.BaseDirectory, "nagrania_dahua");
+            string outputDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "VideoPlayer", "nagrania_dahua");
             Directory.CreateDirectory(outputDir);
             string safeChannelName = string.Concat(chName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)).Replace(' ', '_');
             string fileStem = $"Dahua_{safeChannelName}_CH{channel}_{start.Value:yyyyMMdd_HHmmss}-{end.Value:HHmmss}";
@@ -1185,7 +1197,9 @@ namespace VideoPlayer
                     DahuaNetSdk.fTimeDownLoadPosCallBack progressCallback =
                         (playHandle, totalSize, downloadedSize, index, recordInfo, userData) =>
                         {
-                            if (totalSize > 0 && downloadedSize >= totalSize)
+                            // Dahua NetSDK reports -1 in dwDownLoadSize when the transfer ends.
+                            if (downloadedSize == uint.MaxValue ||
+                                (totalSize > 0 && downloadedSize >= totalSize))
                                 completed.Set();
                         };
 
