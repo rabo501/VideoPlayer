@@ -31,6 +31,10 @@ namespace VideoPlayer
         private IntPtr _playbackHandle = IntPtr.Zero;
         private bool _sdkInitialized = false;
         private int _currentChannel = 1;
+        // Channel count reported by NET_DEVICEINFO during the successful login.
+        // Retain it so the manual device-read action does not need another risky
+        // vendor configuration call.
+        private int _deviceChannelCount = 0;
         private readonly List<Button> _channelButtons = new();
 
         // Callback references to prevent GC collection
@@ -281,36 +285,47 @@ namespace VideoPlayer
             try
             {
                 WriteSdkDiagnostic("Manual device read started.");
-                // Używamy ograniczonego GetNewDevConfig zamiast starszego
-                // CLIENT_QueryChannelName, który bywa niezgodny z wersją SDK.
-                var readChannels = DahuaNetSdk.QueryChannelNamesFromDevice(_loginId);
-                WriteSdkDiagnostic($"Channel metadata read returned {readChannels.Count} items.");
-                int chCount = readChannels.Count;
-                if (chCount > 0)
+                // The recorder reports its channel count in NET_DEVICEINFO at login.
+                // Do not call CLIENT_GetNewDevConfig("ChannelTitle") here: the log
+                // proves the process stops inside that native call on this SDK/device
+                // combination, before managed exception handling can run.
+                int channelCount = _deviceChannelCount;
+                if (channelCount <= 0)
                 {
-                    _currentDevice.UpdateFromDeviceChannels(readChannels);
+                    // Preserve already configured channels if this device did not
+                    // report a count; do not guess a larger channel count.
+                    channelCount = _currentDevice.Channels.Count;
                 }
 
-                // PTZ preset retrieval uses a separate vendor configuration command.
-                // Do not invoke it as part of this general read operation: some recorder
-                // firmware/SDK combinations terminate the process inside that native call.
-                // Keep the locally configured presets intact.
-                int pCount = 0;
-                WriteSdkDiagnostic("PTZ preset query skipped in safe device-read mode.");
+                WriteSdkDiagnostic($"Using channel count captured at login: {channelCount}.");
+                if (channelCount > 0)
+                {
+                    _currentDevice.EnsureDefaultChannels(channelCount);
+                    WriteSdkDiagnostic($"Default channel entries ensured: {channelCount}.");
+                }
 
+                // Channel titles and PTZ presets are intentionally not requested
+                // from native NetSDK in this operation until a device-specific,
+                // verified API/structure mapping is available. Existing operator
+                // names and presets remain untouched.
                 DahuaConfigService.SaveDevices(_devices);
+                WriteSdkDiagnostic("Device configuration saved.");
                 RefreshChannelLists();
+                WriteSdkDiagnostic("Live/archive channel lists refreshed.");
                 RefreshPresetsList();
+                WriteSdkDiagnostic("Preset list refreshed.");
 
-                string msg = chCount > 0
-                    ? $"Odczytano {chCount} nazw kanałów. Presety PTZ pozostawiono bez zmian."
-                    : "Urządzenie nie udostępniło nazw kanałów. Dotychczasowa konfiguracja została zachowana.";
+                string msg = channelCount > 0
+                    ? $"Odczytano z urządzenia liczbę kanałów: {channelCount}. Nazwy kanałów i presety operatora zachowano."
+                    : "Urządzenie nie zwróciło liczby kanałów. Zachowano dotychczasową konfigurację.";
+
                 StatusLabel.Text = msg;
+                WriteSdkDiagnostic("Manual device read completed.");
 
                 if (showDialog)
                 {
                     MessageBox.Show(
-                        $"{msg}\n\nNazwy kanałów i presety zostały zaktualizowane w interfejsie i trwale zapisane dla operatora.",
+                        $"{msg}\n\nNazwy kanałów i presety nie zostały pobrane z urządzenia; zachowano zapisane ustawienia operatora.",
                         "Odczyt z urządzenia Dahua",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -318,6 +333,7 @@ namespace VideoPlayer
             }
             catch (Exception ex)
             {
+                WriteSdkDiagnostic($"Manual device read managed exception: {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
                 StatusLabel.Text = $"Błąd odczytu danych z urządzenia: {ex.Message}";
             }
         }
@@ -735,6 +751,8 @@ namespace VideoPlayer
                 }
 
                 _connectedDeviceId = _currentDevice.Id;
+                _deviceChannelCount = Math.Max(0, (int)deviceInfo.byChanNum);
+                WriteSdkDiagnostic($"Device channel count cached from CLIENT_Login: {_deviceChannelCount}.");
                 ConnectButton.IsEnabled = false;
                 DisconnectButton.IsEnabled = true;
                 StreamOverlay.Visibility = Visibility.Collapsed;

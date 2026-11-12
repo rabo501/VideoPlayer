@@ -83,3 +83,8 @@ Kompilacja i testy z fizycznym urządzeniem są wymagane. W tym środowisku nie 
 9. Wczytaj ten sam rekord do głównego MPV i sprawdź MP4.
 10. Dopiero po tych testach scal gałąź z `dahua-SDK`.
 
+
+
+## Diagnostyka przycisku „Odczytaj z kamery/NVR” (2026-11-12)
+
+Log użytkownika kończył się bezpośrednio po wpisie `Manual device read started.`, co oznaczało zakończenie procesu wewnątrz natywnego `CLIENT_GetNewDevConfig("ChannelTitle")` przed powrotem do kodu zarządzanego. Wyłączono to wywołanie z ogólnego odczytu. Liczba kanałów jest teraz pobierana z `NET_DEVICEINFO.byChanNum` już zwróconego przez udane `CLIENT_Login` (w teście użytkownika: 64) i zapamiętywana. Przycisk wykorzystuje tę liczbę do uzupełnienia lokalnej listy kanałów, zachowując nazwy operatora i presety. Nie wykonuje żadnego nowego wywołania natywnego SDK. Nazwy kanałów/presety z urządzenia wymagają osobnej implementacji po potwierdzeniu poprawnego wariantu API i struktur dla konkretnej wersji NetSDK.
