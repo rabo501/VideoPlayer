@@ -146,6 +146,37 @@ namespace VideoPlayer
             }
         }
 
+        private static bool TryExtractLegacyEndpoint(string value, out string host, out ushort port)
+        {
+            host = string.Empty;
+            port = 0;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            string candidate = value.Trim();
+            int openParen = candidate.LastIndexOf('(');
+            int closeParen = candidate.LastIndexOf(')');
+            if (openParen >= 0 && closeParen > openParen)
+                candidate = candidate.Substring(openParen + 1, closeParen - openParen - 1).Trim();
+
+            if (Uri.TryCreate("http://" + candidate, UriKind.Absolute, out Uri? parsed) &&
+                !string.IsNullOrWhiteSpace(parsed.Host) &&
+                Uri.CheckHostName(parsed.Host) != UriHostNameType.Unknown)
+            {
+                host = parsed.Host;
+                if (!parsed.IsDefaultPort && parsed.Port > 0 && parsed.Port <= ushort.MaxValue)
+                    port = (ushort)parsed.Port;
+                return true;
+            }
+
+            string plainHost = candidate.Trim('[', ']');
+            if (Uri.CheckHostName(plainHost) != UriHostNameType.Unknown)
+            {
+                host = plainHost;
+                return true;
+            }
+            return false;
+        }
+
         public static List<DahuaDeviceItem> LoadDevices()
         {
             MigrateLegacyConfigIfNeeded();
@@ -182,17 +213,19 @@ namespace VideoPlayer
                             }
 
                             if (string.IsNullOrWhiteSpace(device.IpAddress))
-                                device.IpAddress = ReadString("IpAddress", "IPAddress", "IP", "Ip", "Address", "Host", "HostAddress") ?? string.Empty;
+                                device.IpAddress = ReadString("IpAddress", "IPAddress", "IP", "Ip", "Address", "Host", "HostAddress", "ServerIp", "DeviceIP", "DeviceAddress") ?? string.Empty;
 
                             if (string.IsNullOrWhiteSpace(device.Name))
                                 device.Name = ReadString("Name", "DisplayName", "Title") ?? string.Empty;
 
-                            // Legacy schema: the only saved value was the IP in Name.
+                            // Legacy schema: older versions stored the endpoint in Name
+                            // or in a combined display label such as "NVR (192.168.1.20:37777)".
                             if (string.IsNullOrWhiteSpace(device.IpAddress) &&
-                                !string.IsNullOrWhiteSpace(device.Name) &&
-                                Uri.CheckHostName(device.Name.Trim()) != UriHostNameType.Unknown)
+                                TryExtractLegacyEndpoint(device.Name, out string legacyHost, out ushort legacyPort))
                             {
-                                device.IpAddress = device.Name.Trim();
+                                device.IpAddress = legacyHost;
+                                if (legacyPort > 0 && device.Port == 37777)
+                                    device.Port = legacyPort;
                                 device.Name = $"Urządzenie {device.IpAddress}";
                             }
 
