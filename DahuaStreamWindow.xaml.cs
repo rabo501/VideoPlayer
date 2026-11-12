@@ -692,33 +692,56 @@ namespace VideoPlayer
 
             try
             {
-                // CGI API: SetPreset zapisuje pozycję, setPreset ustawia jej nazwę.
+                // First store the current PTZ position. Only after that try to set its label.
                 DahuaNetSdk.SetDevicePresetPosition(
                     _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
                     _currentDevice.Password, _currentChannel, presetNumber);
 
-                DahuaNetSdk.SetDevicePresetName(
-                    _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
-                    _currentDevice.Password, _currentChannel, presetNumber, presetName);
+                bool nameSaved = true;
+                string nameError = string.Empty;
+                try
+                {
+                    DahuaNetSdk.SetDevicePresetName(
+                        _currentDevice.ConnectionAddress, _currentDevice.HttpPort, _currentDevice.Username,
+                        _currentDevice.Password, _currentChannel, presetNumber, presetName);
+                }
+                catch (Exception ex)
+                {
+                    nameSaved = false;
+                    nameError = ex.Message;
+                }
 
+                string effectiveName = nameSaved ? presetName : $"Preset {presetNumber}";
                 var existing = _currentDevice.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
                 if (existing != null)
-                    existing.Name = presetName;
+                    existing.Name = effectiveName;
                 else
-                    _currentDevice.Presets.Add(new DahuaPresetItem { PresetNumber = presetNumber, Name = presetName });
+                    _currentDevice.Presets.Add(new DahuaPresetItem { PresetNumber = presetNumber, Name = effectiveName });
 
                 DahuaConfigService.SaveDevices(_devices);
                 RefreshPresetsList();
                 PresetsComboBox.SelectedItem = PresetsComboBox.Items
                     .OfType<ComboBoxItem>()
                     .FirstOrDefault(item => item.Tag is int n && n == presetNumber);
-                StatusLabel.Text = $"Zapisano preset {presetNumber}: {presetName}.";
+
+                if (nameSaved)
+                {
+                    StatusLabel.Text = $"Zapisano preset {presetNumber}: {presetName}.";
+                }
+                else
+                {
+                    StatusLabel.Text = $"Pozycja presetu {presetNumber} została zapisana, ale nie udało się ustawić nazwy.";
+                    MessageBox.Show(
+                        $"Pozycja PTZ została zapisana w urządzeniu, ale zmiana nazwy nie powiodła się. " +
+                        $"Lista lokalna używa nazwy „{effectiveName}”.\\n\\n{nameError}",
+                        "Częściowy zapis presetu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
             catch (Exception ex)
             {
                 WriteSdkDiagnostic($"Saving PTZ preset {presetNumber} failed: {ex}");
                 MessageBox.Show(
-                    $"Nie udało się zapisać presetu na urządzeniu. Lokalna lista nie została zmieniona.\\n\\n{ex.Message}",
+                    $"Nie udało się zapisać pozycji presetu na urządzeniu. Lokalna lista nie została zmieniona.\\n\\n{ex.Message}",
                     "Błąd zapisu presetu PTZ", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
