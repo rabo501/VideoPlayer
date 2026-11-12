@@ -11,7 +11,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Forms = System.Windows.Forms;
+using FormsIntegration = System.Windows.Forms.Integration;
 
 namespace VideoPlayer
 {
@@ -39,6 +41,24 @@ namespace VideoPlayer
         private readonly List<Button> _channelButtons = new();
         private readonly HashSet<DateTime> _archiveAvailableDays = new();
         private readonly HashSet<Calendar> _hookedArchiveCalendars = new();
+        private readonly List<MultiViewSlot> _multiViewSlots = new();
+        private readonly List<IntPtr> _multiPlaybackHandles = new();
+        private readonly DispatcherTimer _playbackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+        private DateTime _playbackRangeStart;
+        private DateTime _playbackRangeEnd;
+        private DateTime _playbackSegmentStartedAt;
+        private double _playbackElapsedBeforePause;
+        private bool _synchronizedPlaybackPaused;
+        private bool _isSeekingPlayback;
+
+        private sealed class MultiViewSlot
+        {
+            public int Channel { get; init; }
+            public Forms.PictureBox PictureBox { get; init; } = null!;
+            public FormsIntegration.WindowsFormsHost Host { get; init; } = null!;
+            public IntPtr StreamHandle { get; set; }
+            public IntPtr PlaybackHandle { get; set; }
+        }
 
         // Callback references to prevent GC collection
         private DahuaNetSdk.fDisConnect? _disConnectCallback;
@@ -51,6 +71,7 @@ namespace VideoPlayer
             PrimaryVideoHost.Child = _primaryPictureBox;
 
             InitializeDatePickers();
+            _playbackUiTimer.Tick += PlaybackUiTimer_Tick;
         }
 
         private void InitializeDatePickers()
@@ -242,6 +263,8 @@ namespace VideoPlayer
                 _devices = DahuaConfigService.LoadDevices();
                 DevicesListBox.ItemsSource = null;
                 DevicesListBox.ItemsSource = _devices;
+                ModernDevicesListBox.ItemsSource = null;
+                ModernDevicesListBox.ItemsSource = _devices;
                 if (_devices.Count > 0) DevicesListBox.SelectedIndex = 0;
             }
             catch (Exception ex)
@@ -261,6 +284,10 @@ namespace VideoPlayer
                     Disconnect();
 
                 _currentDevice = dev;
+                ModernDevicesListBox.SelectedItem = dev;
+                StopMultiLiveStreams();
+                StopSynchronizedPlayback();
+                BuildModernChannelChecks();
                 _archiveAvailableDays.Clear();
                 RefreshOpenArchiveCalendars();
                 ArchiveRecordsGrid.ItemsSource = null;
@@ -295,6 +322,29 @@ namespace VideoPlayer
                 ChannelNameEditBox.Text = dev.GetChannelName(_currentChannel);
                 StreamTypeBox.SelectedIndex = dev.StreamType == DahuaNetSdk.EM_RealPlayType.Realplay ? 0 : 1;
                 HighlightActiveChannelButton(_currentChannel);
+            }
+        }
+
+        private void ModernDevicesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ModernDevicesListBox.SelectedItem is DahuaDeviceItem device &&
+                !ReferenceEquals(DevicesListBox.SelectedItem, device))
+                DevicesListBox.SelectedItem = device;
+        }
+
+        private void OpenConfiguration_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new DahuaConfigurationWindow(_devices) { Owner = this };
+            if (window.ShowDialog() == true)
+            {
+                _devices = DahuaConfigService.LoadDevices();
+                DevicesListBox.ItemsSource = null;
+                DevicesListBox.ItemsSource = _devices;
+                ModernDevicesListBox.ItemsSource = null;
+                ModernDevicesListBox.ItemsSource = _devices;
+                if (_devices.Count > 0)
+                    DevicesListBox.SelectedIndex = 0;
+                StatusLabel.Text = "Konfiguracja urządzeń została zapisana.";
             }
         }
 
@@ -1101,9 +1151,9 @@ namespace VideoPlayer
                 // Start the live stream first. Channel-name and PTZ-preset queries are
                 // optional and are deliberately left to the explicit "read from device"
                 // action so a metadata call cannot take down an otherwise valid login.
-                WriteSdkDiagnostic("Login succeeded; starting live stream.");
-                StartLiveStreamForChannel(_currentChannel);
-                WriteSdkDiagnostic("Live stream start routine returned.");
+                WriteSdkDiagnostic("Login succeeded; starting multi-channel live view.");
+                StartMultiLiveForSelectedChannels();
+                WriteSdkDiagnostic("Multi-channel live view start routine returned.");
             }
             catch (Exception ex)
             {
@@ -1116,6 +1166,8 @@ namespace VideoPlayer
         {
             if (_loginId == IntPtr.Zero) return;
 
+            StopMultiLiveStreams();
+            StopSynchronizedPlayback();
             try
             {
                 if (_realPlayHandle != IntPtr.Zero)
@@ -1168,6 +1220,8 @@ namespace VideoPlayer
 
         private void Disconnect()
         {
+            StopMultiLiveStreams();
+            StopSynchronizedPlayback();
             try
             {
                 if (_realPlayHandle != IntPtr.Zero)
@@ -1218,6 +1272,326 @@ namespace VideoPlayer
                 StatusLabel.Text = $"Przywrócono połączenie z {pchDVRIP}:{nDVRPort}.";
                 StartLiveStreamForChannel(_currentChannel);
             });
+        }
+
+        #endregion
+
+        #region SmartPSS-style Multi-view and Synchronized Archive Playback
+
+        private void BuildModernChannelChecks()
+        {
+            ModernChannelChecksPanel.Children.Clear();
+            if (_currentDevice == null) return;
+
+            foreach (var channel in _currentDevice.Channels.OrderBy(ch => ch.Number))
+            {
+                var check = new CheckBox
+                {
+                    Content = $"{channel.Name}  (CH {channel.Number})",
+                    Tag = channel.Number,
+                    IsChecked = channel.Number <= 4,
+                    Foreground = Brushes.White,
+                    FontSize = 11,
+                    Margin = new Thickness(3, 5, 2, 5),
+                    ToolTip = channel.Name
+                };
+                check.Checked += ModernChannelCheck_Changed;
+                check.Unchecked += ModernChannelCheck_Changed;
+                ModernChannelChecksPanel.Children.Add(check);
+            }
+            ModernGridModeBox_SelectionChanged(ModernGridModeBox, new SelectionChangedEventArgs(Selector.SelectionChangedEvent, Selector.SelectedEvent, new List<object>(), new List<object>()));
+        }
+
+        private List<int> GetModernSelectedChannels()
+        {
+            return ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(ch => ch.IsChecked == true && ch.Tag is int)
+                .Select(ch => (int)ch.Tag).ToList();
+        }
+
+        private int GetMultiViewCapacity() => ModernGridModeBox.SelectedIndex switch
+        {
+            0 => 1, 2 => 9, 3 => 16, _ => 4
+        };
+
+        private void ModernGridModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || ModernChannelChecksPanel == null) return;
+            int capacity = GetMultiViewCapacity();
+            var selected = GetModernSelectedChannels();
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsEnabled = check.IsChecked == true || selected.Count < capacity;
+        }
+
+        private void ModernChannelCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            int capacity = GetMultiViewCapacity();
+            var selected = ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(ch => ch.IsChecked == true).ToList();
+            if (selected.Count > capacity && sender is CheckBox changed)
+            {
+                changed.IsChecked = false;
+                StatusLabel.Text = $"Wybrany układ obsługuje maksymalnie {capacity} kanał(ów).";
+                selected = ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                    .Where(ch => ch.IsChecked == true).ToList();
+            }
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsEnabled = check.IsChecked == true || selected.Count < capacity;
+        }
+
+        private void BuildMultiViewSlots(IReadOnlyList<int> channels)
+        {
+            StopMultiLiveStreams();
+            StopPlaybackHandlesOnly();
+            _multiViewSlots.Clear();
+            MultiVideoGrid.Children.Clear();
+
+            int count = Math.Max(1, channels.Count);
+            int capacity = GetMultiViewCapacity();
+            int columns = capacity == 1 ? 1 : capacity == 4 ? 2 : capacity == 9 ? 3 : 4;
+            MultiVideoGrid.Columns = columns;
+            MultiVideoGrid.Rows = (int)Math.Ceiling(count / (double)columns);
+
+            foreach (int channel in channels.Take(capacity))
+            {
+                var picture = new Forms.PictureBox
+                {
+                    BackColor = System.Drawing.Color.Black,
+                    Dock = Forms.DockStyle.Fill,
+                    SizeMode = Forms.PictureBoxSizeMode.Normal
+                };
+                picture.CreateControl();
+                var host = new FormsIntegration.WindowsFormsHost { Child = picture, Background = Brushes.Black };
+                var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
+                tile.Children.Add(host);
+                tile.Children.Add(new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(220, 15, 23, 42)),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Margin = new Thickness(7),
+                    Padding = new Thickness(7, 3, 7, 3),
+                    CornerRadius = new CornerRadius(3),
+                    Child = new TextBlock
+                    {
+                        Text = $"{_currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}"} | CH {channel}",
+                        Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = 11
+                    }
+                });
+                MultiVideoGrid.Children.Add(tile);
+                _multiViewSlots.Add(new MultiViewSlot { Channel = channel, PictureBox = picture, Host = host });
+            }
+        }
+
+        private void StartMultiLive_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDevice == null) return;
+            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                Connect_Click(sender, e);
+                return;
+            }
+            StartMultiLiveForSelectedChannels();
+        }
+
+        private void StartMultiLiveForSelectedChannels()
+        {
+            if (_loginId == IntPtr.Zero || _currentDevice == null) return;
+            var channels = GetModernSelectedChannels();
+            if (channels.Count == 0) channels.Add(_currentChannel);
+            channels = channels.Take(GetMultiViewCapacity()).ToList();
+
+            StopSynchronizedPlayback();
+            if (_realPlayHandle != IntPtr.Zero)
+            {
+                DahuaNetSdk.CLIENT_StopRealPlayEx(_realPlayHandle);
+                _realPlayHandle = IntPtr.Zero;
+            }
+            BuildMultiViewSlots(channels);
+
+            var streamType = StreamTypeBox.SelectedIndex == 1
+                ? DahuaNetSdk.EM_RealPlayType.Realplay_1 : DahuaNetSdk.EM_RealPlayType.Realplay;
+            int started = 0;
+            foreach (var slot in _multiViewSlots)
+            {
+                slot.StreamHandle = DahuaNetSdk.CLIENT_RealPlayEx(
+                    _loginId, Math.Max(0, slot.Channel - 1), slot.PictureBox.Handle, streamType);
+                if (slot.StreamHandle != IntPtr.Zero) started++;
+                else WriteSdkDiagnostic($"Multi-view live failed. Channel={slot.Channel}; error=0x{DahuaNetSdk.CLIENT_GetLastError():X8}.");
+            }
+            StatusLabel.Text = $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów.";
+            PlaybackSyncStatusText.Text = "Podgląd na żywo";
+        }
+
+        private void StopMultiLiveStreams()
+        {
+            foreach (var slot in _multiViewSlots)
+            {
+                if (slot.StreamHandle == IntPtr.Zero) continue;
+                try { DahuaNetSdk.CLIENT_StopRealPlayEx(slot.StreamHandle); } catch { }
+                slot.StreamHandle = IntPtr.Zero;
+            }
+        }
+
+        private void StartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDevice == null) return;
+            DateTime? start = GetStartDateTime();
+            DateTime? end = GetEndDateTime();
+            if (start == null || end == null || end <= start)
+            {
+                MessageBox.Show("Wybierz poprawny przedział czasu.", "Błędny zakres", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                Connect_Click(sender, e);
+                if (_loginId == IntPtr.Zero) return;
+            }
+
+            var channels = GetModernSelectedChannels();
+            if (channels.Count == 0) channels.Add(GetSelectedArchiveChannel());
+            channels = channels.Take(GetMultiViewCapacity()).ToList();
+            StopMultiLiveStreams();
+            if (_realPlayHandle != IntPtr.Zero)
+            {
+                DahuaNetSdk.CLIENT_StopRealPlayEx(_realPlayHandle);
+                _realPlayHandle = IntPtr.Zero;
+            }
+            StopSynchronizedPlayback();
+            BuildMultiViewSlots(channels);
+
+            _playbackRangeStart = start.Value;
+            _playbackRangeEnd = end.Value;
+            _playbackElapsedBeforePause = 0;
+            _playbackSegmentStartedAt = DateTime.Now;
+            _synchronizedPlaybackPaused = false;
+            PlaybackPositionSlider.Minimum = 0;
+            PlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
+            PlaybackPositionSlider.Value = 0;
+            PlaybackPositionSlider.IsEnabled = true;
+
+            try
+            {
+                ConfigureDahuaRecordModes(_loginId);
+                int started = 0;
+                foreach (var slot in _multiViewSlots)
+                {
+                    var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
+                    var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
+                    slot.PlaybackHandle = DahuaNetSdk.CLIENT_PlayBackByTimeEx(
+                        _loginId, Math.Max(0, slot.Channel - 1), ref tmStart, ref tmEnd,
+                        slot.PictureBox.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                    if (slot.PlaybackHandle != IntPtr.Zero)
+                    {
+                        _multiPlaybackHandles.Add(slot.PlaybackHandle);
+                        started++;
+                    }
+                    else WriteSdkDiagnostic($"Synchronized playback failed. Channel={slot.Channel}; error=0x{DahuaNetSdk.CLIENT_GetLastError():X8}.");
+                }
+                if (started == 0)
+                    throw new InvalidOperationException("Rejestrator nie uruchomił odtwarzania na żadnym z wybranych kanałów.");
+                _playbackUiTimer.Start();
+                PlaybackSyncStatusText.Text = $"Synchronizacja czasu: {started}/{channels.Count} kanałów";
+                StatusLabel.Text = $"Odtwarzanie zsynchronizowane: {started} kanałów od {start.Value:HH:mm:ss}.";
+            }
+            catch (Exception ex)
+            {
+                StopSynchronizedPlayback();
+                StatusLabel.Text = $"Błąd zsynchronizowanego odtwarzania: {ex.Message}";
+                MessageBox.Show(ex.Message, "Archiwum Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void PlaybackUiTimer_Tick(object? sender, EventArgs e)
+        {
+            if (_synchronizedPlaybackPaused || _multiPlaybackHandles.Count == 0) return;
+            double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
+            elapsed = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
+            PlaybackPositionSlider.Value = elapsed;
+            TimeSpan position = TimeSpan.FromSeconds(elapsed);
+            PlaybackPositionText.Text = $"{_playbackRangeStart.Add(position):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
+            if (elapsed >= PlaybackPositionSlider.Maximum)
+            {
+                _playbackUiTimer.Stop();
+                PlaybackSyncStatusText.Text = "Koniec zakresu archiwum";
+            }
+        }
+
+        private void ToggleSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        {
+            if (_multiPlaybackHandles.Count == 0) return;
+            bool pause = !_synchronizedPlaybackPaused;
+            int succeeded = 0;
+            foreach (IntPtr handle in _multiPlaybackHandles)
+                if (DahuaNetSdk.CLIENT_PausePlayBack(handle, pause)) succeeded++;
+            if (succeeded == 0)
+            {
+                StatusLabel.Text = "Rejestrator odrzucił polecenie pauzy/wznowienia.";
+                return;
+            }
+            if (pause)
+            {
+                _playbackElapsedBeforePause += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
+                _synchronizedPlaybackPaused = true;
+                _playbackUiTimer.Stop();
+            }
+            else
+            {
+                _playbackSegmentStartedAt = DateTime.Now;
+                _synchronizedPlaybackPaused = false;
+                _playbackUiTimer.Start();
+            }
+            PlaybackSyncStatusText.Text = pause ? "Wstrzymano wszystkie kanały" : "Wznowiono wszystkie kanały";
+        }
+
+        private void PlaybackSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_multiPlaybackHandles.Count == 0) return;
+            int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, PlaybackPositionSlider.Maximum);
+            int succeeded = 0;
+            foreach (IntPtr handle in _multiPlaybackHandles)
+                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
+            if (succeeded == 0)
+            {
+                StatusLabel.Text = "Rejestrator nie obsłużył przewijania archiwum.";
+                return;
+            }
+            _playbackElapsedBeforePause = offsetSeconds;
+            _playbackSegmentStartedAt = DateTime.Now;
+            PlaybackPositionText.Text = $"{_playbackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
+            PlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_multiPlaybackHandles.Count}";
+        }
+
+        private void StopPlaybackHandlesOnly()
+        {
+            foreach (IntPtr handle in _multiPlaybackHandles)
+            {
+                try { DahuaNetSdk.CLIENT_StopPlayBack(handle); } catch { }
+            }
+            _multiPlaybackHandles.Clear();
+            foreach (var slot in _multiViewSlots) slot.PlaybackHandle = IntPtr.Zero;
+        }
+
+        private void StopSynchronizedPlayback()
+        {
+            _playbackUiTimer.Stop();
+            StopPlaybackHandlesOnly();
+            _synchronizedPlaybackPaused = false;
+            _playbackElapsedBeforePause = 0;
+            if (PlaybackPositionSlider != null)
+            {
+                PlaybackPositionSlider.IsEnabled = false;
+                PlaybackPositionSlider.Value = 0;
+            }
+            if (PlaybackPositionText != null) PlaybackPositionText.Text = "00:00:00 / 00:00:00";
+        }
+
+        private void StopSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        {
+            StopSynchronizedPlayback();
+            PlaybackSyncStatusText.Text = "Odtwarzanie zatrzymane";
+            StatusLabel.Text = "Zatrzymano zsynchronizowane odtwarzanie archiwum.";
         }
 
         #endregion
@@ -1865,6 +2239,7 @@ namespace VideoPlayer
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            _playbackUiTimer.Stop();
             Disconnect();
             if (_sdkInitialized)
             {
