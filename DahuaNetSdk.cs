@@ -16,6 +16,42 @@ namespace VideoPlayer
         private const string NetSdkDll = "dhnetsdk.dll";
         private const string PlaySdkDll = "dhplay.dll";
 
+        static DahuaNetSdk()
+        {
+            // CheckDependencies accepts DLLs in root, x64 or dahua folders.
+            // Install the matching resolver so P/Invoke searches those same locations.
+            System.Runtime.InteropServices.NativeLibrary.SetDllImportResolver(
+                typeof(DahuaNetSdk).Assembly, ResolveDahuaLibrary);
+        }
+
+        private static IntPtr ResolveDahuaLibrary(
+            string libraryName,
+            System.Reflection.Assembly assembly,
+            DllImportSearchPath? searchPath)
+        {
+            string fileName = Path.GetFileName(libraryName);
+            if (!string.Equals(fileName, NetSdkDll, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(fileName, PlaySdkDll, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(fileName, "avnetsdk.dll", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(fileName, "dhconfigsdk.dll", StringComparison.OrdinalIgnoreCase))
+                return IntPtr.Zero;
+
+            string baseDir = AppContext.BaseDirectory;
+            string[] candidates =
+            {
+                Path.Combine(baseDir, fileName),
+                Path.Combine(baseDir, "x64", fileName),
+                Path.Combine(baseDir, "dahua", fileName)
+            };
+
+            foreach (string candidate in candidates)
+            {
+                if (File.Exists(candidate))
+                    return System.Runtime.InteropServices.NativeLibrary.Load(candidate);
+            }
+            return IntPtr.Zero;
+        }
+
         #region Enums & Structs
 
         public enum EM_LOGIN_SPAC_CAP_TYPE
