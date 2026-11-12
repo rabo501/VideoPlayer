@@ -1395,7 +1395,7 @@ namespace VideoPlayer
                 var host = new FormsIntegration.WindowsFormsHost { Child = picture, Background = Brushes.Black };
                 var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
                 tile.Children.Add(host);
-                tile.Children.Add(new Border
+                var channelLabel = new Border
                 {
                     Background = new SolidColorBrush(Color.FromArgb(220, 15, 23, 42)),
                     HorizontalAlignment = HorizontalAlignment.Left,
@@ -1403,12 +1403,21 @@ namespace VideoPlayer
                     Margin = new Thickness(7),
                     Padding = new Thickness(7, 3, 7, 3),
                     CornerRadius = new CornerRadius(3),
+                    Cursor = System.Windows.Input.Cursors.Hand,
                     Child = new TextBlock
                     {
                         Text = $"{_currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}"} | CH {channel}",
                         Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = 11
                     }
-                });
+                };
+                channelLabel.MouseLeftButtonDown += (_, args) =>
+                {
+                    _currentChannel = channel;
+                    HighlightActiveChannelButton(channel);
+                    ChannelNameEditBox.Text = _currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}";
+                    args.Handled = true;
+                };
+                tile.Children.Add(channelLabel);
                 MultiVideoGrid.Children.Add(tile);
                 _multiViewSlots.Add(new MultiViewSlot { Channel = channel, PictureBox = picture, Host = host });
             }
@@ -1431,6 +1440,8 @@ namespace VideoPlayer
             var channels = GetModernSelectedChannels();
             if (channels.Count == 0) channels.Add(_currentChannel);
             channels = channels.Take(GetMultiViewCapacity()).ToList();
+            _currentChannel = channels[0];
+            HighlightActiveChannelButton(_currentChannel);
 
             StopSynchronizedPlayback();
             if (_realPlayHandle != IntPtr.Zero)
@@ -1483,6 +1494,8 @@ namespace VideoPlayer
             var channels = GetModernSelectedChannels();
             if (channels.Count == 0) channels.Add(GetSelectedArchiveChannel());
             channels = channels.Take(GetMultiViewCapacity()).ToList();
+            _currentChannel = channels[0];
+            HighlightActiveChannelButton(_currentChannel);
             StopMultiLiveStreams();
             if (_realPlayHandle != IntPtr.Zero)
             {
@@ -1683,19 +1696,28 @@ namespace VideoPlayer
 
         private string? CaptureFrameToFile()
         {
-            if (_realPlayHandle == IntPtr.Zero && _playbackHandle == IntPtr.Zero)
+            MultiViewSlot? activeSlot = _multiViewSlots.FirstOrDefault(slot =>
+                slot.Channel == _currentChannel &&
+                (slot.StreamHandle != IntPtr.Zero || slot.PlaybackHandle != IntPtr.Zero));
+            activeSlot ??= _multiViewSlots.FirstOrDefault(slot =>
+                slot.StreamHandle != IntPtr.Zero || slot.PlaybackHandle != IntPtr.Zero);
+
+            if (activeSlot == null && _realPlayHandle == IntPtr.Zero && _playbackHandle == IntPtr.Zero)
             {
                 MessageBox.Show("Najpierw uruchom strumień wideo.", "Brak strumienia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return null;
             }
 
-            IntPtr handle = _realPlayHandle != IntPtr.Zero ? _realPlayHandle : _playbackHandle;
+            IntPtr handle = activeSlot != null
+                ? (activeSlot.StreamHandle != IntPtr.Zero ? activeSlot.StreamHandle : activeSlot.PlaybackHandle)
+                : (_realPlayHandle != IntPtr.Zero ? _realPlayHandle : _playbackHandle);
+            int captureChannel = activeSlot?.Channel ?? _currentChannel;
 
             try
             {
                 string folder = Path.Combine(AppContext.BaseDirectory, "zrzuty");
                 Directory.CreateDirectory(folder);
-                string filename = $"Dahua_CH{_currentChannel}_{DateTime.Now:yyyyMMdd_HHmmssfff}.jpg";
+                string filename = $"Dahua_CH{captureChannel}_{DateTime.Now:yyyyMMdd_HHmmssfff}.jpg";
                 string fullPath = Path.Combine(folder, filename);
 
                 bool ok = DahuaNetSdk.CLIENT_CapturePictureEx(handle, fullPath, DahuaNetSdk.NET_CAPTURE_FORMATS.JPEG);
