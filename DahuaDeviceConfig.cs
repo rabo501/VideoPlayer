@@ -265,7 +265,5 @@ namespace VideoPlayer
                 File.Move(tempPath, ConfigPath);
             }
         }
-            catch { }
-        }
     }
 }
