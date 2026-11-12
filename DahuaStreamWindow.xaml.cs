@@ -1002,8 +1002,8 @@ namespace VideoPlayer
                             psi.ArgumentList.Add("-rtsp_transport");
                             psi.ArgumentList.Add("tcp");
                             psi.ArgumentList.Add("-t");
-                            int durationSec = Math.Min(300, (int)(end.Value - start.Value).TotalSeconds);
-                            psi.ArgumentList.Add(Math.Max(5, durationSec).ToString());
+                            int durationSec = Math.Max(1, (int)Math.Ceiling((end.Value - start.Value).TotalSeconds));
+                            psi.ArgumentList.Add(durationSec.ToString(System.Globalization.CultureInfo.InvariantCulture));
                             psi.ArgumentList.Add("-i");
                             psi.ArgumentList.Add(rtspUrl);
                             psi.ArgumentList.Add("-c");
