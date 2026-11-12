@@ -57,8 +57,8 @@ namespace VideoPlayer
         public string ConnectionAddress => (IpAddress ?? string.Empty).Trim();
 
         public string DisplayLabel => string.IsNullOrWhiteSpace(IpAddress)
-            ? $"{Name} (brak adresu)"
-            : $"{Name} ({IpAddress}:{Port})";
+            ? "Brak adresu połączenia"
+            : $"{IpAddress}:{Port}";
         public override string ToString() => DisplayLabel;
 
         public void UpdateFromDeviceChannels(List<DahuaChannelInfo> deviceChannels)
