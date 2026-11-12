@@ -1022,12 +1022,9 @@ namespace VideoPlayer
             uint typeError = typeOk ? 0u : DahuaNetSdk.CLIENT_GetLastError();
             WriteSdkDiagnostic($"SetDeviceMode(DH_RECORD_TYPE=8, value=0/ALL): ok={typeOk}; error=0x{typeError:X8}.");
 
-            // The stream mode is required for archive search on some Dahua devices.
-            // Record type mode is optional on older firmware; the explicit type=ALL
-            // argument is also supplied to the individual search/download APIs.
-            if (!streamOk)
-                throw new InvalidOperationException(
-                    $"Rejestrator odrzucił ustawienie trybu strumienia nagrań (0x{streamError:X8}).");
+            // Older firmware may reject one of these optional modes. Keep the
+            // failure in the diagnostic log and allow the actual archive API call
+            // to return its own, more specific error code.
         }
 
         private int GetSelectedArchiveChannel()
@@ -1088,8 +1085,8 @@ namespace VideoPlayer
                         WriteSdkDiagnostic($"CLIENT_QueryRecordFile: channel={channelIndex}; recordType=0 (ALL); timeRange={start.Value:O}..{end.Value:O}; bTime=true; recordInfoSize={itemSize}; bufferSize={bufferSize}.");
                         bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
                             login, channelIndex, 0, ref tmStart, ref tmEnd, null,
-                            buffer, bufferSize, out count, 8000, true);
-                        WriteSdkDiagnostic($"CLIENT_QueryRecordFile returned ok={ok}; count={count}; lastError=0x{DahuaNetSdk.CLIENT_GetLastError():X8}.");
+                            buffer, bufferSize, out count, 8000, false);
+                        WriteSdkDiagnostic($"CLIENT_QueryRecordFile returned ok={ok}; count={count}; lastError=0x{(ok ? 0u : DahuaNetSdk.CLIENT_GetLastError()):X8}.");
 
                         if (!ok)
                         {
@@ -1352,9 +1349,18 @@ namespace VideoPlayer
                                 completed.Set();
                         };
 
+                    WriteSdkDiagnostic($"Calling CLIENT_DownloadByTimeEx: channel={channelIndex}; recordType={recordType}; start={start.Value:O}; end={end.Value:O}; file={davFilePath}.");
                     IntPtr hDown = DahuaNetSdk.CLIENT_DownloadByTimeEx(
                         activeLoginId, channelIndex, recordType, ref tmStart, ref tmEnd, davFilePath,
                         progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                    WriteSdkDiagnostic($"CLIENT_DownloadByTimeEx returned handle=0x{hDown.ToInt64():X}.");
+
+                    if (hDown == IntPtr.Zero)
+                    {
+                        uint downloadError = DahuaNetSdk.CLIENT_GetLastError();
+                        throw new InvalidOperationException(
+                            $"CLIENT_DownloadByTimeEx: {DahuaNetSdk.GetErrorDescription(downloadError)}");
+                    }
 
                     if (hDown != IntPtr.Zero)
                     {
