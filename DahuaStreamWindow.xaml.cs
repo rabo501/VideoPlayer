@@ -127,6 +127,7 @@ namespace VideoPlayer
                     Disconnect();
 
                 _currentDevice = dev;
+                ArchiveRecordsGrid.ItemsSource = null;
                 _currentDevice.EnsureDefaultChannels(16);
                 _currentDevice.EnsureDefaultPresets();
 
@@ -993,6 +994,13 @@ namespace VideoPlayer
             DownloadStatusText.Visibility = Visibility.Visible;
             DownloadStatusText.Text = $"Wyszukiwanie nagrań: {_currentDevice.Name}, kanał {channel}…";
             ArchiveRecordsGrid.ItemsSource = null;
+            DevicesListBox.IsEnabled = false;
+            ArchiveChannelBox.IsEnabled = false;
+            StartDatePicker.IsEnabled = false;
+            EndDatePicker.IsEnabled = false;
+            StartTimeBox.IsEnabled = false;
+            EndTimeBox.IsEnabled = false;
+            SearchArchiveButton.IsEnabled = false;
 
             try
             {
@@ -1059,6 +1067,16 @@ namespace VideoPlayer
             {
                 DownloadStatusText.Text = "Błąd wyszukiwania archiwum.";
                 MessageBox.Show($"Nie udało się wyszukać nagrań: {ex.Message}", "Archiwum Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                DevicesListBox.IsEnabled = true;
+                ArchiveChannelBox.IsEnabled = true;
+                StartDatePicker.IsEnabled = true;
+                EndDatePicker.IsEnabled = true;
+                StartTimeBox.IsEnabled = true;
+                EndTimeBox.IsEnabled = true;
+                SearchArchiveButton.IsEnabled = true;
             }
         }
 
@@ -1180,6 +1198,9 @@ namespace VideoPlayer
             DownloadStatusText.Visibility = Visibility.Visible;
             DownloadStatusText.Text = $"Pobieranie nagrania: {chName} (CH {channel}) za okres {start.Value:g} — {end.Value:g}…";
             LoadToPlayerButton.IsEnabled = false;
+            DevicesListBox.IsEnabled = false;
+            ArchiveChannelBox.IsEnabled = false;
+            SearchArchiveButton.IsEnabled = false;
 
             try
             {
@@ -1271,6 +1292,9 @@ namespace VideoPlayer
             {
                 DownloadProgressBar.Visibility = Visibility.Collapsed;
                 LoadToPlayerButton.IsEnabled = true;
+                DevicesListBox.IsEnabled = true;
+                ArchiveChannelBox.IsEnabled = true;
+                SearchArchiveButton.IsEnabled = true;
             }
         }
 
