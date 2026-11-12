@@ -285,39 +285,75 @@ namespace VideoPlayer
             try
             {
                 WriteSdkDiagnostic("Manual device read started.");
-                // The recorder reports its channel count in NET_DEVICEINFO at login.
-                // Do not call CLIENT_GetNewDevConfig("ChannelTitle") here: the log
-                // proves the process stops inside that native call on this SDK/device
-                // combination, before managed exception handling can run.
+                // Channel count comes from NET_DEVICEINFO returned by CLIENT_Login.
                 int channelCount = _deviceChannelCount;
                 if (channelCount <= 0)
-                {
-                    // Preserve already configured channels if this device did not
-                    // report a count; do not guess a larger channel count.
                     channelCount = _currentDevice.Channels.Count;
-                }
 
                 WriteSdkDiagnostic($"Using channel count captured at login: {channelCount}.");
                 if (channelCount > 0)
-                {
                     _currentDevice.EnsureDefaultChannels(channelCount);
-                    WriteSdkDiagnostic($"Default channel entries ensured: {channelCount}.");
+
+                // Query channel titles with CLIENT_QueryChannelName using a bounded
+                // 32-byte slot per channel. Never call the known-crashing
+                // CLIENT_GetNewDevConfig("ChannelTitle") path here.
+                WriteSdkDiagnostic($"Calling CLIENT_QueryChannelName for up to {channelCount} channels.");
+                List<DahuaChannelInfo> remoteNames =
+                    DahuaNetSdk.QueryChannelNamesFromDevice(_loginId, channelCount);
+                WriteSdkDiagnostic($"CLIENT_QueryChannelName returned {remoteNames.Count} non-empty channel names.");
+
+                int appliedNames = 0;
+                if (remoteNames.Count > 0)
+                {
+                    var changes = remoteNames
+                        .Where(remote => !string.IsNullOrWhiteSpace(remote.Name))
+                        .Select(remote => new
+                        {
+                            remote.Number,
+                            RemoteName = remote.Name.Trim(),
+                            LocalName = _currentDevice.GetChannelName(remote.Number)
+                        })
+                        .Where(x => !string.Equals(x.LocalName, x.RemoteName, StringComparison.Ordinal))
+                        .ToList();
+
+                    if (changes.Count > 0)
+                    {
+                        string preview = string.Join(Environment.NewLine,
+                            changes.Take(20).Select(x =>
+                                $"CH {x.Number}: \"{x.LocalName}\"  →  \"{x.RemoteName}\""));
+                        if (changes.Count > 20)
+                            preview += Environment.NewLine + $"… oraz {changes.Count - 20} kolejnych zmian.";
+
+                        var decision = MessageBox.Show(
+                            $"Rejestrator zwrócił {remoteNames.Count} nazw kanałów. " +
+                            $"Wykryto {changes.Count} różnic względem konfiguracji lokalnej.\n\n" +
+                            preview + "\n\nCzy zastosować nazwy z rejestratora?\n" +
+                            "Identyfikatory kanałów pozostaną bez zmian.",
+                            "Porównanie nazw kanałów Dahua",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+
+                        if (decision == MessageBoxResult.Yes)
+                        {
+                            foreach (var change in changes)
+                                _currentDevice.SetChannelName(change.Number, change.RemoteName);
+                            appliedNames = changes.Count;
+                        }
+                    }
                 }
 
-                // Channel titles and PTZ presets are intentionally not requested
-                // from native NetSDK in this operation until a device-specific,
-                // verified API/structure mapping is available. Existing operator
-                // names and presets remain untouched.
+                // Keep local names if the native query fails/returns no names or
+                // the operator declines the proposed changes.
                 DahuaConfigService.SaveDevices(_devices);
-                WriteSdkDiagnostic("Device configuration saved.");
+                WriteSdkDiagnostic($"Device configuration saved; applied channel-name changes={appliedNames}.");
                 RefreshChannelLists();
                 WriteSdkDiagnostic("Live/archive channel lists refreshed.");
                 RefreshPresetsList();
                 WriteSdkDiagnostic("Preset list refreshed.");
 
-                string msg = channelCount > 0
-                    ? $"Odczytano z urządzenia liczbę kanałów: {channelCount}. Nazwy kanałów i presety operatora zachowano."
-                    : "Urządzenie nie zwróciło liczby kanałów. Zachowano dotychczasową konfigurację.";
+                string msg = remoteNames.Count > 0
+                    ? $"Odczytano {remoteNames.Count} nazw kanałów. Zastosowano zmian: {appliedNames}. Presety lokalne zachowano."
+                    : $"Nie udało się pobrać nazw kanałów. Zachowano lokalne nazwy i presety. Liczba kanałów: {channelCount}.";
 
                 StatusLabel.Text = msg;
                 WriteSdkDiagnostic("Manual device read completed.");
@@ -325,7 +361,7 @@ namespace VideoPlayer
                 if (showDialog)
                 {
                     MessageBox.Show(
-                        $"{msg}\n\nNazwy kanałów i presety nie zostały pobrane z urządzenia; zachowano zapisane ustawienia operatora.",
+                        msg + "\n\nPresety PTZ nie były odczytywane ani zmieniane.",
                         "Odczyt z urządzenia Dahua",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
