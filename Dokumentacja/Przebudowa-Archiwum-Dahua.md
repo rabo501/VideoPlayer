@@ -52,7 +52,7 @@ Nie jest używany niepotwierdzony adres RTSP `/cam/playback` jako automatyczny f
 - Struktura `NET_RECORDFILE_INFO` jest deklarowana z układem natywnym, polem nazwy pliku o rozmiarze 124 bajtów i polami czasu.
 - `CLIENT_PlayBackByTimeEx` ma pełną liczbę argumentów natywnego API. Nie wolno skracać deklaracji P/Invoke – błędna liczba argumentów może uszkodzić stos/ABI i zakończyć proces.
 - Callback pobierania Dahua sygnalizuje koniec transferu wartością -1 w polu pobranych danych (w typie unsigned widoczne jako `uint.MaxValue`).
-- Plik DAV jest źródłem pobranym z rejestratora. MP4 jest kontenerem wynikowym utworzonym przez FFmpeg z kopiowaniem strumieni bez ponownego kodowania.
+- Plik DAV jest źródłem pobranym z rejestratora. MP4 jest kontenerem wynikowym utworzonym przez FFmpeg. Najpierw wykonywany jest szybki remux z zachowaniem obrazu; jeśli kodek nie pasuje do MP4, program ponawia konwersję obrazu do H.264.
 
 ## 6. Testy wymagane przed wdrożeniem
 
