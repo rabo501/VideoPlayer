@@ -123,12 +123,18 @@ namespace VideoPlayer
                 if (dayButton.DataContext is DateTime date &&
                     _archiveAvailableDays.Contains(date.Date))
                 {
-                    dayButton.Background = new SolidColorBrush(Color.FromRgb(22, 101, 52));
-                    dayButton.Foreground = Brushes.White;
-                    dayButton.BorderBrush = new SolidColorBrush(Color.FromRgb(74, 222, 128));
-                    dayButton.BorderThickness = new Thickness(1);
-                    dayButton.FontWeight = FontWeights.Bold;
                     dayButton.ToolTip = $"Dostępne nagrania: {date:dd.MM.yyyy}";
+
+                    // Keep the native blue selection treatment distinct from the green
+                    // availability marker.
+                    if (calendar.SelectedDate?.Date != date.Date)
+                    {
+                        dayButton.Background = new SolidColorBrush(Color.FromRgb(22, 101, 52));
+                        dayButton.Foreground = Brushes.White;
+                        dayButton.BorderBrush = new SolidColorBrush(Color.FromRgb(74, 222, 128));
+                        dayButton.BorderThickness = new Thickness(1);
+                        dayButton.FontWeight = FontWeights.Bold;
+                    }
                 }
             }
         }
