@@ -27,7 +27,7 @@ namespace VideoPlayer
     {
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
         public string Name { get; set; } = "Kamera Dahua IP";
-        public string IpAddress { get; set; } = "192.168.1.108";
+        public string IpAddress { get; set; } = "";
         public ushort Port { get; set; } = 37777;
         public string Username { get; set; } = "admin";
         public string Password { get; set; } = "";
@@ -37,7 +37,13 @@ namespace VideoPlayer
         public List<DahuaChannelInfo> Channels { get; set; } = new();
         public List<DahuaPresetItem> Presets { get; set; } = new();
 
-        public string DisplayLabel => $"{Name} ({IpAddress}:{Port})";
+        // Name is a presentation-only label. All network operations must use ConnectionAddress.
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string ConnectionAddress => (IpAddress ?? string.Empty).Trim();
+
+        public string DisplayLabel => string.IsNullOrWhiteSpace(IpAddress)
+            ? $"{Name} (brak adresu)"
+            : $"{Name} ({IpAddress}:{Port})";
         public override string ToString() => DisplayLabel;
 
         public void UpdateFromDeviceChannels(List<DahuaChannelInfo> deviceChannels)
@@ -114,26 +120,78 @@ namespace VideoPlayer
 
         public static List<DahuaDeviceItem> LoadDevices()
         {
-            try
+            if (File.Exists(ConfigPath))
             {
-                if (File.Exists(ConfigPath))
+                try
                 {
                     string json = File.ReadAllText(ConfigPath);
-                    var list = JsonSerializer.Deserialize<List<DahuaDeviceItem>>(json);
-                    if (list != null && list.Count > 0)
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var list = JsonSerializer.Deserialize<List<DahuaDeviceItem>>(json, options) ?? new List<DahuaDeviceItem>();
+
+                    // Compatibility with older files where the IP address was stored
+                    // in Name (the UI used to display the address as the device label),
+                    // or where the endpoint property had a different name.
+                    using var document = JsonDocument.Parse(json);
+                    if (document.RootElement.ValueKind == JsonValueKind.Array)
                     {
-                        foreach (var d in list)
+                        int index = 0;
+                        foreach (var element in document.RootElement.EnumerateArray())
                         {
-                            d.EnsureDefaultChannels(16);
-                            d.EnsureDefaultPresets();
+                            if (index >= list.Count) break;
+                            var device = list[index++];
+                            if (element.ValueKind != JsonValueKind.Object) continue;
+
+                            string? ReadString(params string[] names)
+                            {
+                                foreach (var property in element.EnumerateObject())
+                                {
+                                    if (names.Any(n => string.Equals(n, property.Name, StringComparison.OrdinalIgnoreCase)) &&
+                                        property.Value.ValueKind == JsonValueKind.String)
+                                        return property.Value.GetString();
+                                }
+                                return null;
+                            }
+
+                            if (string.IsNullOrWhiteSpace(device.IpAddress))
+                                device.IpAddress = ReadString("IpAddress", "IPAddress", "IP", "Ip", "Address", "Host", "HostAddress") ?? string.Empty;
+
+                            if (string.IsNullOrWhiteSpace(device.Name))
+                                device.Name = ReadString("Name", "DisplayName", "Title") ?? string.Empty;
+
+                            // Legacy schema: the only saved value was the IP in Name.
+                            if (string.IsNullOrWhiteSpace(device.IpAddress) &&
+                                !string.IsNullOrWhiteSpace(device.Name) &&
+                                Uri.CheckHostName(device.Name.Trim()) != UriHostNameType.Unknown)
+                            {
+                                device.IpAddress = device.Name.Trim();
+                                device.Name = $"Urządzenie {device.IpAddress}";
+                            }
+
+                            if (string.IsNullOrWhiteSpace(device.Name))
+                                device.Name = string.IsNullOrWhiteSpace(device.IpAddress)
+                                    ? "Urządzenie Dahua"
+                                    : $"Urządzenie {device.IpAddress}";
+
+                            device.Channels ??= new List<DahuaChannelInfo>();
+                            device.Presets ??= new List<DahuaPresetItem>();
+                            device.EnsureDefaultChannels(16);
+                            device.EnsureDefaultPresets();
                         }
-                        return list;
                     }
+
+                    return list;
+                }
+                catch (Exception ex)
+                {
+                    // Do not silently replace a damaged/old configuration with demo devices.
+                    // Keep the source file for recovery and let the operator see the problem.
+                    throw new InvalidDataException(
+                        $"Nie można odczytać konfiguracji urządzeń Dahua: {ConfigPath}. " +
+                        "Plik nie został nadpisany. Szczegóły: " + ex.Message, ex);
                 }
             }
-            catch { }
 
-            // Domyślne urządzenia demonstracyjne
+            // First launch only: create demo entries when no configuration exists.
             var nvr = new DahuaDeviceItem
             {
                 Name = "Rejestrator NVR Dahua (8 kanałów)",
@@ -144,7 +202,6 @@ namespace VideoPlayer
                 StreamType = DahuaNetSdk.EM_RealPlayType.Realplay
             };
             nvr.EnsureDefaultChannels(16);
-            nvr.EnsureDefaultPresets();
 
             var cam = new DahuaDeviceItem
             {
@@ -156,11 +213,10 @@ namespace VideoPlayer
                 StreamType = DahuaNetSdk.EM_RealPlayType.Realplay
             };
             cam.EnsureDefaultChannels(4);
-            cam.EnsureDefaultPresets();
 
-            var listDefault = new List<DahuaDeviceItem> { nvr, cam };
-            SaveDevices(listDefault);
-            return listDefault;
+            var defaults = new List<DahuaDeviceItem> { nvr, cam };
+            SaveDevices(defaults);
+            return defaults;
         }
 
         public static void SaveDevices(List<DahuaDeviceItem> devices)
