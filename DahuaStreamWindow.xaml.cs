@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -947,6 +948,178 @@ namespace VideoPlayer
         {
             if (ArchiveChannelBox.SelectedItem is ComboBoxItem item && item.Tag is int ch) return ch;
             return _currentChannel;
+        }
+
+        private async void SearchArchive_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDevice == null) return;
+
+            var start = GetStartDateTime();
+            var end = GetEndDateTime();
+            if (start == null || end == null || end <= start)
+            {
+                MessageBox.Show("Wybierz poprawny przedział czasu.", "Błędny zakres dat", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                Connect_Click(sender, e);
+                if (_loginId == IntPtr.Zero) return;
+            }
+
+            int channel = GetSelectedArchiveChannel();
+            int channelIndex = Math.Max(0, channel - 1);
+            IntPtr login = _loginId;
+            var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
+            var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
+
+            DownloadStatusText.Visibility = Visibility.Visible;
+            DownloadStatusText.Text = $"Wyszukiwanie nagrań: {_currentDevice.Name}, kanał {channel}…";
+            ArchiveRecordsGrid.ItemsSource = null;
+
+            try
+            {
+                List<DahuaRecordItem> records = await Task.Run(() =>
+                {
+                    const int maxRecords = 200;
+                    int itemSize = Marshal.SizeOf<DahuaNetSdk.NET_RECORDFILE_INFO>();
+                    int bufferSize = checked(itemSize * maxRecords);
+                    IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
+                    try
+                    {
+                        for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(buffer, i, 0);
+                        int count;
+                        bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
+                            login, channelIndex, 0, ref tmStart, ref tmEnd, null,
+                            buffer, bufferSize, out count, 5000, false);
+
+                        if (!ok)
+                        {
+                            uint error = DahuaNetSdk.CLIENT_GetLastError();
+                            throw new InvalidOperationException(DahuaNetSdk.GetErrorDescription(error));
+                        }
+
+                        var result = new List<DahuaRecordItem>();
+                        int safeCount = Math.Clamp(count, 0, maxRecords);
+                        for (int i = 0; i < safeCount; i++)
+                        {
+                            var native = Marshal.PtrToStructure<DahuaNetSdk.NET_RECORDFILE_INFO>(
+                                IntPtr.Add(buffer, i * itemSize));
+                            DateTime recordStart = new DateTime(
+                                (int)native.starttime.dwYear, (int)native.starttime.dwMonth,
+                                (int)native.starttime.dwDay, (int)native.starttime.dwHour,
+                                (int)native.starttime.dwMinute, (int)native.starttime.dwSecond);
+                            DateTime recordEnd = new DateTime(
+                                (int)native.endtime.dwYear, (int)native.endtime.dwMonth,
+                                (int)native.endtime.dwDay, (int)native.endtime.dwHour,
+                                (int)native.endtime.dwMinute, (int)native.endtime.dwSecond);
+
+                            if (recordEnd <= recordStart) continue;
+                            result.Add(new DahuaRecordItem
+                            {
+                                Channel = channel,
+                                FileName = native.FileName,
+                                StartTime = recordStart,
+                                EndTime = recordEnd,
+                                SizeKb = native.size,
+                                RecordType = native.nRecordFileType
+                            });
+                        }
+                        return result.OrderBy(x => x.StartTime).ToList();
+                    }
+                    finally
+                    {
+                        Marshal.FreeHGlobal(buffer);
+                    }
+                });
+
+                ArchiveRecordsGrid.ItemsSource = records;
+                DownloadStatusText.Text = records.Count == 0
+                    ? "Rejestrator nie zwrócił nagrań dla wybranego kanału i zakresu."
+                    : $"Znaleziono {records.Count} nagrań. Zaznacz pozycję, aby ją odtworzyć lub wczytać do MPV.";
+            }
+            catch (Exception ex)
+            {
+                DownloadStatusText.Text = "Błąd wyszukiwania archiwum.";
+                MessageBox.Show($"Nie udało się wyszukać nagrań: {ex.Message}", "Archiwum Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private DahuaRecordItem? GetSelectedRecord() => ArchiveRecordsGrid.SelectedItem as DahuaRecordItem;
+
+        private void ApplyRecordRange(DahuaRecordItem record)
+        {
+            StartDatePicker.SelectedDate = record.StartTime.Date;
+            StartTimeBox.Text = record.StartTime.ToString("HH:mm:ss");
+            EndDatePicker.SelectedDate = record.EndTime.Date;
+            EndTimeBox.Text = record.EndTime.ToString("HH:mm:ss");
+            for (int i = 0; i < ArchiveChannelBox.Items.Count; i++)
+            {
+                if (ArchiveChannelBox.Items[i] is ComboBoxItem item &&
+                    item.Tag is int channel && channel == record.Channel)
+                {
+                    ArchiveChannelBox.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        private void PlaySelectedRecord_Click(object sender, RoutedEventArgs e)
+        {
+            var record = GetSelectedRecord();
+            if (record == null)
+            {
+                MessageBox.Show("Najpierw zaznacz nagranie na liście.", "Brak zaznaczenia", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            ApplyRecordRange(record);
+            PlayArchiveInWindow_Click(sender, e);
+        }
+
+        private void LoadSelectedRecord_Click(object sender, RoutedEventArgs e)
+        {
+            var record = GetSelectedRecord();
+            if (record == null)
+            {
+                MessageBox.Show("Najpierw zaznacz nagranie na liście.", "Brak zaznaczenia", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            ApplyRecordRange(record);
+            LoadToPlayer_Click(sender, e);
+        }
+
+        private async Task ConvertDahuaRecordingToMp4Async(string inputPath, string outputPath)
+        {
+            string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
+            if (!File.Exists(ffmpegPath))
+                throw new FileNotFoundException("Nie znaleziono ffmpeg.exe. Wymagany jest FFmpeg do konwersji pliku DAV do MP4.", ffmpegPath);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true
+            };
+            psi.ArgumentList.Add("-y");
+            psi.ArgumentList.Add("-hide_banner");
+            psi.ArgumentList.Add("-i");
+            psi.ArgumentList.Add(inputPath);
+            psi.ArgumentList.Add("-map");
+            psi.ArgumentList.Add("0");
+            psi.ArgumentList.Add("-c");
+            psi.ArgumentList.Add("copy");
+            psi.ArgumentList.Add("-movflags");
+            psi.ArgumentList.Add("+faststart");
+            psi.ArgumentList.Add(outputPath);
+
+            using var process = Process.Start(psi) ?? throw new InvalidOperationException("Nie można uruchomić FFmpeg.");
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            string error = await errorTask;
+            if (process.ExitCode != 0 || !File.Exists(outputPath) || new FileInfo(outputPath).Length == 0)
+                throw new InvalidOperationException("Konwersja DAV do MP4 nie powiodła się: " + error);
         }
 
         private async void LoadToPlayer_Click(object sender, RoutedEventArgs e)
