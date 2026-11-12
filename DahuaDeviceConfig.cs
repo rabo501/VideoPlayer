@@ -6,6 +6,21 @@ using System.Text.Json;
 
 namespace VideoPlayer
 {
+    public sealed class DahuaRecordItem
+    {
+        public int Channel { get; set; }
+        public string FileName { get; set; } = string.Empty;
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
+        public uint SizeKb { get; set; }
+        public int RecordType { get; set; }
+        public string DurationText => (EndTime - StartTime).ToString(@"hh\\:mm\\:ss");
+        public string SizeText => SizeKb >= 1024
+            ? $"{SizeKb / 1024.0:N1} MB"
+            : $"{SizeKb:N0} KB";
+        public override string ToString() => $"{StartTime:yyyy-MM-dd HH:mm:ss} — {EndTime:HH:mm:ss}";
+    }
+
     public class DahuaPresetItem
     {
         public int PresetNumber { get; set; } = 1;
