@@ -492,7 +492,7 @@
                                     <TextBox x:Name="EndTimeBox" Grid.Column="1" Text="12:15:00" ToolTip="Godzina:Minuta:Sekunda (np. 14:45:00)" FontWeight="Bold" />
                                 </Grid>
 
-                                <Button Content="🔎 Wyszukaj nagrania na rejestratorze" Click="SearchArchive_Click" Style="{StaticResource BlueButton}" Padding="12,8" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
+                                <Button x:Name="SearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="SearchArchive_Click" Style="{StaticResource BlueButton}" Padding="12,8" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="NAGRANIA ZNALEZIONE NA URZĄDZENIU" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
                                 <DataGrid x:Name="ArchiveRecordsGrid" Height="190" AutoGenerateColumns="False"
                                           IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
