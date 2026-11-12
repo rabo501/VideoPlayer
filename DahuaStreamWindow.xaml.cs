@@ -24,6 +24,7 @@ namespace VideoPlayer
 
         private List<DahuaDeviceItem> _devices = new();
         private DahuaDeviceItem? _currentDevice;
+        private string? _connectedDeviceId;
         private IntPtr _loginId = IntPtr.Zero;
         private IntPtr _realPlayHandle = IntPtr.Zero;
         private IntPtr _playbackHandle = IntPtr.Zero;
@@ -114,6 +115,9 @@ namespace VideoPlayer
         {
             if (DevicesListBox.SelectedItem is DahuaDeviceItem dev)
             {
+                if (_loginId != IntPtr.Zero && !string.Equals(_connectedDeviceId, dev.Id, StringComparison.Ordinal))
+                    Disconnect();
+
                 _currentDevice = dev;
                 _currentDevice.EnsureDefaultChannels(16);
                 _currentDevice.EnsureDefaultPresets();
@@ -146,12 +150,16 @@ namespace VideoPlayer
                 name = $"Kamera {DeviceIpBox.Text.Trim()}";
             }
 
-            _currentDevice.Name = name;
-            _currentDevice.IpAddress = DeviceIpBox.Text.Trim();
-            if (ushort.TryParse(DevicePortBox.Text.Trim(), out ushort port))
+            string address = DeviceIpBox.Text.Trim();
+            if (!IsValidEndpoint(address, DevicePortBox.Text, out ushort port, out string validationError))
             {
-                _currentDevice.Port = port;
+                MessageBox.Show(validationError, "Nieprawidłowy adres urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
+
+            _currentDevice.Name = name;
+            _currentDevice.IpAddress = address;
+            _currentDevice.Port = port;
             _currentDevice.Username = DeviceUserBox.Text.Trim();
             _currentDevice.Password = DevicePassBox.Password;
 
@@ -162,17 +170,21 @@ namespace VideoPlayer
 
         private void AddDevice_Click(object sender, RoutedEventArgs e)
         {
-            string name = DeviceCustomNameBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(name))
+            string address = DeviceIpBox.Text.Trim();
+            if (!IsValidEndpoint(address, DevicePortBox.Text, out ushort port, out string validationError))
             {
-                name = $"Kamera {DeviceIpBox.Text.Trim()}";
+                MessageBox.Show(validationError, "Nieprawidłowy adres urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
+
+            string name = DeviceCustomNameBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(name)) name = $"Urządzenie {address}";
 
             var newDev = new DahuaDeviceItem
             {
                 Name = name,
-                IpAddress = string.IsNullOrWhiteSpace(DeviceIpBox.Text) ? "192.168.1.108" : DeviceIpBox.Text.Trim(),
-                Port = ushort.TryParse(DevicePortBox.Text.Trim(), out ushort p) ? p : (ushort)37777,
+                IpAddress = address,
+                Port = port,
                 Username = string.IsNullOrWhiteSpace(DeviceUserBox.Text) ? "admin" : DeviceUserBox.Text.Trim(),
                 Password = DevicePassBox.Password,
                 Channel = 1,
@@ -600,6 +612,31 @@ namespace VideoPlayer
             }
         }
 
+        private static bool IsValidEndpoint(string address, string portText, out ushort port, out string error)
+        {
+            port = 0;
+            error = string.Empty;
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                error = "Wpisz adres IP lub nazwę hosta urządzenia. Pole nazwy operatora jest niezależne.";
+                return false;
+            }
+
+            string host = address.Trim().Trim('[', ']');
+            if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
+            {
+                error = $"Nieprawidłowy adres IP lub nazwa hosta: {address}";
+                return false;
+            }
+
+            if (!ushort.TryParse(portText, out port) || port == 0)
+            {
+                error = "Port musi być liczbą z zakresu 1–65535.";
+                return false;
+            }
+            return true;
+        }
+
         private void Connect_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDevice == null) return;
@@ -614,10 +651,17 @@ namespace VideoPlayer
                 }
             }
 
-            Disconnect();
+            string ip = _currentDevice.ConnectionAddress;
+            if (string.IsNullOrWhiteSpace(ip) ||
+                !IsValidEndpoint(ip, _currentDevice.Port.ToString(), out ushort validatedPort, out string validationError))
+            {
+                StatusLabel.Text = string.IsNullOrWhiteSpace(ip) ? "Brak adresu IP/hosta urządzenia. Nazwa operatora nie jest adresem połączenia." : validationError;
+                MessageBox.Show(StatusLabel.Text, "Nieprawidłowa konfiguracja urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
-            string ip = _currentDevice.IpAddress;
-            ushort port = _currentDevice.Port;
+            Disconnect();
+            ushort port = validatedPort;
             string user = _currentDevice.Username;
             string pass = _currentDevice.Password;
 
@@ -636,6 +680,7 @@ namespace VideoPlayer
                     return;
                 }
 
+                _connectedDeviceId = _currentDevice.Id;
                 ConnectButton.IsEnabled = false;
                 DisconnectButton.IsEnabled = true;
                 StreamOverlay.Visibility = Visibility.Collapsed;
@@ -721,10 +766,12 @@ namespace VideoPlayer
                 {
                     DahuaNetSdk.CLIENT_Logout(_loginId);
                     _loginId = IntPtr.Zero;
+                    _connectedDeviceId = null;
                 }
             }
             catch { }
 
+            _connectedDeviceId = null;
             ConnectButton.IsEnabled = true;
             DisconnectButton.IsEnabled = false;
             StatusLabel.Text = "Rozłączono ze strumieniem.";
@@ -917,15 +964,14 @@ namespace VideoPlayer
 
             int channel = GetSelectedArchiveChannel();
             string chName = _currentDevice.GetChannelName(channel);
-            string ip = _currentDevice.IpAddress;
+            string ip = _currentDevice.ConnectionAddress;
             ushort port = _currentDevice.Port;
             string user = _currentDevice.Username;
             string pass = _currentDevice.Password;
 
-            if (_loginId == IntPtr.Zero)
+            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
             {
-                // Reuse the standard connection path so CLIENT_Init and callbacks
-                // are always configured before any login attempt.
+                // Reconnect to the selected endpoint, not to a previously selected device.
                 Connect_Click(sender, e);
                 if (_loginId == IntPtr.Zero)
                 {
@@ -1074,7 +1120,7 @@ namespace VideoPlayer
             int channel = GetSelectedArchiveChannel();
             int channelIndex = Math.Max(0, channel - 1);
 
-            if (_loginId == IntPtr.Zero)
+            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice?.Id, StringComparison.Ordinal))
             {
                 Connect_Click(sender, e);
                 if (_loginId == IntPtr.Zero) return;
