@@ -308,14 +308,20 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="2*" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" Margin="0,0,6,0">
                                                 <TextBlock Text="Adres IP:" Style="{StaticResource FieldLabel}" />
                                                 <TextBox x:Name="DeviceIpBox" Text="192.168.1.200" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="Port:" Style="{StaticResource FieldLabel}" />
+                                            <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                                <TextBlock Text="Port NetSDK:" Style="{StaticResource FieldLabel}" />
                                                 <TextBox x:Name="DevicePortBox" Text="37777" TextAlignment="Center" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Port HTTP:" Style="{StaticResource FieldLabel}" />
+                                                <TextBox x:Name="DeviceHttpPortBox" Text="80" TextAlignment="Center" FontWeight="SemiBold"
+                                                         ToolTip="Port HTTP do obsługi presetów PTZ" />
                                             </StackPanel>
                                         </Grid>
 
@@ -388,11 +394,17 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ComboBox x:Name="PresetsComboBox" Margin="0,0,6,0" SelectedIndex="0">
-                                        <!-- Presety z nazwami -->
+                                    <ComboBox x:Name="PresetsComboBox" Margin="0,0,6,0" SelectedIndex="0"
+                                              SelectionChanged="PresetsComboBox_SelectionChanged">
+                                        <!-- Presety odczytywane z rejestratora -->
                                     </ComboBox>
-                                    <Button Grid.Column="1" Content="▶ Idź do presetu" Click="GotoPreset_Click" Style="{StaticResource GreenButton}" Padding="12,6" Margin="0" ToolTip="Obraca kamerę do wybranej pozycji" />
+                                    <Button Grid.Column="1" Content="↻ Odczytaj" Click="RefreshPresetsFromDevice_Click"
+                                            Padding="9,6" Margin="0,0,5,0" ToolTip="Pobiera listę presetów z bieżącego kanału PTZ" />
+                                    <Button Grid.Column="2" Content="▶ Idź do presetu" Click="GotoPreset_Click"
+                                            Style="{StaticResource GreenButton}" Padding="12,6" Margin="0"
+                                            ToolTip="Obraca kamerę do wybranej pozycji" />
                                 </Grid>
 
                                 <!-- Szybkie kafelki presetów -->
@@ -419,8 +431,10 @@
                                                 </StackPanel>
                                             </Grid>
                                             <WrapPanel>
-                                                <Button Content="💾 Zapisz bieżącą pozycję" Click="SaveCurrentPositionAsPreset_Click" Style="{StaticResource BlueButton}" Padding="10,5" />
-                                                <Button Content="Usuń preset" Click="DeletePreset_Click" Padding="10,5" />
+                                                <Button Content="💾 Zapisz bieżącą pozycję" Click="SaveCurrentPositionAsPreset_Click"
+                                                        Style="{StaticResource BlueButton}" Padding="10,5" />
+                                                <Button Content="Zmień nazwę wybranego" Click="RenameSelectedPreset_Click" Padding="10,5" />
+                                                <Button Content="Usuń preset z urządzenia" Click="DeletePreset_Click" Padding="10,5" />
                                             </WrapPanel>
                                         </StackPanel>
                                     </Border>
