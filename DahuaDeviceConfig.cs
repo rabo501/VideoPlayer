@@ -91,8 +91,6 @@ namespace VideoPlayer
 
         public void EnsureDefaultChannels(int maxCount = 16)
         {
-            string[] defaultNames = Array.Empty<string>();
-
             for (int i = 1; i <= maxCount; i++)
             {
                 if (!Channels.Any(c => c.Number == i))
