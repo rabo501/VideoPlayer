@@ -955,32 +955,34 @@ namespace VideoPlayer
 
                 await Task.Run(async () =>
                 {
-                    // 1. Pobieranie natywne przez Dahua NetSDK
+                    // Native download is asynchronous. Do not stop it after a fixed
+                    // 15-second delay: larger archive segments need substantially longer.
+                    using var completed = new System.Threading.ManualResetEventSlim(false);
+                    DahuaNetSdk.fTimeDownLoadPosCallBack progressCallback =
+                        (playHandle, totalSize, downloadedSize, index, recordInfo, userData) =>
+                        {
+                            if (totalSize > 0 && downloadedSize >= totalSize)
+                                completed.Set();
+                        };
+
                     IntPtr hDown = DahuaNetSdk.CLIENT_DownloadByTimeEx(
-                        _loginId,
-                        channelIndex,
-                        0,
-                        ref tmStart,
-                        ref tmEnd,
-                        targetFilePath,
-                        null,
-                        IntPtr.Zero,
-                        IntPtr.Zero,
-                        IntPtr.Zero,
-                        IntPtr.Zero);
+                        _loginId, channelIndex, 0, ref tmStart, ref tmEnd, targetFilePath,
+                        progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
                     if (hDown != IntPtr.Zero)
                     {
-                        int waited = 0;
-                        while (waited < 15 && (!File.Exists(targetFilePath) || new FileInfo(targetFilePath).Length < 1024))
+                        try
                         {
-                            await Task.Delay(1000);
-                            waited++;
+                            // Timeout prevents a hung SDK call from blocking the UI forever.
+                            bool signaled = await Task.Run(() => completed.Wait(TimeSpan.FromMinutes(30)));
+                            if (signaled && File.Exists(targetFilePath) &&
+                                new FileInfo(targetFilePath).Length > 0)
+                                downloadFinished = true;
                         }
-                        DahuaNetSdk.CLIENT_StopDownload(hDown);
-                        if (File.Exists(targetFilePath) && new FileInfo(targetFilePath).Length > 0)
+                        finally
                         {
-                            downloadFinished = true;
+                            DahuaNetSdk.CLIENT_StopDownload(hDown);
+                            GC.KeepAlive(progressCallback);
                         }
                     }
 
