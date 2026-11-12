@@ -155,8 +155,14 @@ namespace VideoPlayer
             string candidate = value.Trim();
             int openParen = candidate.LastIndexOf('(');
             int closeParen = candidate.LastIndexOf(')');
-            if (openParen >= 0 && closeParen > openParen)
+            bool extractedFromLabel = openParen >= 0 && closeParen > openParen;
+            if (extractedFromLabel)
                 candidate = candidate.Substring(openParen + 1, closeParen - openParen - 1).Trim();
+
+            // Do not reinterpret an ordinary operator label like "Rejestrator"
+            // as a DNS host merely because single-label URIs are syntactically valid.
+            if (!extractedFromLabel && !candidate.Contains('.') && !candidate.Contains(':'))
+                return false;
 
             if (Uri.TryCreate("http://" + candidate, UriKind.Absolute, out Uri? parsed) &&
                 !string.IsNullOrWhiteSpace(parsed.Host) &&
