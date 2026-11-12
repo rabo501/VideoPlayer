@@ -18,8 +18,8 @@ namespace VideoPlayer
 
         static DahuaNetSdk()
         {
-            // CheckDependencies accepts DLLs in root, x64 or dahua folders.
-            // Install the matching resolver so P/Invoke searches those same locations.
+            // SDK DLL files are deployed in the application's lib folder.
+            // The resolver uses the same location checked by CheckDependencies.
             System.Runtime.InteropServices.NativeLibrary.SetDllImportResolver(
                 typeof(DahuaNetSdk).Assembly, ResolveDahuaLibrary);
         }
@@ -39,9 +39,7 @@ namespace VideoPlayer
             string baseDir = AppContext.BaseDirectory;
             string[] candidates =
             {
-                Path.Combine(baseDir, fileName),
-                Path.Combine(baseDir, "x64", fileName),
-                Path.Combine(baseDir, "dahua", fileName)
+                Path.Combine(baseDir, "lib", fileName)
             };
 
             foreach (string candidate in candidates)
@@ -608,10 +606,8 @@ namespace VideoPlayer
             string[] required = { "dhnetsdk.dll", "dhplay.dll", "avnetsdk.dll" };
             foreach (var dll in required)
             {
-                bool inRoot = File.Exists(Path.Combine(baseDir, dll));
-                bool inX64 = File.Exists(Path.Combine(baseDir, "x64", dll));
-                bool inDahua = File.Exists(Path.Combine(baseDir, "dahua", dll));
-                if (!inRoot && !inX64 && !inDahua)
+                bool inLib = File.Exists(Path.Combine(baseDir, "lib", dll));
+                if (!inLib)
                 {
                     missing.Add(dll);
                 }
@@ -622,9 +618,7 @@ namespace VideoPlayer
         public static bool IsSdkAvailable()
         {
             string baseDir = AppContext.BaseDirectory;
-            return File.Exists(Path.Combine(baseDir, NetSdkDll)) ||
-                   File.Exists(Path.Combine(baseDir, "x64", NetSdkDll)) ||
-                   File.Exists(Path.Combine(baseDir, "dahua", NetSdkDll));
+            return File.Exists(Path.Combine(baseDir, "lib", NetSdkDll));
         }
 
         public static string GetErrorDescription(uint errorCode)
