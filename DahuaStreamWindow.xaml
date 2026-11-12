@@ -501,8 +501,8 @@
                                           HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                                           Margin="0,0,0,8">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Początek" Binding="{Binding StartTime, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="*" />
-                                        <DataGridTextColumn Header="Koniec" Binding="{Binding EndTime, StringFormat=HH:mm:ss}" Width="85" />
+                                        <DataGridTextColumn Header="Początek" Binding="{Binding StartTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="*" />
+                                        <DataGridTextColumn Header="Koniec" Binding="{Binding EndTime, StringFormat={}{0:HH:mm:ss}}" Width="85" />
                                         <DataGridTextColumn Header="Czas" Binding="{Binding DurationText}" Width="70" />
                                         <DataGridTextColumn Header="Rozmiar" Binding="{Binding SizeText}" Width="75" />
                                     </DataGrid.Columns>
