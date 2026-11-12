@@ -223,10 +223,16 @@ namespace VideoPlayer
                             if (string.IsNullOrWhiteSpace(device.IpAddress) &&
                                 TryExtractLegacyEndpoint(device.Name, out string legacyHost, out ushort legacyPort))
                             {
+                                string legacyLabel = device.Name;
                                 device.IpAddress = legacyHost;
                                 if (legacyPort > 0 && device.Port == 37777)
                                     device.Port = legacyPort;
-                                device.Name = $"Urządzenie {device.IpAddress}";
+
+                                int labelEnd = legacyLabel.LastIndexOf('(');
+                                string readableName = labelEnd > 0 ? legacyLabel.Substring(0, labelEnd).Trim() : string.Empty;
+                                device.Name = string.IsNullOrWhiteSpace(readableName)
+                                    ? $"Urządzenie {device.IpAddress}"
+                                    : readableName;
                             }
 
                             if (string.IsNullOrWhiteSpace(device.Name))
