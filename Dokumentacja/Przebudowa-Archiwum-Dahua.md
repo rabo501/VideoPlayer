@@ -18,7 +18,7 @@ Konfiguracja jest przechowywana w:
 
 Przy pierwszym uruchomieniu nowa wersja kopiuje plik `dahua_devices.json` z katalogu programu do profilu użytkownika. Oryginał pozostaje jako kopia bezpieczeństwa.
 
-Migracja rozpoznaje alternatywne nazwy pól adresu (`IpAddress`, `IPAddress`, `IP`, `Ip`, `Address`, `Host`, `HostAddress`). Jeśli stary plik zawierał adres wyłącznie w polu `Name`, a wartość jest poprawną nazwą hosta/IP, adres jest odzyskiwany, a nazwa otrzymuje etykietę `Urządzenie <adres>`.
+Migracja rozpoznaje alternatywne nazwy pól adresu (`IpAddress`, `IPAddress`, `IP`, `Ip`, `Address`, `Host`, `HostAddress`). Jeśli stary plik zawierał adres wyłącznie w polu `Name` albo etykietę w rodzaju `Rejestrator (192.168.1.20:37777)`, adres i ewentualny port są odzyskiwane, a czytelny prefiks nazwy jest zachowywany.
 
 Uszkodzony plik nie jest zastępowany konfiguracją demonstracyjną. Błąd jest pokazywany operatorowi, a plik źródłowy pozostaje nienaruszony. Zapis jest atomowy i tworzy kopię `.bak`.
 
