@@ -108,10 +108,6 @@ namespace VideoPlayer
             public byte byDiskNum;
             public byte byDVRType;
             public byte byChanNum;
-            public byte byLimitLoginTime;
-            public byte byLeftLogTimes;
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-            public byte[] bReserved;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
