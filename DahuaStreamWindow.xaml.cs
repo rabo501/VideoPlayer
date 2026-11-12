@@ -687,9 +687,11 @@ namespace VideoPlayer
 
             try
             {
-                var deviceInfo = new DahuaNetSdk.NET_DEVICEINFO();
+                // NET_DEVICEINFO is an inline native buffer (48 bytes). Initialize it
+                // explicitly and pass it by reference to prevent marshaling an invalid array.
+                var deviceInfo = DahuaNetSdk.NET_DEVICEINFO.Create();
                 int err = 0;
-                _loginId = DahuaNetSdk.CLIENT_Login(ip, port, user, pass, out deviceInfo, out err);
+                _loginId = DahuaNetSdk.CLIENT_Login(ip, port, user, pass, ref deviceInfo, ref err);
 
                 if (_loginId == IntPtr.Zero)
                 {
