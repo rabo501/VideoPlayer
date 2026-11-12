@@ -267,21 +267,63 @@
         <!-- Główna zawartość -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230" MinWidth="200" />
                 <ColumnDefinition Width="*" MinWidth="480" />
-                <ColumnDefinition Width="430" MinWidth="370" />
+                <ColumnDefinition Width="410" MinWidth="360" />
             </Grid.ColumnDefinitions>
 
+            <!-- Lewy panel urządzeń i wyboru kanałów — układ w stylu SmartPSS Lite -->
+            <Border Grid.Column="0" Background="#171D29" BorderBrush="#344155" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,0,8,0">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="URZĄDZENIA" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,2,0,6"/>
+                        <ListBox x:Name="ModernDevicesListBox" Height="150" Background="#0F1724" Foreground="#F8FAFC"
+                                 BorderBrush="#475569" SelectionChanged="ModernDevicesListBox_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="3">
+                                        <TextBlock Text="{Binding Name}" Foreground="#F8FAFC" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding DisplayLabel}" Foreground="#94A3B8" FontSize="10"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button Content="⚙ Konfiguracja urządzeń" Click="OpenConfiguration_Click" Style="{StaticResource BlueButton}"
+                                HorizontalAlignment="Stretch" Margin="0,7,0,12"/>
+                        <TextBlock Text="KANAŁY" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,0,0,6"/>
+                        <TextBlock Text="Zaznacz kanały do podglądu lub zsynchronizowanego odtwarzania archiwum."
+                                   Foreground="#CBD5E1" FontSize="10" TextWrapping="Wrap" Margin="2,0,0,6"/>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ModernChannelChecksPanel"/>
+                    </ScrollViewer>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <TextBlock Text="UKŁAD PODGLĄDU" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,0,0,5"/>
+                        <ComboBox x:Name="ModernGridModeBox" SelectedIndex="1" SelectionChanged="ModernGridModeBox_SelectionChanged">
+                            <ComboBoxItem Content="1 kamera"/>
+                            <ComboBoxItem Content="4 kamery"/>
+                            <ComboBoxItem Content="9 kamer"/>
+                            <ComboBoxItem Content="16 kamer"/>
+                        </ComboBox>
+                        <Button Content="▶ Podgląd zaznaczonych" Click="StartMultiLive_Click" Style="{StaticResource GreenButton}"
+                                HorizontalAlignment="Stretch" Margin="0,7,0,0"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
             <!-- Lewa strona: Ekran Wideo + Pasek kanałów -->
-            <Grid Grid.Column="0" Margin="0,0,10,0">
+            <Grid Grid.Column="1" Margin="0,0,8,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Ekran wideo -->
                 <Border Grid.Row="0" Background="#000000" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
                     <Grid x:Name="VideoContainerGrid">
-                        <wfi:WindowsFormsHost x:Name="PrimaryVideoHost" Background="#000000" />
+                        <wfi:WindowsFormsHost x:Name="PrimaryVideoHost" Background="#000000" Visibility="Collapsed" />
+                        <UniformGrid x:Name="MultiVideoGrid" Rows="1" Columns="1" Background="#000000"/>
                         <Border x:Name="StreamOverlay" Background="#B0000000" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" CornerRadius="8" Padding="22">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock x:Name="OverlayText" Text="Brak aktywnego strumienia" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
@@ -315,17 +357,40 @@
                         </WrapPanel>
                     </StackPanel>
                 </Border>
+
+                <!-- Wspólna oś czasu odtwarzania archiwalnego -->
+                <Border Grid.Row="2" Background="#171D29" BorderBrush="#344155" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,8,0,0">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,5">
+                            <TextBlock Text="ODTWARZANIE ARCHIWUM" Foreground="#F8FAFC" FontWeight="Bold" FontSize="11"/>
+                            <TextBlock x:Name="PlaybackPositionText" Text="00:00:00 / 00:00:00" Foreground="#93C5FD"
+                                       FontWeight="Bold" FontSize="11" HorizontalAlignment="Right"/>
+                        </DockPanel>
+                        <Slider x:Name="PlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
+                                IsEnabled="False" PreviewMouseLeftButtonUp="PlaybackSlider_MouseLeftButtonUp"
+                                TickFrequency="60" IsSnapToTickEnabled="False"/>
+                        <DockPanel Margin="0,4,0,0">
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                <Button Content="▶ Start" Click="StartSynchronizedPlayback_Click" Style="{StaticResource GreenButton}" Padding="10,5"/>
+                                <Button Content="Ⅱ / ▶" Click="ToggleSynchronizedPlayback_Click" Padding="10,5"/>
+                                <Button Content="■ Stop" Click="StopSynchronizedPlayback_Click" Style="{StaticResource RedButton}" Padding="10,5"/>
+                            </StackPanel>
+                            <TextBlock x:Name="PlaybackSyncStatusText" Text="Wybierz kanały i zakres czasu."
+                                       Foreground="#CBD5E1" FontSize="10" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
             </Grid>
 
             <!-- Prawa strona: Panel narzędzi (Strumień Live / Presety PTZ / Archiwum) -->
-            <Border Grid.Column="1" Background="#1A1E28" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10">
+            <Border Grid.Column="2" Background="#1A1E28" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10">
                 <TabControl Background="#1A1E28" BorderThickness="0" Padding="4">
                     <!-- ZAKŁADKA 1: Podgląd na żywo, nazwy kanałów & PTZ z Presetami -->
                     <TabItem Header="Strumień Na Żywo &amp; PTZ">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
                             <StackPanel>
                                 <TextBlock Text="ZAPISANE KAMERY I REJESTRATORY DAHUA" Style="{StaticResource FieldLabel}" Margin="0,4,0,6" />
-                                <ListBox x:Name="DevicesListBox" Height="110" Background="#13161F" Foreground="#FFFFFF" BorderBrush="#4A5568" Margin="0,0,0,8" SelectionChanged="DevicesListBox_SelectionChanged">
+                                <ListBox x:Name="DevicesListBox" Height="110" Visibility="Collapsed" Background="#13161F" Foreground="#FFFFFF" BorderBrush="#4A5568" Margin="0,0,0,8" SelectionChanged="DevicesListBox_SelectionChanged">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="2,3">
@@ -337,7 +402,7 @@
                                 </ListBox>
 
                                 <!-- Formularz edycji nazwy i parametrów urządzenia -->
-                                <Border Background="#161922" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                                <Border Background="#161922" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10" Visibility="Collapsed">
                                     <StackPanel>
                                         <TextBlock Text="PARAMETRY WYBRANEGO URZĄDZENIA" FontWeight="Bold" FontSize="11" Foreground="#38BDF8" Margin="0,0,0,6" />
 
