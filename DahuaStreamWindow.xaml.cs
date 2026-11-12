@@ -50,6 +50,7 @@ namespace VideoPlayer
         private double _playbackElapsedBeforePause;
         private bool _synchronizedPlaybackPaused;
         private bool _isSeekingPlayback;
+        private bool _updatingChannelChecks;
 
         private sealed class MultiViewSlot
         {
@@ -287,6 +288,7 @@ namespace VideoPlayer
                 ModernDevicesListBox.SelectedItem = dev;
                 StopMultiLiveStreams();
                 StopSynchronizedPlayback();
+                DisposeMultiViewSlots();
                 BuildModernChannelChecks();
                 _archiveAvailableDays.Clear();
                 RefreshOpenArchiveCalendars();
@@ -726,6 +728,7 @@ namespace VideoPlayer
             _currentDevice.SetChannelName(_currentChannel, newName);
             DahuaConfigService.SaveDevices(_devices);
             RefreshChannelLists();
+            BuildModernChannelChecks();
 
             StatusLabel.Text = $"Zapisano nową nazwę dla Kanału {_currentChannel}: '{newName}'";
             ActiveChannelOverlayText.Text = $"{newName.ToUpper()} (CH {_currentChannel})";
@@ -1289,7 +1292,7 @@ namespace VideoPlayer
                 {
                     Content = $"{channel.Name}  (CH {channel.Number})",
                     Tag = channel.Number,
-                    IsChecked = channel.Number <= 4,
+                    IsChecked = channel.Number <= GetMultiViewCapacity(),
                     Foreground = Brushes.White,
                     FontSize = 11,
                     Margin = new Thickness(3, 5, 2, 5),
@@ -1327,13 +1330,21 @@ namespace VideoPlayer
         {
             if (!IsLoaded || ModernChannelChecksPanel == null) return;
             int capacity = GetMultiViewCapacity();
-            var selected = GetModernSelectedChannels();
+            _updatingChannelChecks = true;
+            var selected = ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(check => check.IsChecked == true).ToList();
+            foreach (CheckBox check in selected.Skip(capacity))
+                check.IsChecked = false;
+            _updatingChannelChecks = false;
+
+            int selectedCount = GetModernSelectedChannels().Count;
             foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
-                check.IsEnabled = check.IsChecked == true || selected.Count < capacity;
+                check.IsEnabled = check.IsChecked == true || selectedCount < capacity;
         }
 
         private void ModernChannelCheck_Changed(object sender, RoutedEventArgs e)
         {
+            if (_updatingChannelChecks) return;
             int capacity = GetMultiViewCapacity();
             var selected = ModernChannelChecksPanel.Children.OfType<CheckBox>()
                 .Where(ch => ch.IsChecked == true).ToList();
@@ -1348,10 +1359,8 @@ namespace VideoPlayer
                 check.IsEnabled = check.IsChecked == true || selected.Count < capacity;
         }
 
-        private void BuildMultiViewSlots(IReadOnlyList<int> channels)
+        private void DisposeMultiViewSlots()
         {
-            StopMultiLiveStreams();
-            StopPlaybackHandlesOnly();
             foreach (var oldSlot in _multiViewSlots)
             {
                 try { oldSlot.Host.Child = null; } catch { }
@@ -1360,6 +1369,13 @@ namespace VideoPlayer
             }
             _multiViewSlots.Clear();
             MultiVideoGrid.Children.Clear();
+        }
+
+        private void BuildMultiViewSlots(IReadOnlyList<int> channels)
+        {
+            StopMultiLiveStreams();
+            StopPlaybackHandlesOnly();
+            DisposeMultiViewSlots();
 
             int count = Math.Max(1, channels.Count);
             int capacity = GetMultiViewCapacity();
