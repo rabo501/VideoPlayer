@@ -191,12 +191,14 @@
         </Grid.RowDefinitions>
         <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="True">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Kamery Dahua IP" Click="DahuaStream_Click" Background="#16A34A" BorderBrush="#15803D" Margin="0,0,8,0" Padding="12,7" ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua" />
                 <Button Content="Otwórz nagranie" Click="Open_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="12,7" />
                 <Button x:Name="PanelToggleButton" Content="Ukryj panel ▶" Click="ToggleTools_Click" Margin="0" Padding="12,7" ToolTip="Pokaż lub ukryj prawy panel narzędzi" />
             </StackPanel>
             <Menu Background="#1B1F27" Padding="2,4">
                 <MenuItem Header="_Plik">
                     <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click" />
+                    <MenuItem Header="Kamery Dahua IP (Live)…" InputGestureText="Ctrl+D" Click="DahuaStream_Click" />
                     <MenuItem Header="Wyszukaj tablicę / pojazd…" Click="PlateSearch_Click" />
                     <MenuItem Header="Zapisz sesję" Click="SaveSession_Click" />
                     <Separator />

@@ -1,4 +1,4 @@
-﻿# Folder aktualnie otwarty w PowerShell.
+# Folder aktualnie otwarty w PowerShell.
 $root = (Get-Location).Path
 
 # Nowy plik wynikowy z unikalną nazwą.
