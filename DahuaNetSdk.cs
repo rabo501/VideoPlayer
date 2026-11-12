@@ -114,6 +114,28 @@ namespace VideoPlayer
             public byte[] bReserved;
         }
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+        public struct NET_RECORDFILE_INFO
+        {
+            public uint ch;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 124)]
+            public byte[] filename;
+            public uint framenum;
+            public uint size;
+            public NET_TIME starttime;
+            public NET_TIME endtime;
+            public uint driveno;
+            public uint startcluster;
+            public byte nRecordFileType;
+            public byte bImportantRecID;
+            public byte bHint;
+            public byte bRecType;
+
+            public string FileName => filename == null
+                ? string.Empty
+                : System.Text.Encoding.Default.GetString(filename).TrimEnd('\0');
+        }
+
         #endregion
 
         #region P/Invoke Native Functions
@@ -221,6 +243,20 @@ namespace VideoPlayer
             int nBufLen,
             out int pRetLen,
             int waittime = 2000);
+
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
+        public static extern bool CLIENT_QueryRecordFile(
+            IntPtr lLoginID,
+            int nChannelId,
+            int nRecordFileType,
+            ref NET_TIME tmStart,
+            ref NET_TIME tmEnd,
+            string? pchCardid,
+            IntPtr recordInfoBuffer,
+            int maxLength,
+            out int fileCount,
+            int waitTime,
+            bool bTime);
 
         /// <summary>
         /// Pobieranie nagrania z rejestratora wg czasu do pliku lokalnego
