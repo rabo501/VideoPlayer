@@ -44,6 +44,7 @@ namespace VideoPlayer
         public string Name { get; set; } = "Kamera Dahua IP";
         public string IpAddress { get; set; } = "";
         public ushort Port { get; set; } = 37777;
+        public ushort HttpPort { get; set; } = 80;
         public string Username { get; set; } = "admin";
         public string Password { get; set; } = "";
         public int Channel { get; set; } = 1;
@@ -75,20 +76,22 @@ namespace VideoPlayer
 
         public void UpdateFromDevicePresets(List<DahuaPresetItem> devicePresets)
         {
-            if (devicePresets == null || devicePresets.Count == 0) return;
-            foreach (var p in devicePresets)
-            {
-                var existing = Presets.FirstOrDefault(x => x.PresetNumber == p.PresetNumber);
-                if (existing != null)
+            if (devicePresets == null) return;
+
+            // The camera is the source of truth for which preset numbers exist.
+            // Replace the list so deleted device presets do not remain as stale local entries.
+            Presets = devicePresets
+                .Where(p => p.PresetNumber > 0)
+                .GroupBy(p => p.PresetNumber)
+                .Select(g => new DahuaPresetItem
                 {
-                    existing.Name = p.Name;
-                }
-                else
-                {
-                    Presets.Add(new DahuaPresetItem { PresetNumber = p.PresetNumber, Name = p.Name });
-                }
-            }
-            Presets = Presets.OrderBy(x => x.PresetNumber).ToList();
+                    PresetNumber = g.Key,
+                    Name = string.IsNullOrWhiteSpace(g.First().Name)
+                        ? $"Preset {g.Key}"
+                        : g.First().Name.Trim()
+                })
+                .OrderBy(p => p.PresetNumber)
+                .ToList();
         }
 
         public string GetChannelName(int channelNumber)
