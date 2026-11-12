@@ -1061,7 +1061,9 @@ namespace VideoPlayer
                 ArchiveRecordsGrid.ItemsSource = records;
                 DownloadStatusText.Text = records.Count == 0
                     ? "Rejestrator nie zwrócił nagrań dla wybranego kanału i zakresu."
-                    : $"Znaleziono {records.Count} nagrań. Zaznacz pozycję, aby ją odtworzyć lub wczytać do MPV.";
+                    : records.Count >= 200
+                        ? "Znaleziono co najmniej 200 nagrań (limit jednego zapytania). Zawęź zakres czasu, aby wyświetlić kolejne."
+                        : $"Znaleziono {records.Count} nagrań. Zaznacz pozycję, aby ją odtworzyć lub wczytać do MPV.";
             }
             catch (Exception ex)
             {
@@ -1209,7 +1211,7 @@ namespace VideoPlayer
                 var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
                 int recordType = ArchiveRecordsGrid.SelectedItem is DahuaRecordItem selectedRecord &&
                     selectedRecord.StartTime == start.Value && selectedRecord.EndTime == end.Value
-                    ? selectedRecord.RecordType : 255;
+                    ? selectedRecord.RecordType : 0;
                 IntPtr activeLoginId = _loginId;
 
                 bool downloadFinished = false;
