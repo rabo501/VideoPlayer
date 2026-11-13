@@ -451,7 +451,8 @@ namespace VideoPlayer
                 BuildModernChannelChecks();
                 _archiveAvailableDays.Clear();
                 _recorderAvailableDays.Clear();
-                foreach (var entry in _recorderAvailabilityCache.Where(pair => pair.Key.StartsWith($"{dev.Id}|", StringComparison.Ordinal)))
+                string selectedAvailabilityPrefix = $"{dev.Id}|{GetSelectedArchiveChannel()}|";
+                foreach (var entry in _recorderAvailabilityCache.Where(pair => pair.Key.StartsWith(selectedAvailabilityPrefix, StringComparison.Ordinal)))
                     _recorderAvailableDays.UnionWith(entry.Value);
                 RefreshOpenArchiveCalendars();
                 ArchiveRecordsGrid.ItemsSource = null;
