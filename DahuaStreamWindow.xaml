@@ -386,8 +386,34 @@
             <!-- Prawa strona: Panel narzędzi (Strumień Live / Presety PTZ / Archiwum) -->
             <Border Grid.Column="2" Background="#1A1E28" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10">
                 <TabControl Background="#1A1E28" BorderThickness="0" Padding="4">
+                    <TabControl.ItemContainerStyle>
+                        <Style TargetType="{x:Type TabItem}">
+                            <Setter Property="MinWidth" Value="116"/>
+                            <Setter Property="Height" Value="38"/>
+                            <Setter Property="Margin" Value="2,0,5,6"/>
+                            <Setter Property="Padding" Value="12,7"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="Foreground" Value="#CBD5E1"/>
+                            <Setter Property="Background" Value="#252D3A"/>
+                            <Setter Property="BorderBrush" Value="#475569"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    <Setter Property="Background" Value="#1D4ED8"/>
+                                    <Setter Property="BorderBrush" Value="#60A5FA"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="BorderBrush" Value="#93C5FD"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TabControl.ItemContainerStyle>
                     <!-- ZAKŁADKA 1: Podgląd na żywo, nazwy kanałów & PTZ z Presetami -->
-                    <TabItem Header="Strumień Na Żywo &amp; PTZ">
+                    <TabItem Header="Strumień na żywo">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
                             <StackPanel>
                                 <TextBlock Text="ZAPISANE KAMERY I REJESTRATORY DAHUA" Style="{StaticResource FieldLabel}" Margin="0,4,0,6" />
@@ -581,7 +607,7 @@
                     </TabItem>
 
                     <!-- ZAKŁADKA 2: Wczytywanie nagrania wg nazwy kanału i dat do GŁÓWNEGO ODTWARZACZA -->
-                    <TabItem Header="Archiwum wg Daty (Pełny Odtwarzacz)">
+                    <TabItem Header="Archiwum">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
                             <StackPanel>
                                 <Border Background="#166534" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,4,0,14">
@@ -616,12 +642,17 @@
                                     <TextBox x:Name="EndTimeBox" Grid.Column="1" Text="12:15:00" ToolTip="Godzina:Minuta:Sekunda (np. 14:45:00)" FontWeight="Bold" />
                                 </Grid>
 
-                                <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
-                                    <Border Width="12" Height="12" Background="#166534" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
-                                    <TextBlock Text="Dzień z nagraniami (ostatnie wyszukiwanie)" Foreground="#D1FAE5" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <WrapPanel Margin="0,0,0,5" VerticalAlignment="Center">
+                                    <Border Width="12" Height="12" Background="#14532D" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
+                                    <TextBlock Text="Nagrania dostępne na rejestratorze" Foreground="#BBF7D0" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <Border Width="12" Height="12" Background="#16A34A" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
+                                    <TextBlock Text="Znalezione w ostatnim wyszukiwaniu" Foreground="#D1FAE5" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0" />
                                     <Border Width="12" Height="12" Background="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
                                     <TextBlock Text="Wybrany dzień" Foreground="#DBEAFE" FontSize="10" VerticalAlignment="Center" />
                                 </WrapPanel>
+                                <TextBlock x:Name="CalendarAvailabilityStatusText"
+                                           Text="Otwórz kalendarz, aby sprawdzić dostępność nagrań na rejestratorze."
+                                           Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <Button x:Name="SearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="SearchArchive_Click" Style="{StaticResource BlueButton}" Padding="12,8" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="NAGRANIA ZNALEZIONE NA URZĄDZENIU" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
                                 <DataGrid x:Name="ArchiveRecordsGrid" Height="210" AutoGenerateColumns="False"
