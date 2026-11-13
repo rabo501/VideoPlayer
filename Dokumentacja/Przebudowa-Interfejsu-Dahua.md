@@ -103,3 +103,20 @@ Konfiguracja: **Release | x64**, .NET 8 Windows.
 - Tytuł głównego okna wyświetla wersję odczytaną z metadanych zestawu (AssemblyVersion), dzięki czemu nie pozostaje w nim stary numer po aktualizacji projektu.
 - Plik `VideoPlayer.ico` jest jedynym źródłem ikony: jest osadzony jako zasób WPF, wskazany jako `ApplicationIcon` dla pliku EXE oraz używany przez główne okno i okno „Informacje o programie”.
 - Obraz w nagłówku okna „Informacje o programie” korzysta z tego samego pliku ICO zamiast osobnej grafiki zastępczej.
+
+
+## Aktywne kanały i sterowanie obrazem — uzupełnienie
+
+- Po zalogowaniu aplikacja odpytuje rejestrator przez Dahua HTTP API `/cgi-bin/api/LogicDeviceManager/getCameraState` o stan wejść kanałowych.
+- Lista kanałów pomija wejścia ze stanem `Empty`, `Disable` i `UnInited`; pozostawia kanały skonfigurowane, także chwilowo rozłączone.
+- Jeżeli rejestrator/firmware nie udostępnia tego endpointu, aplikacja zapisuje diagnostykę i pozostawia listę kanałów uzyskaną z NetSDK. Nie ukrywa wtedy kanałów na podstawie niepotwierdzonych założeń.
+- Domyślny układ podglądu to 1 kamera, a po zbudowaniu listy zaznaczony jest pierwszy dostępny kanał.
+- Każdy kafelek podglądu obsługuje powiększanie kółkiem myszy (1×–5×) i przesuwanie obrazu lewym przyciskiem myszy po powiększeniu. Podwójne zmniejszenie do 1× przywraca widok dopasowany do okna.
+- Zoom i przesunięcie dotyczą obrazu w obrębie pojedynczego kafelka; nie zmieniają strumienia ani ustawień kamery.
+
+Test odbiorczy:
+1. Zaloguj się do rejestratora i sprawdź, czy lista zawiera tylko wejścia skonfigurowane/aktywne, bez pustych kanałów.
+2. Zmień układ na 4/9/16 i sprawdź, czy nadal można zaznaczyć odpowiednią liczbę kanałów.
+3. Przywróć układ 1 — powinien być zaznaczony pierwszy dostępny kanał.
+4. Na obrazie użyj kółka myszy do powiększenia, przeciągnij obraz lewym przyciskiem i zmniejsz do 1×.
+5. Powtórz test osobno dla kilku kafelków.
