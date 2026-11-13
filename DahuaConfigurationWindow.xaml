@@ -5,6 +5,50 @@
         MinWidth="760" MinHeight="520" WindowStartupLocation="CenterOwner"
         Background="#0F1724" Foreground="#F8FAFC" FontFamily="Segoe UI">
     <Window.Resources>
+
+        <!-- Jednoznaczny kontrast zaznaczonego urządzenia w liście. -->
+        <Style TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="7,6"/>
+            <Setter Property="Margin" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#334155"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#64748B"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#1E40AF"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#60A5FA"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#2563EB"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#BFDBFE"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style TargetType="TextBox">
             <Setter Property="Background" Value="#202B3B"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
