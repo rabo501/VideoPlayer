@@ -41,11 +41,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="VideoPlayer.ico" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="VideoPlayer.ico">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Content>
+    <Content Remove="VideoPlayer.ico" />
+    <Resource Include="VideoPlayer.ico" />
   </ItemGroup>
   <ItemGroup>
     <None Update="lib\avnetsdk.dll">

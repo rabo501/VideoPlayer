@@ -95,3 +95,11 @@ Konfiguracja: **Release | x64**, .NET 8 Windows.
 - Ujednolicono stany najechania, wciśnięcia i fokusu przycisków w oknie konfiguracji.
 - Wersję aplikacji ustawiono na 1.5.0 (Assembly/File version 1.5.0.0).
 
+
+### Pasek tytułu i ikona aplikacji — uzupełnienie 1.5.0
+
+- Tytuł głównego okna wyświetla wersję odczytaną z metadanych zestawu (AssemblyVersion), dzięki czemu nie pozostaje w nim wpisany na stałe stary numer.
+- Plik `VideoPlayer.ico` jest jednym źródłem ikony: jest osadzony jako zasób WPF, wskazany jako `ApplicationIcon` dla pliku EXE oraz używany przez główne okno i okno „Informacje o programie”.
+- Tytuł głównego okna wyświetla wersję odczytaną z metadanych zestawu (AssemblyVersion), dzięki czemu nie pozostaje w nim stary numer po aktualizacji projektu.
+- Plik `VideoPlayer.ico` jest jedynym źródłem ikony: jest osadzony jako zasób WPF, wskazany jako `ApplicationIcon` dla pliku EXE oraz używany przez główne okno i okno „Informacje o programie”.
+- Obraz w nagłówku okna „Informacje o programie” korzysta z tego samego pliku ICO zamiast osobnej grafiki zastępczej.

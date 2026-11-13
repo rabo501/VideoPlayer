@@ -41,7 +41,10 @@ namespace VideoPlayer
         private TaskCompletionSource<bool>? _fileLoaded;
         public MainWindow()
         {
-            InitializeComponent();VideoHost.Child=_videoPanel;
+            InitializeComponent();
+            Version? appVersion = typeof(MainWindow).Assembly.GetName().Version;
+            Title = $"VideoPlayer {appVersion?.ToString(3) ?? "1.5.0"} — analiza nagrań";
+            VideoHost.Child=_videoPanel;
             ClipRangesListBox.ItemsSource=_clips;UpdateRangeHint();
             PreviewKeyDown+=OnPreviewKeyDown;
             SizeChanged+=(_,__)=>ConstrainToolsWidth();
