@@ -4,6 +4,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -38,6 +41,8 @@ namespace VideoPlayer
         // Retain it so the manual device-read action does not need another risky
         // vendor configuration call.
         private int _deviceChannelCount = 0;
+        // null means the recorder does not expose channel-state API; an empty set means no active channels.
+        private HashSet<int>? _activeChannelNumbers;
         private readonly List<Button> _channelButtons = new();
         // Dates returned by the last detailed archive search (bright green).
         private readonly HashSet<DateTime> _archiveAvailableDays = new();
@@ -64,6 +69,13 @@ namespace VideoPlayer
             public int Channel { get; init; }
             public Forms.PictureBox PictureBox { get; init; } = null!;
             public FormsIntegration.WindowsFormsHost Host { get; init; } = null!;
+            public Forms.Panel Viewport { get; init; } = null!;
+            public double Zoom { get; set; } = 1.0;
+            public int PanX { get; set; }
+            public int PanY { get; set; }
+            public bool IsDragging { get; set; }
+            public System.Drawing.Point DragStart { get; set; }
+            public System.Drawing.Point PanStart { get; set; }
             public IntPtr StreamHandle { get; set; }
             public IntPtr PlaybackHandle { get; set; }
         }
@@ -453,6 +465,7 @@ namespace VideoPlayer
                     Disconnect();
 
                 _currentDevice = dev;
+                _activeChannelNumbers = null;
                 ModernDevicesListBox.SelectedItem = dev;
                 StopMultiLiveStreams();
                 StopSynchronizedPlayback();
@@ -776,7 +789,11 @@ namespace VideoPlayer
             // 2. Rozwijana lista kanałów w zakładce Archiwum
             ArchiveChannelBox.Items.Clear();
 
-            foreach (var chInfo in _currentDevice.Channels.OrderBy(c => c.Number))
+            var visibleChannels = GetVisibleChannels().OrderBy(c => c.Number).ToList();
+            if (visibleChannels.Count > 0 && !visibleChannels.Any(c => c.Number == _currentChannel))
+                _currentChannel = visibleChannels[0].Number;
+
+            foreach (var chInfo in visibleChannels)
             {
                 string text = chInfo.DisplayName;
                 var itemLive = new ComboBoxItem { Content = text, Tag = chInfo.Number };
@@ -809,7 +826,7 @@ namespace VideoPlayer
             ChannelButtonsPanel.Children.Clear();
             _channelButtons.Clear();
 
-            foreach (var chInfo in _currentDevice.Channels.OrderBy(c => c.Number).Take(16))
+            foreach (var chInfo in GetVisibleChannels().OrderBy(c => c.Number).Take(16))
             {
                 int ch = chInfo.Number;
                 string displayName = string.IsNullOrWhiteSpace(chInfo.Name) ? $"CH {ch}" : $"{chInfo.Name}\n[CH {ch}]";
@@ -1326,6 +1343,25 @@ namespace VideoPlayer
                 _connectedDeviceId = _currentDevice.Id;
                 _deviceChannelCount = Math.Max(0, (int)deviceInfo.byChanNum);
                 WriteSdkDiagnostic($"Device channel count cached from CLIENT_Login: {_deviceChannelCount}.");
+                if (_deviceChannelCount > 0)
+                    _currentDevice.EnsureDefaultChannels(_deviceChannelCount);
+                if (TryQueryActiveChannelNumbers(out var activeChannels))
+                {
+                    _activeChannelNumbers = activeChannels;
+                    if (_activeChannelNumbers.Count > 0)
+                    {
+                        RefreshChannelLists();
+                        BuildModernChannelChecks();
+                    }
+                    else
+                    {
+                        StatusLabel.Text = "Rejestrator nie zgłosił aktywnych kanałów wejściowych.";
+                    }
+                }
+                else
+                {
+                    _activeChannelNumbers = null;
+                }
                 ConnectButton.IsEnabled = false;
                 DisconnectButton.IsEnabled = true;
                 StreamOverlay.Visibility = Visibility.Collapsed;
@@ -1468,18 +1504,86 @@ namespace VideoPlayer
 
         #region SmartPSS-style Multi-view and Synchronized Archive Playback
 
+        private IEnumerable<DahuaChannelInfo> GetVisibleChannels()
+        {
+            if (_currentDevice == null) return Enumerable.Empty<DahuaChannelInfo>();
+            if (_activeChannelNumbers == null) return _currentDevice.Channels;
+            return _currentDevice.Channels.Where(channel => _activeChannelNumbers.Contains(channel.Number));
+        }
+
+        // Dahua HTTP API 3.26, section 4.6.29: getCameraState.
+        // Channel state values Empty/Disable/UnInited are not active inputs.
+        private bool TryQueryActiveChannelNumbers(out HashSet<int> activeChannels)
+        {
+            activeChannels = new HashSet<int>();
+            if (_currentDevice == null || _currentDevice.CredentialsUnavailable)
+                return false;
+
+            try
+            {
+                string url = $"http://{_currentDevice.ConnectionAddress}:{_currentDevice.HttpPort}/cgi-bin/api/LogicDeviceManager/getCameraState";
+                var request = (HttpWebRequest)WebRequest.Create(url);
+                request.Method = "POST";
+                request.ContentType = "application/json";
+                request.Accept = "application/json";
+                request.Credentials = new NetworkCredential(_currentDevice.Username, _currentDevice.Password);
+                request.PreAuthenticate = true;
+                request.Timeout = 5000;
+                request.ReadWriteTimeout = 5000;
+
+                byte[] body = Encoding.UTF8.GetBytes("{\"uniqueChannels\":[-1]}");
+                request.ContentLength = body.Length;
+                using (var stream = request.GetRequestStream())
+                    stream.Write(body, 0, body.Length);
+
+                using var response = (HttpWebResponse)request.GetResponse();
+                using var responseStream = response.GetResponseStream();
+                if (responseStream == null) return false;
+                using var document = JsonDocument.Parse(responseStream);
+                if (!document.RootElement.TryGetProperty("states", out JsonElement states) ||
+                    states.ValueKind != JsonValueKind.Array)
+                    return false;
+
+                foreach (JsonElement state in states.EnumerateArray())
+                {
+                    if (!state.TryGetProperty("channel", out JsonElement channelValue) ||
+                        !channelValue.TryGetInt32(out int zeroBasedChannel))
+                        continue;
+
+                    string connectionState = state.TryGetProperty("connectionState", out JsonElement stateValue)
+                        ? stateValue.GetString() ?? string.Empty : string.Empty;
+
+                    if (connectionState.Equals("Empty", StringComparison.OrdinalIgnoreCase) ||
+                        connectionState.Equals("Disable", StringComparison.OrdinalIgnoreCase) ||
+                        connectionState.Equals("UnInited", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    // Dahua HTTP API reports channel indexes from zero; the application uses 1-based channel numbers.
+                    activeChannels.Add(zeroBasedChannel + 1);
+                }
+
+                WriteSdkDiagnostic($"Channel-state API returned {activeChannels.Count} configured/active channel(s).");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                WriteSdkDiagnostic("Channel-state API unavailable; keeping the SDK-reported channel list. " + ex.Message);
+                return false;
+            }
+        }
+
         private void BuildModernChannelChecks()
         {
             ModernChannelChecksPanel.Children.Clear();
             if (_currentDevice == null) return;
 
-            foreach (var channel in _currentDevice.Channels.OrderBy(ch => ch.Number))
+            foreach (var channel in GetVisibleChannels().OrderBy(ch => ch.Number))
             {
                 var check = new CheckBox
                 {
                     Content = $"{channel.Name}  (CH {channel.Number})",
                     Tag = channel.Number,
-                    IsChecked = channel.Number <= GetMultiViewCapacity(),
+                    IsChecked = channel.Number == GetVisibleChannels().OrderBy(ch => ch.Number).Select(ch => ch.Number).FirstOrDefault(),
                     Foreground = Brushes.White,
                     FontSize = 11,
                     Margin = new Thickness(3, 5, 2, 5),
@@ -1572,14 +1676,31 @@ namespace VideoPlayer
 
             foreach (int channel in channels.Take(capacity))
             {
-                var picture = new Forms.PictureBox
+                MultiViewSlot? slotRef = null;
+                var viewport = new Forms.Panel
                 {
                     BackColor = System.Drawing.Color.Black,
                     Dock = Forms.DockStyle.Fill,
-                    SizeMode = Forms.PictureBoxSizeMode.Normal
+                    TabStop = true
                 };
+                var picture = new Forms.PictureBox
+                {
+                    BackColor = System.Drawing.Color.Black,
+                    SizeMode = Forms.PictureBoxSizeMode.Normal,
+                    Location = new System.Drawing.Point(0, 0),
+                    Size = new System.Drawing.Size(640, 360)
+                };
+                viewport.Controls.Add(picture);
                 picture.CreateControl();
-                var host = new FormsIntegration.WindowsFormsHost { Child = picture, Background = Brushes.Black };
+                viewport.MouseWheel += (_, args) => HandleSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
+                picture.MouseWheel += (_, args) => HandleSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
+                viewport.MouseDown += (_, args) => BeginSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                picture.MouseDown += (_, args) => BeginSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                viewport.MouseMove += (_, args) => UpdateSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                picture.MouseMove += (_, args) => UpdateSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                viewport.MouseUp += (_, args) => EndSlotPan(slotRef!, args);
+                picture.MouseUp += (_, args) => EndSlotPan(slotRef!, args);
+                var host = new FormsIntegration.WindowsFormsHost { Child = viewport, Background = Brushes.Black };
                 var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
                 tile.Children.Add(host);
                 var channelLabel = new Border
@@ -1606,8 +1727,81 @@ namespace VideoPlayer
                 };
                 tile.Children.Add(channelLabel);
                 MultiVideoGrid.Children.Add(tile);
-                _multiViewSlots.Add(new MultiViewSlot { Channel = channel, PictureBox = picture, Host = host });
+                slotRef = new MultiViewSlot { Channel = channel, PictureBox = picture, Host = host, Viewport = viewport };
+                _multiViewSlots.Add(slotRef);
+                // Attach Resize only after slotRef is initialized: WinForms can raise
+                // Resize while the WindowsFormsHost is being created/attached.
+                viewport.Resize += (_, _) =>
+                {
+                    if (slotRef != null)
+                        ApplySlotViewport(slotRef);
+                };
+                ApplySlotViewport(slotRef);
             }
+        }
+
+        private void ApplySlotViewport(MultiViewSlot? slot)
+        {
+            if (slot == null || slot.Viewport == null || slot.PictureBox == null ||
+                slot.Viewport.IsDisposed || slot.PictureBox.IsDisposed) return;
+            int viewportWidth = Math.Max(1, slot.Viewport.ClientSize.Width);
+            int viewportHeight = Math.Max(1, slot.Viewport.ClientSize.Height);
+            int width = Math.Max(1, (int)Math.Round(viewportWidth * slot.Zoom));
+            int height = Math.Max(1, (int)Math.Round(viewportHeight * slot.Zoom));
+
+            slot.PanX = Math.Min(0, Math.Max(viewportWidth - width, slot.PanX));
+            slot.PanY = Math.Min(0, Math.Max(viewportHeight - height, slot.PanY));
+            if (slot.Zoom <= 1.001)
+            {
+                slot.Zoom = 1.0;
+                slot.PanX = 0;
+                slot.PanY = 0;
+            }
+
+            slot.PictureBox.Size = new System.Drawing.Size(width, height);
+            slot.PictureBox.Location = new System.Drawing.Point(slot.PanX, slot.PanY);
+        }
+
+        private void HandleSlotZoomWheel(MultiViewSlot slot, Forms.MouseEventArgs args, System.Drawing.Point cursor)
+        {
+            if (args.Delta == 0) return;
+            double oldZoom = slot.Zoom;
+            double newZoom = Math.Max(1.0, Math.Min(5.0, oldZoom * (args.Delta > 0 ? 1.2 : 1.0 / 1.2)));
+            if (Math.Abs(newZoom - oldZoom) < 0.001) return;
+
+            double contentX = (cursor.X - slot.PanX) / oldZoom;
+            double contentY = (cursor.Y - slot.PanY) / oldZoom;
+            slot.Zoom = newZoom;
+            slot.PanX = (int)Math.Round(cursor.X - contentX * newZoom);
+            slot.PanY = (int)Math.Round(cursor.Y - contentY * newZoom);
+            ApplySlotViewport(slot);
+            slot.Viewport.Focus();
+        }
+
+        private void BeginSlotPan(MultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
+        {
+            if (args.Button != Forms.MouseButtons.Left || slot.Zoom <= 1.001) return;
+            slot.IsDragging = true;
+            slot.DragStart = cursor;
+            slot.PanStart = new System.Drawing.Point(slot.PanX, slot.PanY);
+            slot.Viewport.Capture = true;
+            slot.Viewport.Cursor = Forms.Cursors.SizeAll;
+        }
+
+        private void UpdateSlotPan(MultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
+        {
+            if (!slot.IsDragging) return;
+            slot.PanX = slot.PanStart.X + cursor.X - slot.DragStart.X;
+            slot.PanY = slot.PanStart.Y + cursor.Y - slot.DragStart.Y;
+            ApplySlotViewport(slot);
+        }
+
+        private void EndSlotPan(MultiViewSlot slot, Forms.MouseEventArgs args)
+        {
+            if (args.Button != Forms.MouseButtons.Left) return;
+            slot.IsDragging = false;
+            slot.Viewport.Capture = false;
+            slot.Viewport.Cursor = Forms.Cursors.Default;
         }
 
         private void StartMultiLive_Click(object sender, RoutedEventArgs e)
