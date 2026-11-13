@@ -91,5 +91,7 @@ Konfiguracja: **Release | x64**, .NET 8 Windows.
 - Dodano automatyczne sprawdzanie dostępności nagrań w aktualnym miesiącu i oznaczanie dat w kalendarzu przed szczegółowym wyszukiwaniem.
 - Rozróżniono daty zgłoszone przez rejestrator, daty potwierdzone wyszukiwaniem oraz wybraną datę.
 - Poprawiono kontrast zaznaczonych pozycji list urządzeń w oknie podglądu i konfiguracji.
+- Zastosowano jawny szablon aktywnej zakładki, aby biały tekst był zawsze prezentowany na niebieskim tle; dodano też widoczny stan fokusu klawiatury i przycisku domyślnego.
+- Ujednolicono stany najechania, wciśnięcia i fokusu przycisków w oknie konfiguracji.
 - Wersję aplikacji ustawiono na 1.5.0 (Assembly/File version 1.5.0.0).
 
