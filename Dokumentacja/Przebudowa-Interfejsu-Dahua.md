@@ -27,6 +27,18 @@ Plik konfiguracji nadal znajduje się w:
 
 Program tworzy osobny uchwyt `CLIENT_RealPlayEx` dla każdego kanału. Liczba równoczesnych strumieni zależy od możliwości rejestratora, przepustowości sieci i wydajności komputera.
 
+## Dostępność nagrań w kalendarzu
+
+Po otwarciu kalendarza aplikacja sprawdza dostępność nagrań bez konieczności uruchamiania szczegółowego wyszukiwania. Dla aktualnie wyświetlanego miesiąca wykonuje zapytanie NetSDK dla każdego dnia i wybranego kanału. Zapytania są wykonywane sekwencyjnie, a wynik jest buforowany dla kombinacji urządzenie/kanał/miesiąc.
+
+- Ciemniejsza zieleń oznacza dni, w których rejestrator zgłosił co najmniej jedno nagranie.
+- Jaśniejsza zieleń oznacza dni potwierdzone przez ostatnie szczegółowe wyszukiwanie.
+- Niebieski oznacza aktualnie wybraną datę.
+- Zmiana kanału powoduje pobranie lub odtworzenie z pamięci dostępności dla nowego kanału.
+- Zmiana miesiąca w kalendarzu uruchamia sprawdzenie kolejnego miesiąca.
+
+Sprawdzenie wymaga połączenia z urządzeniem. Jeżeli nie ma aktywnego połączenia, aplikacja próbuje połączyć się automatycznie. Bieżący i przyszłe dni nie są odpytywane. Wyniki są buforowane w pamięci procesu do zamknięcia okna.
+
 ## Odtwarzanie archiwum
 
 1. W prawym panelu otwórz zakładkę archiwum.
