@@ -68,6 +68,9 @@ namespace VideoPlayer
         {
             name = NameBox.Text.Trim();
             address = AddressBox.Text.Trim();
+            // Assign every out parameter before any validation can return false.
+            port = 0;
+            httpPort = 0;
             if (string.IsNullOrWhiteSpace(name))
             {
                 MessageBox.Show("Podaj nazwę urządzenia.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
