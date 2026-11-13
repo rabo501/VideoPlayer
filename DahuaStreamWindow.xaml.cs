@@ -1343,6 +1343,8 @@ namespace VideoPlayer
                 _connectedDeviceId = _currentDevice.Id;
                 _deviceChannelCount = Math.Max(0, (int)deviceInfo.byChanNum);
                 WriteSdkDiagnostic($"Device channel count cached from CLIENT_Login: {_deviceChannelCount}.");
+                if (_deviceChannelCount > 0)
+                    _currentDevice.EnsureDefaultChannels(_deviceChannelCount);
                 if (TryQueryActiveChannelNumbers(out var activeChannels))
                 {
                     _activeChannelNumbers = activeChannels;
@@ -1674,6 +1676,7 @@ namespace VideoPlayer
 
             foreach (int channel in channels.Take(capacity))
             {
+                MultiViewSlot? slotRef = null;
                 var viewport = new Forms.Panel
                 {
                     BackColor = System.Drawing.Color.Black,
@@ -1700,7 +1703,6 @@ namespace VideoPlayer
                 viewport.Resize += (_, _) => ApplySlotViewport(slotRef!);
                 var host = new FormsIntegration.WindowsFormsHost { Child = viewport, Background = Brushes.Black };
                 var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
-                MultiViewSlot? slotRef = null;
                 tile.Children.Add(host);
                 var channelLabel = new Border
                 {
