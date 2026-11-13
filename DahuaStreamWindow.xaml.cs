@@ -57,6 +57,7 @@ namespace VideoPlayer
         private bool _synchronizedPlaybackPaused;
         private bool _isSeekingPlayback;
         private bool _updatingChannelChecks;
+        private bool _connectForCalendarAvailability;
 
         private sealed class MultiViewSlot
         {
@@ -180,7 +181,15 @@ namespace VideoPlayer
             {
                 if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, deviceId, StringComparison.Ordinal))
                 {
-                    Connect_Click(this, new RoutedEventArgs());
+                    _connectForCalendarAvailability = true;
+                    try
+                    {
+                        Connect_Click(this, new RoutedEventArgs());
+                    }
+                    finally
+                    {
+                        _connectForCalendarAvailability = false;
+                    }
                     if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, deviceId, StringComparison.Ordinal))
                         throw new InvalidOperationException("Nie udało się połączyć z wybranym rejestratorem.");
                 }
@@ -1324,9 +1333,17 @@ namespace VideoPlayer
                 // Start the live stream first. Channel-name and PTZ-preset queries are
                 // optional and are deliberately left to the explicit "read from device"
                 // action so a metadata call cannot take down an otherwise valid login.
-                WriteSdkDiagnostic("Login succeeded; starting multi-channel live view.");
-                StartMultiLiveForSelectedChannels();
-                WriteSdkDiagnostic("Multi-channel live view start routine returned.");
+                if (!_connectForCalendarAvailability)
+                {
+                    WriteSdkDiagnostic("Login succeeded; starting multi-channel live view.");
+                    StartMultiLiveForSelectedChannels();
+                    WriteSdkDiagnostic("Multi-channel live view start routine returned.");
+                }
+                else
+                {
+                    StatusLabel.Text = $"Połączono z {ip}. Sprawdzanie dostępności nagrań w kalendarzu…";
+                    WriteSdkDiagnostic("Login succeeded for calendar availability query; live view start intentionally skipped.");
+                }
             }
             catch (Exception ex)
             {
