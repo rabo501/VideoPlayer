@@ -46,7 +46,7 @@ namespace VideoPlayer
         private readonly HashSet<Calendar> _hookedArchiveCalendars = new();
         private readonly Dictionary<string, HashSet<DateTime>> _recorderAvailabilityCache = new();
         private readonly HashSet<string> _availabilityQueriesInProgress = new();
-        private int _availabilityRequestVersion;
+        private readonly System.Threading.SemaphoreSlim _archiveAvailabilitySemaphore = new(1, 1);
         private readonly List<MultiViewSlot> _multiViewSlots = new();
         private readonly List<IntPtr> _multiPlaybackHandles = new();
         private readonly DispatcherTimer _playbackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -138,6 +138,137 @@ namespace VideoPlayer
         {
             RefreshDatePickerCalendar(StartDatePicker);
             RefreshDatePickerCalendar(EndDatePicker);
+        }
+
+        private void LoadRecorderAvailabilityForVisibleMonth(DatePicker picker)
+        {
+            if (picker.Template.FindName("PART_Popup", picker) is Popup popup &&
+                popup.IsOpen && popup.Child is DependencyObject popupRoot)
+            {
+                Calendar? calendar = popupRoot as Calendar ?? FindVisualChild<Calendar>(popupRoot);
+                if (calendar != null)
+                    _ = LoadRecorderAvailabilityForMonthAsync(calendar.DisplayDate);
+            }
+        }
+
+        private async Task LoadRecorderAvailabilityForMonthAsync(DateTime displayedDate)
+        {
+            if (_currentDevice == null || ArchiveChannelBox.SelectedItem == null)
+                return;
+
+            int channel = GetSelectedArchiveChannel();
+            DateTime monthStart = new(displayedDate.Year, displayedDate.Month, 1);
+            string cacheKey = $"{_currentDevice.Id}|{channel}|{monthStart:yyyyMM}";
+
+            if (_recorderAvailabilityCache.TryGetValue(cacheKey, out var cachedDays))
+            {
+                _recorderAvailableDays.UnionWith(cachedDays);
+                RefreshOpenArchiveCalendars();
+                CalendarAvailabilityStatusText.Text =
+                    $"Dostępność pobrana z pamięci: {cachedDays.Count} dni z nagraniami w {monthStart:MM.yyyy}.";
+                return;
+            }
+
+            if (!_availabilityQueriesInProgress.Add(cacheKey))
+                return;
+
+            string deviceId = _currentDevice.Id;
+            CalendarAvailabilityStatusText.Text =
+                $"Sprawdzanie dostępności nagrań na rejestratorze: {monthStart:MM.yyyy}, kanał {channel}…";
+
+            try
+            {
+                if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, deviceId, StringComparison.Ordinal))
+                {
+                    Connect_Click(this, new RoutedEventArgs());
+                    if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, deviceId, StringComparison.Ordinal))
+                        throw new InvalidOperationException("Nie udało się połączyć z wybranym rejestratorem.");
+                }
+
+                IntPtr login = _loginId;
+                HashSet<DateTime> days = await QueryRecorderAvailabilityForMonthAsync(login, channel, monthStart);
+
+                if (_currentDevice?.Id != deviceId || GetSelectedArchiveChannel() != channel)
+                    return;
+
+                _recorderAvailabilityCache[cacheKey] = days;
+                _recorderAvailableDays.UnionWith(days);
+                RefreshOpenArchiveCalendars();
+                CalendarAvailabilityStatusText.Text = days.Count == 0
+                    ? $"Rejestrator nie zgłasza nagrań w {monthStart:MM.yyyy} dla kanału {channel}."
+                    : $"Rejestrator zgłasza nagrania w {days.Count} dniach miesiąca {monthStart:MM.yyyy} (kanał {channel}).";
+            }
+            catch (Exception ex)
+            {
+                if (_currentDevice?.Id == deviceId && GetSelectedArchiveChannel() == channel)
+                    CalendarAvailabilityStatusText.Text = $"Nie udało się pobrać dostępności: {ex.Message}";
+                WriteSdkDiagnostic($"Calendar availability query failed. Device={deviceId}; channel={channel}; month={monthStart:yyyy-MM}; {ex}");
+            }
+            finally
+            {
+                _availabilityQueriesInProgress.Remove(cacheKey);
+            }
+        }
+
+        private async Task<HashSet<DateTime>> QueryRecorderAvailabilityForMonthAsync(
+            IntPtr login, int channel, DateTime monthStart)
+        {
+            await _archiveAvailabilitySemaphore.WaitAsync();
+            try
+            {
+                return await Task.Run(() =>
+                {
+                    var availableDays = new HashSet<DateTime>();
+                    ConfigureDahuaRecordModes(login);
+
+                    DateTime monthEnd = monthStart.AddMonths(1);
+                    DateTime lastDay = monthEnd < DateTime.Today.AddDays(1)
+                        ? monthEnd
+                        : DateTime.Today.AddDays(1);
+
+                    const int maxRecordsPerDay = 1;
+                    int itemSize = Marshal.SizeOf<DahuaNetSdk.NET_RECORDFILE_INFO>();
+                    int bufferSize = checked(itemSize * maxRecordsPerDay);
+                    IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
+                    try
+                    {
+                        for (DateTime day = monthStart; day < lastDay; day = day.AddDays(1))
+                        {
+                            for (int i = 0; i < bufferSize; i++)
+                                Marshal.WriteByte(buffer, i, 0);
+
+                            var from = DahuaNetSdk.NET_TIME.FromDateTime(day);
+                            var to = DahuaNetSdk.NET_TIME.FromDateTime(day.AddDays(1));
+                            int count;
+
+                            bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
+                                login, Math.Max(0, channel - 1), 0,
+                                ref from, ref to, null,
+                                buffer, bufferSize, out count, 2500, false);
+
+                            if (!ok)
+                            {
+                                uint error = DahuaNetSdk.CLIENT_GetLastError();
+                                throw new InvalidOperationException(
+                                    $"Zapytanie o {day:dd.MM.yyyy} nie powiodło się: {DahuaNetSdk.GetErrorDescription(error)}");
+                            }
+
+                            if (count > 0)
+                                availableDays.Add(day.Date);
+                        }
+                    }
+                    finally
+                    {
+                        Marshal.FreeHGlobal(buffer);
+                    }
+
+                    return availableDays;
+                });
+            }
+            finally
+            {
+                _archiveAvailabilitySemaphore.Release();
+            }
         }
 
         private void RefreshDatePickerCalendar(DatePicker picker)
@@ -320,7 +451,6 @@ namespace VideoPlayer
                 BuildModernChannelChecks();
                 _archiveAvailableDays.Clear();
                 _recorderAvailableDays.Clear();
-                string availabilityPrefix = $"{dev.Id}|{GetSelectedArchiveChannel()}|";
                 foreach (var entry in _recorderAvailabilityCache.Where(pair => pair.Key.StartsWith($"{dev.Id}|", StringComparison.Ordinal)))
                     _recorderAvailableDays.UnionWith(entry.Value);
                 RefreshOpenArchiveCalendars();
