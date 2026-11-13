@@ -353,7 +353,7 @@
                     </StackPanel>
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                         <TextBlock Text="UKŁAD PODGLĄDU" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,0,0,5"/>
-                        <ComboBox x:Name="ModernGridModeBox" SelectedIndex="1" SelectionChanged="ModernGridModeBox_SelectionChanged">
+                        <ComboBox x:Name="ModernGridModeBox" SelectedIndex="0" SelectionChanged="ModernGridModeBox_SelectionChanged">
                             <ComboBoxItem Content="1 kamera"/>
                             <ComboBoxItem Content="4 kamery"/>
                             <ComboBoxItem Content="9 kamer"/>
