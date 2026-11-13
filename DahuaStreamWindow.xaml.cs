@@ -74,8 +74,8 @@ namespace VideoPlayer
             public int PanX { get; set; }
             public int PanY { get; set; }
             public bool IsDragging { get; set; }
-            public Forms.Point DragStart { get; set; }
-            public Forms.Point PanStart { get; set; }
+            public System.Drawing.Point DragStart { get; set; }
+            public System.Drawing.Point PanStart { get; set; }
             public IntPtr StreamHandle { get; set; }
             public IntPtr PlaybackHandle { get; set; }
         }
@@ -1687,7 +1687,7 @@ namespace VideoPlayer
                 {
                     BackColor = System.Drawing.Color.Black,
                     SizeMode = Forms.PictureBoxSizeMode.Normal,
-                    Location = new Forms.Point(0, 0),
+                    Location = new System.Drawing.Point(0, 0),
                     Size = new System.Drawing.Size(640, 360)
                 };
                 viewport.Controls.Add(picture);
@@ -1752,10 +1752,10 @@ namespace VideoPlayer
             }
 
             slot.PictureBox.Size = new System.Drawing.Size(width, height);
-            slot.PictureBox.Location = new Forms.Point(slot.PanX, slot.PanY);
+            slot.PictureBox.Location = new System.Drawing.Point(slot.PanX, slot.PanY);
         }
 
-        private void HandleSlotZoomWheel(MultiViewSlot slot, Forms.MouseEventArgs args, Forms.Point cursor)
+        private void HandleSlotZoomWheel(MultiViewSlot slot, Forms.MouseEventArgs args, System.Drawing.Point cursor)
         {
             if (args.Delta == 0) return;
             double oldZoom = slot.Zoom;
@@ -1771,17 +1771,17 @@ namespace VideoPlayer
             slot.Viewport.Focus();
         }
 
-        private void BeginSlotPan(MultiViewSlot slot, Forms.Point cursor, Forms.MouseEventArgs args)
+        private void BeginSlotPan(MultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
         {
             if (args.Button != Forms.MouseButtons.Left || slot.Zoom <= 1.001) return;
             slot.IsDragging = true;
             slot.DragStart = cursor;
-            slot.PanStart = new Forms.Point(slot.PanX, slot.PanY);
+            slot.PanStart = new System.Drawing.Point(slot.PanX, slot.PanY);
             slot.Viewport.Capture = true;
             slot.Viewport.Cursor = Forms.Cursors.SizeAll;
         }
 
-        private void UpdateSlotPan(MultiViewSlot slot, Forms.Point cursor, Forms.MouseEventArgs args)
+        private void UpdateSlotPan(MultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
         {
             if (!slot.IsDragging) return;
             slot.PanX = slot.PanStart.X + cursor.X - slot.DragStart.X;
