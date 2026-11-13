@@ -244,7 +244,7 @@ namespace VideoPlayer
                             bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
                                 login, Math.Max(0, channel - 1), 0,
                                 ref from, ref to, null,
-                                buffer, bufferSize, out count, 2500, false);
+                                buffer, bufferSize, out count, 8000, false);
 
                             if (!ok)
                             {
