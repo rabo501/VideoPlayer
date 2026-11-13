@@ -1,10 +1,23 @@
-# Przebudowa okna Dahua — podgląd wielokanałowy i archiwum
+# VideoPlayer 1.5 — przebudowa okna Dahua, podgląd wielokanałowy i archiwum
 
 ## Cel
+
+
+Wersja dokumentacji: **1.5.0**. Wydanie obejmuje przebudowany interfejs operatora, osobne okno konfiguracji, podgląd wielokanałowy, wspólne sterowanie archiwum oraz automatyczne oznaczanie dostępności nagrań w kalendarzu.
+
 
 Okno obsługi rejestratora zostało przebudowane w kierunku układu operatorskiego inspirowanego SmartPSS Lite. Konfiguracja urządzeń jest oddzielona od codziennej obsługi obrazu.
 
 ## Nowy układ
+
+
+### Czytelność zaznaczenia i przycisków (1.5.0)
+
+- Zaznaczone pozycje list urządzeń mają ciemnoniebieskie tło, biały tekst i jasnoniebieską ramkę.
+- Stan wskazania kursorem ma odrębny kolor, a zaznaczenie pozostaje czytelne również po utracie fokusu.
+- Ten sam styl zaznaczenia jest stosowany w oknie podglądu i w osobnym oknie konfiguracji.
+- Przyciski kanałów zachowują zielone wyróżnienie aktywnego kanału; pozostałe przyciski korzystają z ciemnego tła i jasnego tekstu.
+
 
 - Lewy panel: lista urządzeń, przycisk konfiguracji, lista kanałów z polami wyboru oraz wybór siatki 1/4/9/16.
 - Środkowy panel: dynamiczna siatka obrazów. Każde pole ma własny uchwyt okna WinForms PictureBox i własny uchwyt strumienia NetSDK.
@@ -71,3 +84,12 @@ Konfiguracja: **Release | x64**, .NET 8 Windows.
 - W tej wersji synchronizacja startuje wszystkie kanały z identycznym czasem, a pauza i seek są wysyłane do każdego uchwytu. Rzeczywista synchronizacja klatek zależy od buforowania urządzenia i sieci.
 - Oś czasu jest przybliżana lokalnym zegarem aplikacji, a nie pobierana z OSD rejestratora.
 - Weryfikacja kompilacji i test fizyczny z NVR muszą zostać wykonane w Visual Studio na komputerze użytkownika. Nie deklaruje się ich jako wykonanych w ramach tej zmiany.
+
+## Informacje o wydaniu 1.5.0
+
+- Ujednolicono wygląd i rozmiar zakładek „Strumień na żywo” oraz „Archiwum”.
+- Dodano automatyczne sprawdzanie dostępności nagrań w aktualnym miesiącu i oznaczanie dat w kalendarzu przed szczegółowym wyszukiwaniem.
+- Rozróżniono daty zgłoszone przez rejestrator, daty potwierdzone wyszukiwaniem oraz wybraną datę.
+- Poprawiono kontrast zaznaczonych pozycji list urządzeń w oknie podglądu i konfiguracji.
+- Wersję aplikacji ustawiono na 1.5.0 (Assembly/File version 1.5.0.0).
+
