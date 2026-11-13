@@ -1700,7 +1700,6 @@ namespace VideoPlayer
                 picture.MouseMove += (_, args) => UpdateSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
                 viewport.MouseUp += (_, args) => EndSlotPan(slotRef!, args);
                 picture.MouseUp += (_, args) => EndSlotPan(slotRef!, args);
-                viewport.Resize += (_, _) => ApplySlotViewport(slotRef!);
                 var host = new FormsIntegration.WindowsFormsHost { Child = viewport, Background = Brushes.Black };
                 var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
                 tile.Children.Add(host);
@@ -1730,13 +1729,21 @@ namespace VideoPlayer
                 MultiVideoGrid.Children.Add(tile);
                 slotRef = new MultiViewSlot { Channel = channel, PictureBox = picture, Host = host, Viewport = viewport };
                 _multiViewSlots.Add(slotRef);
+                // Attach Resize only after slotRef is initialized: WinForms can raise
+                // Resize while the WindowsFormsHost is being created/attached.
+                viewport.Resize += (_, _) =>
+                {
+                    if (slotRef != null)
+                        ApplySlotViewport(slotRef);
+                };
                 ApplySlotViewport(slotRef);
             }
         }
 
-        private void ApplySlotViewport(MultiViewSlot slot)
+        private void ApplySlotViewport(MultiViewSlot? slot)
         {
-            if (slot.Viewport.IsDisposed || slot.PictureBox.IsDisposed) return;
+            if (slot == null || slot.Viewport == null || slot.PictureBox == null ||
+                slot.Viewport.IsDisposed || slot.PictureBox.IsDisposed) return;
             int viewportWidth = Math.Max(1, slot.Viewport.ClientSize.Width);
             int viewportHeight = Math.Max(1, slot.Viewport.ClientSize.Height);
             int width = Math.Max(1, (int)Math.Round(viewportWidth * slot.Zoom));
