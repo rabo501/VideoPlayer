@@ -39,8 +39,14 @@ namespace VideoPlayer
         // vendor configuration call.
         private int _deviceChannelCount = 0;
         private readonly List<Button> _channelButtons = new();
+        // Dates returned by the last detailed archive search (bright green).
         private readonly HashSet<DateTime> _archiveAvailableDays = new();
+        // Dates verified against the recorder for the selected device/channel (dark green).
+        private readonly HashSet<DateTime> _recorderAvailableDays = new();
         private readonly HashSet<Calendar> _hookedArchiveCalendars = new();
+        private readonly Dictionary<string, HashSet<DateTime>> _recorderAvailabilityCache = new();
+        private readonly HashSet<string> _availabilityQueriesInProgress = new();
+        private int _availabilityRequestVersion;
         private readonly List<MultiViewSlot> _multiViewSlots = new();
         private readonly List<IntPtr> _multiPlaybackHandles = new();
         private readonly DispatcherTimer _playbackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -86,9 +92,15 @@ namespace VideoPlayer
 
         private void ArchiveChannelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Calendar availability belongs to the last search for the selected channel.
+            // Detailed-search markers are channel-specific; recorder availability is cached separately.
             _archiveAvailableDays.Clear();
+            _recorderAvailableDays.Clear();
+            string cachePrefix = $"{_currentDevice?.Id}|{GetSelectedArchiveChannel()}|";
+            foreach (var entry in _recorderAvailabilityCache.Where(pair => pair.Key.StartsWith(cachePrefix, StringComparison.Ordinal)))
+                _recorderAvailableDays.UnionWith(entry.Value);
             RefreshOpenArchiveCalendars();
+            foreach (DatePicker picker in new[] { StartDatePicker, EndDatePicker })
+                LoadRecorderAvailabilityForVisibleMonth(picker);
         }
 
         private void ArchiveDatePicker_CalendarOpened(object sender, RoutedEventArgs e)
@@ -108,10 +120,17 @@ namespace VideoPlayer
                 if (_hookedArchiveCalendars.Add(calendar))
                 {
                     calendar.DisplayDateChanged += (_, _) =>
-                        Dispatcher.BeginInvoke(new Action(() => RefreshCalendarButtons(calendar)));
+                    {
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            RefreshCalendarButtons(calendar);
+                            _ = LoadRecorderAvailabilityForMonthAsync(calendar.DisplayDate);
+                        }));
+                    };
                 }
 
                 RefreshCalendarButtons(calendar);
+                _ = LoadRecorderAvailabilityForMonthAsync(calendar.DisplayDate);
             }));
         }
 
@@ -142,20 +161,29 @@ namespace VideoPlayer
                 dayButton.ClearValue(Control.FontWeightProperty);
                 dayButton.ClearValue(ToolTipService.ToolTipProperty);
 
-                if (dayButton.DataContext is DateTime date &&
-                    _archiveAvailableDays.Contains(date.Date))
+                if (dayButton.DataContext is DateTime date)
                 {
-                    dayButton.ToolTip = $"Dostępne nagrania: {date:dd.MM.yyyy}";
-
-                    // Keep the native blue selection treatment distinct from the green
-                    // availability marker.
-                    if (calendar.SelectedDate?.Date != date.Date)
+                    bool foundInLastSearch = _archiveAvailableDays.Contains(date.Date);
+                    bool availableOnRecorder = _recorderAvailableDays.Contains(date.Date);
+                    if (foundInLastSearch || availableOnRecorder)
                     {
-                        dayButton.Background = new SolidColorBrush(Color.FromRgb(22, 101, 52));
-                        dayButton.Foreground = Brushes.White;
-                        dayButton.BorderBrush = new SolidColorBrush(Color.FromRgb(74, 222, 128));
-                        dayButton.BorderThickness = new Thickness(1);
-                        dayButton.FontWeight = FontWeights.Bold;
+                        dayButton.ToolTip = foundInLastSearch
+                            ? $"Znaleziono nagrania w ostatnim wyszukiwaniu: {date:dd.MM.yyyy}"
+                            : $"Rejestrator zgłasza nagrania: {date:dd.MM.yyyy}";
+
+                        // Keep the native blue selection treatment distinct from availability.
+                        if (calendar.SelectedDate?.Date != date.Date)
+                        {
+                            dayButton.Background = foundInLastSearch
+                                ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
+                                : new SolidColorBrush(Color.FromRgb(20, 83, 45));
+                            dayButton.Foreground = Brushes.White;
+                            dayButton.BorderBrush = foundInLastSearch
+                                ? new SolidColorBrush(Color.FromRgb(134, 239, 172))
+                                : new SolidColorBrush(Color.FromRgb(74, 222, 128));
+                            dayButton.BorderThickness = new Thickness(1);
+                            dayButton.FontWeight = FontWeights.Bold;
+                        }
                     }
                 }
             }
@@ -291,6 +319,10 @@ namespace VideoPlayer
                 DisposeMultiViewSlots();
                 BuildModernChannelChecks();
                 _archiveAvailableDays.Clear();
+                _recorderAvailableDays.Clear();
+                string availabilityPrefix = $"{dev.Id}|{GetSelectedArchiveChannel()}|";
+                foreach (var entry in _recorderAvailabilityCache.Where(pair => pair.Key.StartsWith($"{dev.Id}|", StringComparison.Ordinal)))
+                    _recorderAvailableDays.UnionWith(entry.Value);
                 RefreshOpenArchiveCalendars();
                 ArchiveRecordsGrid.ItemsSource = null;
                 _currentDevice.EnsureDefaultChannels(16);
@@ -1940,9 +1972,12 @@ namespace VideoPlayer
                 ArchiveRecordsGrid.ItemsSource = records;
                 foreach (DahuaRecordItem record in records)
                 {
-                    // Mark every calendar day touched by a returned recording.
+                    // A detailed search is stronger confirmation than the month availability probe.
                     for (DateTime day = record.StartTime.Date; day <= record.EndTime.Date; day = day.AddDays(1))
+                    {
                         _archiveAvailableDays.Add(day);
+                        _recorderAvailableDays.Add(day);
+                    }
                 }
                 RefreshOpenArchiveCalendars();
 
