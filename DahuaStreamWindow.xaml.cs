@@ -11,7 +11,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Forms = System.Windows.Forms;
+using FormsIntegration = System.Windows.Forms.Integration;
 
 namespace VideoPlayer
 {
@@ -37,8 +39,34 @@ namespace VideoPlayer
         // vendor configuration call.
         private int _deviceChannelCount = 0;
         private readonly List<Button> _channelButtons = new();
+        // Dates returned by the last detailed archive search (bright green).
         private readonly HashSet<DateTime> _archiveAvailableDays = new();
+        // Dates verified against the recorder for the selected device/channel (dark green).
+        private readonly HashSet<DateTime> _recorderAvailableDays = new();
         private readonly HashSet<Calendar> _hookedArchiveCalendars = new();
+        private readonly Dictionary<string, HashSet<DateTime>> _recorderAvailabilityCache = new();
+        private readonly HashSet<string> _availabilityQueriesInProgress = new();
+        private readonly System.Threading.SemaphoreSlim _archiveAvailabilitySemaphore = new(1, 1);
+        private readonly List<MultiViewSlot> _multiViewSlots = new();
+        private readonly List<IntPtr> _multiPlaybackHandles = new();
+        private readonly DispatcherTimer _playbackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+        private DateTime _playbackRangeStart;
+        private DateTime _playbackRangeEnd;
+        private DateTime _playbackSegmentStartedAt;
+        private double _playbackElapsedBeforePause;
+        private bool _synchronizedPlaybackPaused;
+        private bool _isSeekingPlayback;
+        private bool _updatingChannelChecks;
+        private bool _connectForCalendarAvailability;
+
+        private sealed class MultiViewSlot
+        {
+            public int Channel { get; init; }
+            public Forms.PictureBox PictureBox { get; init; } = null!;
+            public FormsIntegration.WindowsFormsHost Host { get; init; } = null!;
+            public IntPtr StreamHandle { get; set; }
+            public IntPtr PlaybackHandle { get; set; }
+        }
 
         // Callback references to prevent GC collection
         private DahuaNetSdk.fDisConnect? _disConnectCallback;
@@ -51,6 +79,7 @@ namespace VideoPlayer
             PrimaryVideoHost.Child = _primaryPictureBox;
 
             InitializeDatePickers();
+            _playbackUiTimer.Tick += PlaybackUiTimer_Tick;
         }
 
         private void InitializeDatePickers()
@@ -64,9 +93,15 @@ namespace VideoPlayer
 
         private void ArchiveChannelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Calendar availability belongs to the last search for the selected channel.
+            // Detailed-search markers are channel-specific; recorder availability is cached separately.
             _archiveAvailableDays.Clear();
+            _recorderAvailableDays.Clear();
+            string cachePrefix = $"{_currentDevice?.Id}|{GetSelectedArchiveChannel()}|";
+            foreach (var entry in _recorderAvailabilityCache.Where(pair => pair.Key.StartsWith(cachePrefix, StringComparison.Ordinal)))
+                _recorderAvailableDays.UnionWith(entry.Value);
             RefreshOpenArchiveCalendars();
+            foreach (DatePicker picker in new[] { StartDatePicker, EndDatePicker })
+                LoadRecorderAvailabilityForVisibleMonth(picker);
         }
 
         private void ArchiveDatePicker_CalendarOpened(object sender, RoutedEventArgs e)
@@ -86,10 +121,17 @@ namespace VideoPlayer
                 if (_hookedArchiveCalendars.Add(calendar))
                 {
                     calendar.DisplayDateChanged += (_, _) =>
-                        Dispatcher.BeginInvoke(new Action(() => RefreshCalendarButtons(calendar)));
+                    {
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            RefreshCalendarButtons(calendar);
+                            _ = LoadRecorderAvailabilityForMonthAsync(calendar.DisplayDate);
+                        }));
+                    };
                 }
 
                 RefreshCalendarButtons(calendar);
+                _ = LoadRecorderAvailabilityForMonthAsync(calendar.DisplayDate);
             }));
         }
 
@@ -97,6 +139,145 @@ namespace VideoPlayer
         {
             RefreshDatePickerCalendar(StartDatePicker);
             RefreshDatePickerCalendar(EndDatePicker);
+        }
+
+        private void LoadRecorderAvailabilityForVisibleMonth(DatePicker picker)
+        {
+            if (picker.Template.FindName("PART_Popup", picker) is Popup popup &&
+                popup.IsOpen && popup.Child is DependencyObject popupRoot)
+            {
+                Calendar? calendar = popupRoot as Calendar ?? FindVisualChild<Calendar>(popupRoot);
+                if (calendar != null)
+                    _ = LoadRecorderAvailabilityForMonthAsync(calendar.DisplayDate);
+            }
+        }
+
+        private async Task LoadRecorderAvailabilityForMonthAsync(DateTime displayedDate)
+        {
+            if (_currentDevice == null || ArchiveChannelBox.SelectedItem == null)
+                return;
+
+            int channel = GetSelectedArchiveChannel();
+            DateTime monthStart = new(displayedDate.Year, displayedDate.Month, 1);
+            string cacheKey = $"{_currentDevice.Id}|{channel}|{monthStart:yyyyMM}";
+
+            if (_recorderAvailabilityCache.TryGetValue(cacheKey, out var cachedDays))
+            {
+                _recorderAvailableDays.UnionWith(cachedDays);
+                RefreshOpenArchiveCalendars();
+                CalendarAvailabilityStatusText.Text =
+                    $"Dostępność pobrana z pamięci: {cachedDays.Count} dni z nagraniami w {monthStart:MM.yyyy}.";
+                return;
+            }
+
+            if (!_availabilityQueriesInProgress.Add(cacheKey))
+                return;
+
+            string deviceId = _currentDevice.Id;
+            CalendarAvailabilityStatusText.Text =
+                $"Sprawdzanie dostępności nagrań na rejestratorze: {monthStart:MM.yyyy}, kanał {channel}…";
+
+            try
+            {
+                if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, deviceId, StringComparison.Ordinal))
+                {
+                    _connectForCalendarAvailability = true;
+                    try
+                    {
+                        Connect_Click(this, new RoutedEventArgs());
+                    }
+                    finally
+                    {
+                        _connectForCalendarAvailability = false;
+                    }
+                    if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, deviceId, StringComparison.Ordinal))
+                        throw new InvalidOperationException("Nie udało się połączyć z wybranym rejestratorem.");
+                }
+
+                IntPtr login = _loginId;
+                HashSet<DateTime> days = await QueryRecorderAvailabilityForMonthAsync(login, channel, monthStart);
+
+                if (_currentDevice?.Id != deviceId || GetSelectedArchiveChannel() != channel)
+                    return;
+
+                _recorderAvailabilityCache[cacheKey] = days;
+                _recorderAvailableDays.UnionWith(days);
+                RefreshOpenArchiveCalendars();
+                CalendarAvailabilityStatusText.Text = days.Count == 0
+                    ? $"Rejestrator nie zgłasza nagrań w {monthStart:MM.yyyy} dla kanału {channel}."
+                    : $"Rejestrator zgłasza nagrania w {days.Count} dniach miesiąca {monthStart:MM.yyyy} (kanał {channel}).";
+            }
+            catch (Exception ex)
+            {
+                if (_currentDevice?.Id == deviceId && GetSelectedArchiveChannel() == channel)
+                    CalendarAvailabilityStatusText.Text = $"Nie udało się pobrać dostępności: {ex.Message}";
+                WriteSdkDiagnostic($"Calendar availability query failed. Device={deviceId}; channel={channel}; month={monthStart:yyyy-MM}; {ex}");
+            }
+            finally
+            {
+                _availabilityQueriesInProgress.Remove(cacheKey);
+            }
+        }
+
+        private async Task<HashSet<DateTime>> QueryRecorderAvailabilityForMonthAsync(
+            IntPtr login, int channel, DateTime monthStart)
+        {
+            await _archiveAvailabilitySemaphore.WaitAsync();
+            try
+            {
+                return await Task.Run(() =>
+                {
+                    var availableDays = new HashSet<DateTime>();
+                    ConfigureDahuaRecordModes(login);
+
+                    DateTime monthEnd = monthStart.AddMonths(1);
+                    DateTime lastDay = monthEnd < DateTime.Today.AddDays(1)
+                        ? monthEnd
+                        : DateTime.Today.AddDays(1);
+
+                    const int maxRecordsPerDay = 1;
+                    int itemSize = Marshal.SizeOf<DahuaNetSdk.NET_RECORDFILE_INFO>();
+                    int bufferSize = checked(itemSize * maxRecordsPerDay);
+                    IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
+                    try
+                    {
+                        for (DateTime day = monthStart; day < lastDay; day = day.AddDays(1))
+                        {
+                            for (int i = 0; i < bufferSize; i++)
+                                Marshal.WriteByte(buffer, i, 0);
+
+                            var from = DahuaNetSdk.NET_TIME.FromDateTime(day);
+                            var to = DahuaNetSdk.NET_TIME.FromDateTime(day.AddDays(1));
+                            int count;
+
+                            bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(
+                                login, Math.Max(0, channel - 1), 0,
+                                ref from, ref to, null,
+                                buffer, bufferSize, out count, 8000, false);
+
+                            if (!ok)
+                            {
+                                uint error = DahuaNetSdk.CLIENT_GetLastError();
+                                throw new InvalidOperationException(
+                                    $"Zapytanie o {day:dd.MM.yyyy} nie powiodło się: {DahuaNetSdk.GetErrorDescription(error)}");
+                            }
+
+                            if (count > 0)
+                                availableDays.Add(day.Date);
+                        }
+                    }
+                    finally
+                    {
+                        Marshal.FreeHGlobal(buffer);
+                    }
+
+                    return availableDays;
+                });
+            }
+            finally
+            {
+                _archiveAvailabilitySemaphore.Release();
+            }
         }
 
         private void RefreshDatePickerCalendar(DatePicker picker)
@@ -120,20 +301,29 @@ namespace VideoPlayer
                 dayButton.ClearValue(Control.FontWeightProperty);
                 dayButton.ClearValue(ToolTipService.ToolTipProperty);
 
-                if (dayButton.DataContext is DateTime date &&
-                    _archiveAvailableDays.Contains(date.Date))
+                if (dayButton.DataContext is DateTime date)
                 {
-                    dayButton.ToolTip = $"Dostępne nagrania: {date:dd.MM.yyyy}";
-
-                    // Keep the native blue selection treatment distinct from the green
-                    // availability marker.
-                    if (calendar.SelectedDate?.Date != date.Date)
+                    bool foundInLastSearch = _archiveAvailableDays.Contains(date.Date);
+                    bool availableOnRecorder = _recorderAvailableDays.Contains(date.Date);
+                    if (foundInLastSearch || availableOnRecorder)
                     {
-                        dayButton.Background = new SolidColorBrush(Color.FromRgb(22, 101, 52));
-                        dayButton.Foreground = Brushes.White;
-                        dayButton.BorderBrush = new SolidColorBrush(Color.FromRgb(74, 222, 128));
-                        dayButton.BorderThickness = new Thickness(1);
-                        dayButton.FontWeight = FontWeights.Bold;
+                        dayButton.ToolTip = foundInLastSearch
+                            ? $"Znaleziono nagrania w ostatnim wyszukiwaniu: {date:dd.MM.yyyy}"
+                            : $"Rejestrator zgłasza nagrania: {date:dd.MM.yyyy}";
+
+                        // Keep the native blue selection treatment distinct from availability.
+                        if (calendar.SelectedDate?.Date != date.Date)
+                        {
+                            dayButton.Background = foundInLastSearch
+                                ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
+                                : new SolidColorBrush(Color.FromRgb(20, 83, 45));
+                            dayButton.Foreground = Brushes.White;
+                            dayButton.BorderBrush = foundInLastSearch
+                                ? new SolidColorBrush(Color.FromRgb(134, 239, 172))
+                                : new SolidColorBrush(Color.FromRgb(74, 222, 128));
+                            dayButton.BorderThickness = new Thickness(1);
+                            dayButton.FontWeight = FontWeights.Bold;
+                        }
                     }
                 }
             }
@@ -242,6 +432,8 @@ namespace VideoPlayer
                 _devices = DahuaConfigService.LoadDevices();
                 DevicesListBox.ItemsSource = null;
                 DevicesListBox.ItemsSource = _devices;
+                ModernDevicesListBox.ItemsSource = null;
+                ModernDevicesListBox.ItemsSource = _devices;
                 if (_devices.Count > 0) DevicesListBox.SelectedIndex = 0;
             }
             catch (Exception ex)
@@ -261,7 +453,16 @@ namespace VideoPlayer
                     Disconnect();
 
                 _currentDevice = dev;
+                ModernDevicesListBox.SelectedItem = dev;
+                StopMultiLiveStreams();
+                StopSynchronizedPlayback();
+                DisposeMultiViewSlots();
+                BuildModernChannelChecks();
                 _archiveAvailableDays.Clear();
+                _recorderAvailableDays.Clear();
+                string selectedAvailabilityPrefix = $"{dev.Id}|{GetSelectedArchiveChannel()}|";
+                foreach (var entry in _recorderAvailabilityCache.Where(pair => pair.Key.StartsWith(selectedAvailabilityPrefix, StringComparison.Ordinal)))
+                    _recorderAvailableDays.UnionWith(entry.Value);
                 RefreshOpenArchiveCalendars();
                 ArchiveRecordsGrid.ItemsSource = null;
                 _currentDevice.EnsureDefaultChannels(16);
@@ -296,6 +497,27 @@ namespace VideoPlayer
                 StreamTypeBox.SelectedIndex = dev.StreamType == DahuaNetSdk.EM_RealPlayType.Realplay ? 0 : 1;
                 HighlightActiveChannelButton(_currentChannel);
             }
+        }
+
+        private void ModernDevicesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ModernDevicesListBox.SelectedItem is DahuaDeviceItem device &&
+                !ReferenceEquals(DevicesListBox.SelectedItem, device))
+                DevicesListBox.SelectedItem = device;
+        }
+
+        private void OpenConfiguration_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new DahuaConfigurationWindow(_devices) { Owner = this };
+            window.ShowDialog();
+            _devices = DahuaConfigService.LoadDevices();
+            DevicesListBox.ItemsSource = null;
+            DevicesListBox.ItemsSource = _devices;
+            ModernDevicesListBox.ItemsSource = null;
+            ModernDevicesListBox.ItemsSource = _devices;
+            if (_devices.Count > 0)
+                DevicesListBox.SelectedIndex = 0;
+            StatusLabel.Text = "Zamknięto konfigurację urządzeń.";
         }
 
         #region Device Management for Operator
@@ -649,14 +871,15 @@ namespace VideoPlayer
                 }
             }
 
+            SelectModernChannel(channelNumber);
             if (_loginId != IntPtr.Zero)
             {
-                StartLiveStreamForChannel(_currentChannel);
+                StartMultiLiveForSelectedChannels();
             }
             else
             {
                 string name = _currentDevice?.GetChannelName(channelNumber) ?? $"Kanał {channelNumber}";
-                StatusLabel.Text = $"Wybrano: {name} (CH {channelNumber}). Kliknij 'Połącz ze strumieniem'.";
+                StatusLabel.Text = $"Wybrano: {name} (CH {channelNumber}). Kliknij „Podgląd zaznaczonych”.";
             }
         }
 
@@ -677,6 +900,7 @@ namespace VideoPlayer
             _currentDevice.SetChannelName(_currentChannel, newName);
             DahuaConfigService.SaveDevices(_devices);
             RefreshChannelLists();
+            BuildModernChannelChecks();
 
             StatusLabel.Text = $"Zapisano nową nazwę dla Kanału {_currentChannel}: '{newName}'";
             ActiveChannelOverlayText.Text = $"{newName.ToUpper()} (CH {_currentChannel})";
@@ -998,10 +1222,11 @@ namespace VideoPlayer
 
         private void StreamTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_loginId != IntPtr.Zero && _realPlayHandle != IntPtr.Zero)
-            {
+            if (_loginId == IntPtr.Zero) return;
+            if (_multiViewSlots.Any(slot => slot.StreamHandle != IntPtr.Zero))
+                StartMultiLiveForSelectedChannels();
+            else if (_realPlayHandle != IntPtr.Zero)
                 StartLiveStreamForChannel(_currentChannel);
-            }
         }
 
         private static bool IsValidEndpoint(string address, string portText, out ushort port, out string error)
@@ -1068,8 +1293,15 @@ namespace VideoPlayer
 
             Disconnect();
             ushort port = validatedPort;
-            string user = _currentDevice.Username;
-            string pass = _currentDevice.Password;
+            string user = _currentDevice.Username ?? string.Empty;
+            string pass = _currentDevice.Password ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(user) || string.IsNullOrEmpty(pass))
+            {
+                StatusLabel.Text = "Brak danych logowania. Otwórz konfigurację urządzenia i wpisz użytkownika oraz hasło.";
+                MessageBox.Show(StatusLabel.Text, "Brak danych logowania", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             StatusLabel.Text = $"Logowanie do {ip}:{port}…";
             WriteSdkDiagnostic($"Connect requested. Host={ip}; port={port}; username length={user?.Length ?? 0}.");
@@ -1101,9 +1333,17 @@ namespace VideoPlayer
                 // Start the live stream first. Channel-name and PTZ-preset queries are
                 // optional and are deliberately left to the explicit "read from device"
                 // action so a metadata call cannot take down an otherwise valid login.
-                WriteSdkDiagnostic("Login succeeded; starting live stream.");
-                StartLiveStreamForChannel(_currentChannel);
-                WriteSdkDiagnostic("Live stream start routine returned.");
+                if (!_connectForCalendarAvailability)
+                {
+                    WriteSdkDiagnostic("Login succeeded; starting multi-channel live view.");
+                    StartMultiLiveForSelectedChannels();
+                    WriteSdkDiagnostic("Multi-channel live view start routine returned.");
+                }
+                else
+                {
+                    StatusLabel.Text = $"Połączono z {ip}. Sprawdzanie dostępności nagrań w kalendarzu…";
+                    WriteSdkDiagnostic("Login succeeded for calendar availability query; live view start intentionally skipped.");
+                }
             }
             catch (Exception ex)
             {
@@ -1116,6 +1356,8 @@ namespace VideoPlayer
         {
             if (_loginId == IntPtr.Zero) return;
 
+            StopMultiLiveStreams();
+            StopSynchronizedPlayback();
             try
             {
                 if (_realPlayHandle != IntPtr.Zero)
@@ -1168,6 +1410,8 @@ namespace VideoPlayer
 
         private void Disconnect()
         {
+            StopMultiLiveStreams();
+            StopSynchronizedPlayback();
             try
             {
                 if (_realPlayHandle != IntPtr.Zero)
@@ -1216,8 +1460,383 @@ namespace VideoPlayer
             Dispatcher.Invoke(() =>
             {
                 StatusLabel.Text = $"Przywrócono połączenie z {pchDVRIP}:{nDVRPort}.";
-                StartLiveStreamForChannel(_currentChannel);
+                StartMultiLiveForSelectedChannels();
             });
+        }
+
+        #endregion
+
+        #region SmartPSS-style Multi-view and Synchronized Archive Playback
+
+        private void BuildModernChannelChecks()
+        {
+            ModernChannelChecksPanel.Children.Clear();
+            if (_currentDevice == null) return;
+
+            foreach (var channel in _currentDevice.Channels.OrderBy(ch => ch.Number))
+            {
+                var check = new CheckBox
+                {
+                    Content = $"{channel.Name}  (CH {channel.Number})",
+                    Tag = channel.Number,
+                    IsChecked = channel.Number <= GetMultiViewCapacity(),
+                    Foreground = Brushes.White,
+                    FontSize = 11,
+                    Margin = new Thickness(3, 5, 2, 5),
+                    ToolTip = channel.Name
+                };
+                check.Checked += ModernChannelCheck_Changed;
+                check.Unchecked += ModernChannelCheck_Changed;
+                ModernChannelChecksPanel.Children.Add(check);
+            }
+            int capacity = GetMultiViewCapacity();
+            int selectedCount = GetModernSelectedChannels().Count;
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsEnabled = check.IsChecked == true || selectedCount < capacity;
+        }
+
+        private void SelectModernChannel(int channelNumber)
+        {
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsChecked = check.Tag is int value && value == channelNumber;
+        }
+
+        private List<int> GetModernSelectedChannels()
+        {
+            return ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(ch => ch.IsChecked == true && ch.Tag is int)
+                .Select(ch => (int)ch.Tag).ToList();
+        }
+
+        private int GetMultiViewCapacity() => ModernGridModeBox.SelectedIndex switch
+        {
+            0 => 1, 2 => 9, 3 => 16, _ => 4
+        };
+
+        private void ModernGridModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || ModernChannelChecksPanel == null) return;
+            int capacity = GetMultiViewCapacity();
+            _updatingChannelChecks = true;
+            var selected = ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(check => check.IsChecked == true).ToList();
+            foreach (CheckBox check in selected.Skip(capacity))
+                check.IsChecked = false;
+            _updatingChannelChecks = false;
+
+            int selectedCount = GetModernSelectedChannels().Count;
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsEnabled = check.IsChecked == true || selectedCount < capacity;
+        }
+
+        private void ModernChannelCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_updatingChannelChecks) return;
+            int capacity = GetMultiViewCapacity();
+            var selected = ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(ch => ch.IsChecked == true).ToList();
+            if (selected.Count > capacity && sender is CheckBox changed)
+            {
+                changed.IsChecked = false;
+                StatusLabel.Text = $"Wybrany układ obsługuje maksymalnie {capacity} kanał(ów).";
+                selected = ModernChannelChecksPanel.Children.OfType<CheckBox>()
+                    .Where(ch => ch.IsChecked == true).ToList();
+            }
+            foreach (CheckBox check in ModernChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsEnabled = check.IsChecked == true || selected.Count < capacity;
+        }
+
+        private void DisposeMultiViewSlots()
+        {
+            foreach (var oldSlot in _multiViewSlots)
+            {
+                try { oldSlot.Host.Child = null; } catch { }
+                try { oldSlot.PictureBox.Dispose(); } catch { }
+                try { oldSlot.Host.Dispose(); } catch { }
+            }
+            _multiViewSlots.Clear();
+            MultiVideoGrid.Children.Clear();
+        }
+
+        private void BuildMultiViewSlots(IReadOnlyList<int> channels)
+        {
+            StopMultiLiveStreams();
+            StopPlaybackHandlesOnly();
+            DisposeMultiViewSlots();
+
+            int count = Math.Max(1, channels.Count);
+            int capacity = GetMultiViewCapacity();
+            int columns = capacity == 1 ? 1 : capacity == 4 ? 2 : capacity == 9 ? 3 : 4;
+            MultiVideoGrid.Columns = columns;
+            MultiVideoGrid.Rows = capacity / columns;
+
+            foreach (int channel in channels.Take(capacity))
+            {
+                var picture = new Forms.PictureBox
+                {
+                    BackColor = System.Drawing.Color.Black,
+                    Dock = Forms.DockStyle.Fill,
+                    SizeMode = Forms.PictureBoxSizeMode.Normal
+                };
+                picture.CreateControl();
+                var host = new FormsIntegration.WindowsFormsHost { Child = picture, Background = Brushes.Black };
+                var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
+                tile.Children.Add(host);
+                var channelLabel = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(220, 15, 23, 42)),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Margin = new Thickness(7),
+                    Padding = new Thickness(7, 3, 7, 3),
+                    CornerRadius = new CornerRadius(3),
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Child = new TextBlock
+                    {
+                        Text = $"{_currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}"} | CH {channel}",
+                        Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = 11
+                    }
+                };
+                channelLabel.MouseLeftButtonDown += (_, args) =>
+                {
+                    _currentChannel = channel;
+                    HighlightActiveChannelButton(channel);
+                    ChannelNameEditBox.Text = _currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}";
+                    args.Handled = true;
+                };
+                tile.Children.Add(channelLabel);
+                MultiVideoGrid.Children.Add(tile);
+                _multiViewSlots.Add(new MultiViewSlot { Channel = channel, PictureBox = picture, Host = host });
+            }
+        }
+
+        private void StartMultiLive_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDevice == null) return;
+            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                Connect_Click(sender, e);
+                return;
+            }
+            StartMultiLiveForSelectedChannels();
+        }
+
+        private void StartMultiLiveForSelectedChannels()
+        {
+            if (_loginId == IntPtr.Zero || _currentDevice == null) return;
+            var channels = GetModernSelectedChannels();
+            if (channels.Count == 0) channels.Add(_currentChannel);
+            channels = channels.Take(GetMultiViewCapacity()).ToList();
+            _currentChannel = channels[0];
+            HighlightActiveChannelButton(_currentChannel);
+
+            StopSynchronizedPlayback();
+            if (_realPlayHandle != IntPtr.Zero)
+            {
+                DahuaNetSdk.CLIENT_StopRealPlayEx(_realPlayHandle);
+                _realPlayHandle = IntPtr.Zero;
+            }
+            BuildMultiViewSlots(channels);
+
+            var streamType = StreamTypeBox.SelectedIndex == 1
+                ? DahuaNetSdk.EM_RealPlayType.Realplay_1 : DahuaNetSdk.EM_RealPlayType.Realplay;
+            int started = 0;
+            foreach (var slot in _multiViewSlots)
+            {
+                slot.StreamHandle = DahuaNetSdk.CLIENT_RealPlayEx(
+                    _loginId, Math.Max(0, slot.Channel - 1), slot.PictureBox.Handle, streamType);
+                if (slot.StreamHandle != IntPtr.Zero) started++;
+                else WriteSdkDiagnostic($"Multi-view live failed. Channel={slot.Channel}; error=0x{DahuaNetSdk.CLIENT_GetLastError():X8}.");
+            }
+            StatusLabel.Text = $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów.";
+            PlaybackSyncStatusText.Text = "Podgląd na żywo";
+        }
+
+        private void StopMultiLiveStreams()
+        {
+            foreach (var slot in _multiViewSlots)
+            {
+                if (slot.StreamHandle == IntPtr.Zero) continue;
+                try { DahuaNetSdk.CLIENT_StopRealPlayEx(slot.StreamHandle); } catch { }
+                slot.StreamHandle = IntPtr.Zero;
+            }
+        }
+
+        private void StartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDevice == null) return;
+            DateTime? start = GetStartDateTime();
+            DateTime? end = GetEndDateTime();
+            if (start == null || end == null || end <= start)
+            {
+                MessageBox.Show("Wybierz poprawny przedział czasu.", "Błędny zakres", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice.Id, StringComparison.Ordinal))
+            {
+                Connect_Click(sender, e);
+                if (_loginId == IntPtr.Zero) return;
+            }
+
+            var channels = GetModernSelectedChannels();
+            if (channels.Count == 0) channels.Add(GetSelectedArchiveChannel());
+            channels = channels.Take(GetMultiViewCapacity()).ToList();
+            _currentChannel = channels[0];
+            HighlightActiveChannelButton(_currentChannel);
+            StopMultiLiveStreams();
+            if (_realPlayHandle != IntPtr.Zero)
+            {
+                DahuaNetSdk.CLIENT_StopRealPlayEx(_realPlayHandle);
+                _realPlayHandle = IntPtr.Zero;
+            }
+            StopSynchronizedPlayback();
+            BuildMultiViewSlots(channels);
+
+            _playbackRangeStart = start.Value;
+            _playbackRangeEnd = end.Value;
+            _playbackElapsedBeforePause = 0;
+            _playbackSegmentStartedAt = DateTime.Now;
+            _synchronizedPlaybackPaused = false;
+            PlaybackPositionSlider.Minimum = 0;
+            PlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
+            PlaybackPositionSlider.Value = 0;
+            PlaybackPositionSlider.IsEnabled = true;
+
+            try
+            {
+                ConfigureDahuaRecordModes(_loginId);
+                int started = 0;
+                foreach (var slot in _multiViewSlots)
+                {
+                    var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
+                    var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
+                    slot.PlaybackHandle = DahuaNetSdk.CLIENT_PlayBackByTimeEx(
+                        _loginId, Math.Max(0, slot.Channel - 1), ref tmStart, ref tmEnd,
+                        slot.PictureBox.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                    if (slot.PlaybackHandle != IntPtr.Zero)
+                    {
+                        _multiPlaybackHandles.Add(slot.PlaybackHandle);
+                        started++;
+                    }
+                    else WriteSdkDiagnostic($"Synchronized playback failed. Channel={slot.Channel}; error=0x{DahuaNetSdk.CLIENT_GetLastError():X8}.");
+                }
+                if (started == 0)
+                    throw new InvalidOperationException("Rejestrator nie uruchomił odtwarzania na żadnym z wybranych kanałów.");
+                _playbackUiTimer.Start();
+                PlaybackSyncStatusText.Text = $"Synchronizacja czasu: {started}/{channels.Count} kanałów";
+                StatusLabel.Text = $"Odtwarzanie zsynchronizowane: {started} kanałów od {start.Value:HH:mm:ss}.";
+            }
+            catch (Exception ex)
+            {
+                StopSynchronizedPlayback();
+                StatusLabel.Text = $"Błąd zsynchronizowanego odtwarzania: {ex.Message}";
+                MessageBox.Show(ex.Message, "Archiwum Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void PlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isSeekingPlayback = true;
+        }
+
+        private void PlaybackUiTimer_Tick(object? sender, EventArgs e)
+        {
+            if (_isSeekingPlayback || _synchronizedPlaybackPaused || _multiPlaybackHandles.Count == 0) return;
+            double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
+            elapsed = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
+            PlaybackPositionSlider.Value = elapsed;
+            TimeSpan position = TimeSpan.FromSeconds(elapsed);
+            PlaybackPositionText.Text = $"{_playbackRangeStart.Add(position):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
+            if (elapsed >= PlaybackPositionSlider.Maximum)
+            {
+                _playbackUiTimer.Stop();
+                PlaybackSyncStatusText.Text = "Koniec zakresu archiwum";
+            }
+        }
+
+        private void ToggleSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        {
+            if (_multiPlaybackHandles.Count == 0) return;
+            bool pause = !_synchronizedPlaybackPaused;
+            var succeededHandles = new List<IntPtr>();
+            foreach (IntPtr handle in _multiPlaybackHandles)
+                if (DahuaNetSdk.CLIENT_PausePlayBack(handle, pause))
+                    succeededHandles.Add(handle);
+
+            if (succeededHandles.Count != _multiPlaybackHandles.Count)
+            {
+                // Roll back successful handles so the group does not knowingly drift
+                // into a mixed paused/playing state.
+                foreach (IntPtr handle in succeededHandles)
+                    DahuaNetSdk.CLIENT_PausePlayBack(handle, !pause);
+                StatusLabel.Text = $"Nie wszystkie kanały przyjęły polecenie pauzy/wznowienia ({succeededHandles.Count}/{_multiPlaybackHandles.Count}).";
+                PlaybackSyncStatusText.Text = "Nie udało się zsynchronizować sterowania";
+                return;
+            }
+            if (pause)
+            {
+                _playbackElapsedBeforePause += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
+                _synchronizedPlaybackPaused = true;
+                _playbackUiTimer.Stop();
+            }
+            else
+            {
+                _playbackSegmentStartedAt = DateTime.Now;
+                _synchronizedPlaybackPaused = false;
+                _playbackUiTimer.Start();
+            }
+            PlaybackSyncStatusText.Text = pause ? "Wstrzymano wszystkie kanały" : "Wznowiono wszystkie kanały";
+        }
+
+        private void PlaybackSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _isSeekingPlayback = false;
+            if (_multiPlaybackHandles.Count == 0) return;
+            int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, PlaybackPositionSlider.Maximum);
+            int succeeded = 0;
+            foreach (IntPtr handle in _multiPlaybackHandles)
+                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
+            if (succeeded != _multiPlaybackHandles.Count)
+            {
+                StatusLabel.Text = $"Przewijanie nie powiodło się na wszystkich kanałach ({succeeded}/{_multiPlaybackHandles.Count}).";
+                PlaybackSyncStatusText.Text = "Pozycja kanałów może być różna";
+                return;
+            }
+            _playbackElapsedBeforePause = offsetSeconds;
+            _playbackSegmentStartedAt = DateTime.Now;
+            PlaybackPositionText.Text = $"{_playbackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
+            PlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_multiPlaybackHandles.Count}";
+        }
+
+        private void StopPlaybackHandlesOnly()
+        {
+            foreach (IntPtr handle in _multiPlaybackHandles)
+            {
+                try { DahuaNetSdk.CLIENT_StopPlayBack(handle); } catch { }
+            }
+            _multiPlaybackHandles.Clear();
+            foreach (var slot in _multiViewSlots) slot.PlaybackHandle = IntPtr.Zero;
+        }
+
+        private void StopSynchronizedPlayback()
+        {
+            _playbackUiTimer.Stop();
+            StopPlaybackHandlesOnly();
+            _synchronizedPlaybackPaused = false;
+            _playbackElapsedBeforePause = 0;
+            if (PlaybackPositionSlider != null)
+            {
+                PlaybackPositionSlider.IsEnabled = false;
+                PlaybackPositionSlider.Value = 0;
+            }
+            if (PlaybackPositionText != null) PlaybackPositionText.Text = "00:00:00 / 00:00:00";
+        }
+
+        private void StopSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        {
+            StopSynchronizedPlayback();
+            PlaybackSyncStatusText.Text = "Odtwarzanie zatrzymane";
+            StatusLabel.Text = "Zatrzymano zsynchronizowane odtwarzanie archiwum.";
         }
 
         #endregion
@@ -1272,19 +1891,28 @@ namespace VideoPlayer
 
         private string? CaptureFrameToFile()
         {
-            if (_realPlayHandle == IntPtr.Zero && _playbackHandle == IntPtr.Zero)
+            MultiViewSlot? activeSlot = _multiViewSlots.FirstOrDefault(slot =>
+                slot.Channel == _currentChannel &&
+                (slot.StreamHandle != IntPtr.Zero || slot.PlaybackHandle != IntPtr.Zero));
+            activeSlot ??= _multiViewSlots.FirstOrDefault(slot =>
+                slot.StreamHandle != IntPtr.Zero || slot.PlaybackHandle != IntPtr.Zero);
+
+            if (activeSlot == null && _realPlayHandle == IntPtr.Zero && _playbackHandle == IntPtr.Zero)
             {
                 MessageBox.Show("Najpierw uruchom strumień wideo.", "Brak strumienia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return null;
             }
 
-            IntPtr handle = _realPlayHandle != IntPtr.Zero ? _realPlayHandle : _playbackHandle;
+            IntPtr handle = activeSlot != null
+                ? (activeSlot.StreamHandle != IntPtr.Zero ? activeSlot.StreamHandle : activeSlot.PlaybackHandle)
+                : (_realPlayHandle != IntPtr.Zero ? _realPlayHandle : _playbackHandle);
+            int captureChannel = activeSlot?.Channel ?? _currentChannel;
 
             try
             {
                 string folder = Path.Combine(AppContext.BaseDirectory, "zrzuty");
                 Directory.CreateDirectory(folder);
-                string filename = $"Dahua_CH{_currentChannel}_{DateTime.Now:yyyyMMdd_HHmmssfff}.jpg";
+                string filename = $"Dahua_CH{captureChannel}_{DateTime.Now:yyyyMMdd_HHmmssfff}.jpg";
                 string fullPath = Path.Combine(folder, filename);
 
                 bool ok = DahuaNetSdk.CLIENT_CapturePictureEx(handle, fullPath, DahuaNetSdk.NET_CAPTURE_FORMATS.JPEG);
@@ -1492,9 +2120,12 @@ namespace VideoPlayer
                 ArchiveRecordsGrid.ItemsSource = records;
                 foreach (DahuaRecordItem record in records)
                 {
-                    // Mark every calendar day touched by a returned recording.
+                    // A detailed search is stronger confirmation than the month availability probe.
                     for (DateTime day = record.StartTime.Date; day <= record.EndTime.Date; day = day.AddDays(1))
+                    {
                         _archiveAvailableDays.Add(day);
+                        _recorderAvailableDays.Add(day);
+                    }
                 }
                 RefreshOpenArchiveCalendars();
 
@@ -1549,7 +2180,8 @@ namespace VideoPlayer
                 return;
             }
             ApplyRecordRange(record);
-            PlayArchiveInWindow_Click(sender, e);
+            SelectModernChannel(record.Channel);
+            StartSynchronizedPlayback_Click(sender, e);
         }
 
         private void LoadSelectedRecord_Click(object sender, RoutedEventArgs e)
@@ -1799,61 +2431,8 @@ namespace VideoPlayer
 
         private void PlayArchiveInWindow_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentDevice == null) return;
-
-            var start = GetStartDateTime();
-            var end = GetEndDateTime();
-            if (start == null || end == null || end <= start)
-            {
-                MessageBox.Show("Wybierz poprawny przedział czasu.", "Błędny zakres dat", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            int channel = GetSelectedArchiveChannel();
-            int channelIndex = Math.Max(0, channel - 1);
-
-            if (_loginId == IntPtr.Zero || !string.Equals(_connectedDeviceId, _currentDevice?.Id, StringComparison.Ordinal))
-            {
-                Connect_Click(sender, e);
-                if (_loginId == IntPtr.Zero) return;
-            }
-
-            try
-            {
-                if (_realPlayHandle != IntPtr.Zero)
-                {
-                    DahuaNetSdk.CLIENT_StopRealPlayEx(_realPlayHandle);
-                    _realPlayHandle = IntPtr.Zero;
-                }
-                if (_playbackHandle != IntPtr.Zero)
-                {
-                    DahuaNetSdk.CLIENT_StopPlayBack(_playbackHandle);
-                    _playbackHandle = IntPtr.Zero;
-                }
-
-                ConfigureDahuaRecordModes(_loginId);
-                var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
-                var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
-
-                _playbackHandle = DahuaNetSdk.CLIENT_PlayBackByTimeEx(
-                    _loginId, channelIndex, ref tmStart, ref tmEnd, _primaryPictureBox.Handle,
-                    IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-                string chName = _currentDevice?.GetChannelName(channel) ?? $"Kanał {channel}";
-
-                if (_playbackHandle == IntPtr.Zero)
-                {
-                    uint err = DahuaNetSdk.CLIENT_GetLastError();
-                    StatusLabel.Text = $"Błąd odtwarzania archiwalnego: {DahuaNetSdk.GetErrorDescription(err)}";
-                }
-                else
-                {
-                    StatusLabel.Text = $"Odtwarzanie archiwalne: {chName} ({start.Value:g} — {end.Value:g})";
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusLabel.Text = $"Wyjątek odtwarzania archiwalnego: {ex.Message}";
-            }
+            SelectModernChannel(GetSelectedArchiveChannel());
+            StartSynchronizedPlayback_Click(sender, e);
         }
 
         #endregion
@@ -1865,6 +2444,7 @@ namespace VideoPlayer
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            _playbackUiTimer.Stop();
             Disconnect();
             if (_sdkInitialized)
             {

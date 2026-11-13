@@ -341,8 +341,23 @@ namespace VideoPlayer
             IntPtr dwDataUser);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
-
         public static extern bool CLIENT_StopPlayBack(IntPtr lPlayHandle);
+
+        // Dahua NetSDK Programming Guide: playback control APIs.
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
+        public static extern bool CLIENT_PausePlayBack(IntPtr lPlayHandle, bool bPause);
+
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
+        public static extern bool CLIENT_SeekPlayBack(IntPtr lPlayHandle, int nOffsetSeconds, int nOffsetBytes);
+
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
+        public static extern bool CLIENT_FastPlayBack(IntPtr lPlayHandle);
+
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
+        public static extern bool CLIENT_SlowPlayBack(IntPtr lPlayHandle);
+
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
+        public static extern bool CLIENT_NormalPlayBack(IntPtr lPlayHandle);
 
         [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall)]
         public static extern uint CLIENT_GetLastError();

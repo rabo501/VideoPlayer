@@ -8,6 +8,54 @@
         Background="#0F1117" Foreground="#F8FAFC" FontFamily="Segoe UI" FontSize="13"
         Loaded="Window_Loaded" Closing="Window_Closing">
     <Window.Resources>
+
+        <!-- Czytelne zaznaczenie elementów list: bez domyślnego białego tła systemowego. -->
+        <Style TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="Margin" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#334155"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#64748B"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#1E40AF"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#60A5FA"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#2563EB"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#BFDBFE"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ItemBorder" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- Przyciski ogólne -->
         <Style TargetType="Button">
             <Setter Property="Background" Value="#292E39" />
@@ -32,6 +80,15 @@
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="BtnBorder" Property="Background" Value="#1F232B" />
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#94A3B8" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#FBBF24" />
+                                <Setter TargetName="BtnBorder" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                            <Trigger Property="IsDefaulted" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#1D4ED8" />
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#93C5FD" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="BtnBorder" Property="Opacity" Value="0.45" />
@@ -267,21 +324,63 @@
         <!-- Główna zawartość -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230" MinWidth="200" />
                 <ColumnDefinition Width="*" MinWidth="480" />
-                <ColumnDefinition Width="430" MinWidth="370" />
+                <ColumnDefinition Width="410" MinWidth="360" />
             </Grid.ColumnDefinitions>
 
+            <!-- Lewy panel urządzeń i wyboru kanałów — układ w stylu SmartPSS Lite -->
+            <Border Grid.Column="0" Background="#171D29" BorderBrush="#344155" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,0,8,0">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="URZĄDZENIA" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,2,0,6"/>
+                        <ListBox x:Name="ModernDevicesListBox" Height="150" Background="#0F1724" Foreground="#F8FAFC"
+                                 BorderBrush="#475569" SelectionChanged="ModernDevicesListBox_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="3">
+                                        <TextBlock Text="{Binding Name}" Foreground="#F8FAFC" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding DisplayLabel}" Foreground="#94A3B8" FontSize="10"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button Content="⚙ Konfiguracja urządzeń" Click="OpenConfiguration_Click" Style="{StaticResource BlueButton}"
+                                HorizontalAlignment="Stretch" Margin="0,7,0,12"/>
+                        <TextBlock Text="KANAŁY" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,0,0,6"/>
+                        <TextBlock Text="Zaznacz kanały do podglądu lub zsynchronizowanego odtwarzania archiwum."
+                                   Foreground="#CBD5E1" FontSize="10" TextWrapping="Wrap" Margin="2,0,0,6"/>
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <TextBlock Text="UKŁAD PODGLĄDU" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="2,0,0,5"/>
+                        <ComboBox x:Name="ModernGridModeBox" SelectedIndex="1" SelectionChanged="ModernGridModeBox_SelectionChanged">
+                            <ComboBoxItem Content="1 kamera"/>
+                            <ComboBoxItem Content="4 kamery"/>
+                            <ComboBoxItem Content="9 kamer"/>
+                            <ComboBoxItem Content="16 kamer"/>
+                        </ComboBox>
+                        <Button Content="▶ Podgląd zaznaczonych" Click="StartMultiLive_Click" Style="{StaticResource GreenButton}"
+                                HorizontalAlignment="Stretch" Margin="0,7,0,0"/>
+                    </StackPanel>
+                    <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ModernChannelChecksPanel"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
             <!-- Lewa strona: Ekran Wideo + Pasek kanałów -->
-            <Grid Grid.Column="0" Margin="0,0,10,0">
+            <Grid Grid.Column="1" Margin="0,0,8,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Ekran wideo -->
                 <Border Grid.Row="0" Background="#000000" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
                     <Grid x:Name="VideoContainerGrid">
-                        <wfi:WindowsFormsHost x:Name="PrimaryVideoHost" Background="#000000" />
+                        <wfi:WindowsFormsHost x:Name="PrimaryVideoHost" Background="#000000" Visibility="Collapsed" />
+                        <UniformGrid x:Name="MultiVideoGrid" Rows="1" Columns="1" Background="#000000"/>
                         <Border x:Name="StreamOverlay" Background="#B0000000" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" CornerRadius="8" Padding="22">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock x:Name="OverlayText" Text="Brak aktywnego strumienia" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
@@ -315,17 +414,98 @@
                         </WrapPanel>
                     </StackPanel>
                 </Border>
+
+                <!-- Wspólna oś czasu odtwarzania archiwalnego -->
+                <Border Grid.Row="2" Background="#171D29" BorderBrush="#344155" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,8,0,0">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,5">
+                            <TextBlock Text="ODTWARZANIE ARCHIWUM" Foreground="#F8FAFC" FontWeight="Bold" FontSize="11"/>
+                            <TextBlock x:Name="PlaybackPositionText" Text="00:00:00 / 00:00:00" Foreground="#93C5FD"
+                                       FontWeight="Bold" FontSize="11" HorizontalAlignment="Right"/>
+                        </DockPanel>
+                        <Slider x:Name="PlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
+                                IsEnabled="False" PreviewMouseLeftButtonDown="PlaybackSlider_MouseLeftButtonDown"
+                                PreviewMouseLeftButtonUp="PlaybackSlider_MouseLeftButtonUp"
+                                TickFrequency="60" IsSnapToTickEnabled="False"/>
+                        <DockPanel Margin="0,4,0,0">
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                <Button Content="▶ Start" Click="StartSynchronizedPlayback_Click" Style="{StaticResource GreenButton}" Padding="10,5"/>
+                                <Button Content="Ⅱ / ▶" Click="ToggleSynchronizedPlayback_Click" Padding="10,5"/>
+                                <Button Content="■ Stop" Click="StopSynchronizedPlayback_Click" Style="{StaticResource RedButton}" Padding="10,5"/>
+                            </StackPanel>
+                            <TextBlock x:Name="PlaybackSyncStatusText" Text="Wybierz kanały i zakres czasu."
+                                       Foreground="#CBD5E1" FontSize="10" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
             </Grid>
 
             <!-- Prawa strona: Panel narzędzi (Strumień Live / Presety PTZ / Archiwum) -->
-            <Border Grid.Column="1" Background="#1A1E28" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10">
-                <TabControl Background="#1A1E28" BorderThickness="0" Padding="4">
+            <Border Grid.Column="2" Background="#1A1E28" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10">
+                <TabControl Background="#1A1E28" BorderThickness="0" Padding="2" ClipToBounds="False">
+                    <TabControl.ItemContainerStyle>
+                        <Style TargetType="{x:Type TabItem}">
+                            <Setter Property="MinWidth" Value="132"/>
+                            <Setter Property="MinHeight" Value="42"/>
+                            <Setter Property="Margin" Value="2,2,8,8"/>
+                            <Setter Property="Padding" Value="10,8"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="Foreground" Value="#CBD5E1"/>
+                            <Setter Property="Background" Value="#252D3A"/>
+                            <Setter Property="BorderBrush" Value="#475569"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type TabItem}">
+                                        <Border x:Name="TabBorder"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="5"
+                                                Padding="{TemplateBinding Padding}"
+                                                SnapsToDevicePixels="True"
+                                                UseLayoutRounding="True">
+                                            <ContentPresenter ContentSource="Header"
+                                                              RecognizesAccessKey="True"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                                              TextElement.FontWeight="{TemplateBinding FontWeight}"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="TabBorder" Property="Background" Value="#1D4ED8"/>
+                                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#60A5FA"/>
+                                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#93C5FD"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter TargetName="TabBorder" Property="Opacity" Value="0.45"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    <Setter Property="Background" Value="#1D4ED8"/>
+                                    <Setter Property="BorderBrush" Value="#60A5FA"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TabControl.ItemContainerStyle>
                     <!-- ZAKŁADKA 1: Podgląd na żywo, nazwy kanałów & PTZ z Presetami -->
-                    <TabItem Header="Strumień Na Żywo &amp; PTZ">
+                    <TabItem Header="Strumień na żywo">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
                             <StackPanel>
                                 <TextBlock Text="ZAPISANE KAMERY I REJESTRATORY DAHUA" Style="{StaticResource FieldLabel}" Margin="0,4,0,6" />
-                                <ListBox x:Name="DevicesListBox" Height="110" Background="#13161F" Foreground="#FFFFFF" BorderBrush="#4A5568" Margin="0,0,0,8" SelectionChanged="DevicesListBox_SelectionChanged">
+                                <ListBox x:Name="DevicesListBox" Height="110" Visibility="Collapsed" Background="#13161F" Foreground="#FFFFFF" BorderBrush="#4A5568" Margin="0,0,0,8" SelectionChanged="DevicesListBox_SelectionChanged">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="2,3">
@@ -337,7 +517,7 @@
                                 </ListBox>
 
                                 <!-- Formularz edycji nazwy i parametrów urządzenia -->
-                                <Border Background="#161922" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                                <Border Background="#161922" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10" Visibility="Collapsed">
                                     <StackPanel>
                                         <TextBlock Text="PARAMETRY WYBRANEGO URZĄDZENIA" FontWeight="Bold" FontSize="11" Foreground="#38BDF8" Margin="0,0,0,6" />
 
@@ -515,7 +695,7 @@
                     </TabItem>
 
                     <!-- ZAKŁADKA 2: Wczytywanie nagrania wg nazwy kanału i dat do GŁÓWNEGO ODTWARZACZA -->
-                    <TabItem Header="Archiwum wg Daty (Pełny Odtwarzacz)">
+                    <TabItem Header="Archiwum">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
                             <StackPanel>
                                 <Border Background="#166534" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,4,0,14">
@@ -550,12 +730,17 @@
                                     <TextBox x:Name="EndTimeBox" Grid.Column="1" Text="12:15:00" ToolTip="Godzina:Minuta:Sekunda (np. 14:45:00)" FontWeight="Bold" />
                                 </Grid>
 
-                                <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
-                                    <Border Width="12" Height="12" Background="#166534" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
-                                    <TextBlock Text="Dzień z nagraniami (ostatnie wyszukiwanie)" Foreground="#D1FAE5" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <WrapPanel Margin="0,0,0,5" VerticalAlignment="Center">
+                                    <Border Width="12" Height="12" Background="#14532D" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
+                                    <TextBlock Text="Nagrania dostępne na rejestratorze" Foreground="#BBF7D0" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <Border Width="12" Height="12" Background="#16A34A" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
+                                    <TextBlock Text="Znalezione w ostatnim wyszukiwaniu" Foreground="#D1FAE5" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0" />
                                     <Border Width="12" Height="12" Background="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="2" Margin="0,0,5,0" />
                                     <TextBlock Text="Wybrany dzień" Foreground="#DBEAFE" FontSize="10" VerticalAlignment="Center" />
                                 </WrapPanel>
+                                <TextBlock x:Name="CalendarAvailabilityStatusText"
+                                           Text="Otwórz kalendarz, aby sprawdzić dostępność nagrań na rejestratorze."
+                                           Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <Button x:Name="SearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="SearchArchive_Click" Style="{StaticResource BlueButton}" Padding="12,8" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="NAGRANIA ZNALEZIONE NA URZĄDZENIU" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
                                 <DataGrid x:Name="ArchiveRecordsGrid" Height="210" AutoGenerateColumns="False"
