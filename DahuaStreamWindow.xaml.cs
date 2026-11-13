@@ -1121,8 +1121,15 @@ namespace VideoPlayer
 
             Disconnect();
             ushort port = validatedPort;
-            string user = _currentDevice.Username;
-            string pass = _currentDevice.Password;
+            string user = _currentDevice.Username ?? string.Empty;
+            string pass = _currentDevice.Password ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(user) || string.IsNullOrEmpty(pass))
+            {
+                StatusLabel.Text = "Brak danych logowania. Otwórz konfigurację urządzenia i wpisz użytkownika oraz hasło.";
+                MessageBox.Show(StatusLabel.Text, "Brak danych logowania", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             StatusLabel.Text = $"Logowanie do {ip}:{port}…";
             WriteSdkDiagnostic($"Connect requested. Host={ip}; port={port}; username length={user?.Length ?? 0}.");
