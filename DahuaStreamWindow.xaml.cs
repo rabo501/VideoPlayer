@@ -63,6 +63,8 @@ namespace VideoPlayer
         private bool _isSeekingPlayback;
         private bool _updatingChannelChecks;
         private bool _connectForCalendarAvailability;
+        private double _archivePlaybackSpeed = 1.0;
+        private bool _updatingArchiveSpeed;
 
         private sealed class MultiViewSlot
         {
@@ -1891,6 +1893,10 @@ namespace VideoPlayer
             _playbackElapsedBeforePause = 0;
             _playbackSegmentStartedAt = DateTime.Now;
             _synchronizedPlaybackPaused = false;
+            _archivePlaybackSpeed = 1.0;
+            _updatingArchiveSpeed = true;
+            ArchiveSpeedBox.SelectedIndex = 2;
+            _updatingArchiveSpeed = false;
             PlaybackPositionSlider.Minimum = 0;
             PlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
             PlaybackPositionSlider.Value = 0;
@@ -1928,6 +1934,177 @@ namespace VideoPlayer
             }
         }
 
+        private void RecordingTimelineCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            RefreshRecordingTimeline();
+        }
+
+        private void RefreshRecordingTimeline()
+        {
+            if (RecordingTimelineCanvas == null) return;
+            RecordingTimelineCanvas.Children.Clear();
+            double width = RecordingTimelineCanvas.ActualWidth;
+            if (width <= 0) return;
+
+            DateTime selectedDay = (StartDatePicker.SelectedDate ?? DateTime.Today).Date;
+            var records = (ArchiveRecordsGrid.ItemsSource as IEnumerable<DahuaRecordItem>)?.ToList()
+                          ?? new List<DahuaRecordItem>();
+            const double left = 24;
+            const double right = 8;
+            double usableWidth = Math.Max(1, width - left - right);
+            double xForHour(double hour) => left + usableWidth * hour / 24.0;
+
+            // Hour labels and subtle vertical guides, like the recorder timeline in SmartPSS.
+            for (int hour = 0; hour <= 24; hour += 2)
+            {
+                double xPos = xForHour(hour);
+                var line = new System.Windows.Shapes.Line
+                {
+                    X1 = xPos, X2 = xPos, Y1 = 0, Y2 = 42,
+                    Stroke = new SolidColorBrush(Color.FromRgb(55, 65, 81)),
+                    StrokeThickness = 1,
+                    IsHitTestVisible = false
+                };
+                RecordingTimelineCanvas.Children.Add(line);
+                var label = new TextBlock
+                {
+                    Text = hour.ToString("00"),
+                    Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+                    FontSize = 9,
+                    Width = 20,
+                    TextAlignment = TextAlignment.Center,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(label, Math.Clamp(xPos - 10, 0, Math.Max(0, width - 20)));
+                Canvas.SetTop(label, 0);
+                RecordingTimelineCanvas.Children.Add(label);
+            }
+
+            foreach (DahuaRecordItem record in records)
+            {
+                DateTime segmentStart = record.StartTime < selectedDay ? selectedDay : record.StartTime;
+                DateTime dayEnd = selectedDay.AddDays(1);
+                DateTime segmentEnd = record.EndTime > dayEnd ? dayEnd : record.EndTime;
+                if (segmentEnd <= segmentStart || record.StartTime.Date > selectedDay || record.EndTime.Date < selectedDay)
+                    continue;
+
+                double x1 = xForHour((segmentStart - selectedDay).TotalHours);
+                double x2 = xForHour((segmentEnd - selectedDay).TotalHours);
+                var block = new System.Windows.Shapes.Rectangle
+                {
+                    Width = Math.Max(2, x2 - x1),
+                    Height = 10,
+                    RadiusX = 2,
+                    RadiusY = 2,
+                    Fill = new SolidColorBrush(Color.FromRgb(34, 197, 94)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(74, 222, 128)),
+                    StrokeThickness = 0.5,
+                    ToolTip = $"{record.StartTime:HH:mm:ss} – {record.EndTime:HH:mm:ss}",
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(block, x1);
+                Canvas.SetTop(block, 25);
+                RecordingTimelineCanvas.Children.Add(block);
+            }
+
+            if (records.Count == 0)
+            {
+                var hint = new TextBlock
+                {
+                    Text = "Wyszukaj nagrania, aby wyświetlić godziny zarejestrowanego materiału",
+                    Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
+                    FontSize = 9,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(hint, left);
+                Canvas.SetTop(hint, 27);
+                RecordingTimelineCanvas.Children.Add(hint);
+            }
+        }
+
+        private void RecordingTimelineCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_currentDevice == null || RecordingTimelineCanvas.ActualWidth <= 0) return;
+            Point point = e.GetPosition(RecordingTimelineCanvas);
+            const double left = 24;
+            double usableWidth = Math.Max(1, RecordingTimelineCanvas.ActualWidth - left - 8);
+            double hour = Math.Clamp((point.X - left) / usableWidth * 24.0, 0, 24);
+            DateTime selectedTime = (StartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(hour * 3600);
+            StartTimeBox.Text = selectedTime.ToString("HH:mm:ss");
+
+            // If the clicked time belongs to the active playback interval, seek all channels.
+            if (_multiPlaybackHandles.Count > 0 &&
+                selectedTime >= _playbackRangeStart && selectedTime <= _playbackRangeEnd)
+            {
+                int offset = (int)Math.Clamp((selectedTime - _playbackRangeStart).TotalSeconds, 0, PlaybackPositionSlider.Maximum);
+                PlaybackPositionSlider.Value = offset;
+                SeekSynchronizedPlayback(offset);
+            }
+            else
+            {
+                PlaybackSyncStatusText.Text = $"Wybrano godzinę {selectedTime:HH:mm:ss}. Ustaw zakres i naciśnij Start.";
+            }
+            e.Handled = true;
+        }
+
+        private void ArchiveSpeedBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_updatingArchiveSpeed || !IsLoaded || _multiPlaybackHandles.Count == 0 ||
+                ArchiveSpeedBox.SelectedItem is not ComboBoxItem item ||
+                !double.TryParse(item.Tag?.ToString(), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out double requestedSpeed))
+                return;
+
+            double elapsed = _playbackElapsedBeforePause;
+            if (!_synchronizedPlaybackPaused)
+                elapsed += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+
+            int succeeded = 0;
+            foreach (IntPtr handle in _multiPlaybackHandles)
+            {
+                bool ok = DahuaNetSdk.CLIENT_NormalPlayBack(handle);
+                int steps = requestedSpeed == 1.0 ? 0 : (int)Math.Round(Math.Abs(Math.Log(requestedSpeed, 2)));
+                for (int step = 0; ok && step < steps; step++)
+                    ok = requestedSpeed > 1.0
+                        ? DahuaNetSdk.CLIENT_FastPlayBack(handle)
+                        : DahuaNetSdk.CLIENT_SlowPlayBack(handle);
+                if (ok) succeeded++;
+            }
+
+            if (succeeded != _multiPlaybackHandles.Count)
+            {
+                foreach (IntPtr handle in _multiPlaybackHandles)
+                    DahuaNetSdk.CLIENT_NormalPlayBack(handle);
+                _archivePlaybackSpeed = 1.0;
+                _updatingArchiveSpeed = true;
+                ArchiveSpeedBox.SelectedIndex = 2;
+                _updatingArchiveSpeed = false;
+                PlaybackSyncStatusText.Text = "Rejestrator nie przyjął zmiany tempa na wszystkich kanałach. Przywrócono 1×.";
+                return;
+            }
+
+            _playbackElapsedBeforePause = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
+            _playbackSegmentStartedAt = DateTime.Now;
+            _archivePlaybackSpeed = requestedSpeed;
+            PlaybackSyncStatusText.Text = $"Tempo odtwarzania: {requestedSpeed.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}× ({succeeded} kanałów)";
+        }
+
+        private void SeekSynchronizedPlayback(int offsetSeconds)
+        {
+            int succeeded = 0;
+            foreach (IntPtr handle in _multiPlaybackHandles)
+                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
+            if (succeeded != _multiPlaybackHandles.Count)
+            {
+                PlaybackSyncStatusText.Text = $"Przewijanie nie powiodło się na wszystkich kanałach ({succeeded}/{_multiPlaybackHandles.Count}).";
+                return;
+            }
+            _playbackElapsedBeforePause = offsetSeconds;
+            _playbackSegmentStartedAt = DateTime.Now;
+            PlaybackPositionText.Text = $"{_playbackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
+            PlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_multiPlaybackHandles.Count}";
+        }
+
         private void PlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _isSeekingPlayback = true;
@@ -1936,7 +2113,7 @@ namespace VideoPlayer
         private void PlaybackUiTimer_Tick(object? sender, EventArgs e)
         {
             if (_isSeekingPlayback || _synchronizedPlaybackPaused || _multiPlaybackHandles.Count == 0) return;
-            double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
+            double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
             elapsed = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
             PlaybackPositionSlider.Value = elapsed;
             TimeSpan position = TimeSpan.FromSeconds(elapsed);
@@ -1987,19 +2164,7 @@ namespace VideoPlayer
             _isSeekingPlayback = false;
             if (_multiPlaybackHandles.Count == 0) return;
             int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, PlaybackPositionSlider.Maximum);
-            int succeeded = 0;
-            foreach (IntPtr handle in _multiPlaybackHandles)
-                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
-            if (succeeded != _multiPlaybackHandles.Count)
-            {
-                StatusLabel.Text = $"Przewijanie nie powiodło się na wszystkich kanałach ({succeeded}/{_multiPlaybackHandles.Count}).";
-                PlaybackSyncStatusText.Text = "Pozycja kanałów może być różna";
-                return;
-            }
-            _playbackElapsedBeforePause = offsetSeconds;
-            _playbackSegmentStartedAt = DateTime.Now;
-            PlaybackPositionText.Text = $"{_playbackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
-            PlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_multiPlaybackHandles.Count}";
+            SeekSynchronizedPlayback(offsetSeconds);
         }
 
         private void StopPlaybackHandlesOnly()
@@ -2018,6 +2183,13 @@ namespace VideoPlayer
             StopPlaybackHandlesOnly();
             _synchronizedPlaybackPaused = false;
             _playbackElapsedBeforePause = 0;
+            _archivePlaybackSpeed = 1.0;
+            if (ArchiveSpeedBox != null)
+            {
+                _updatingArchiveSpeed = true;
+                ArchiveSpeedBox.SelectedIndex = 2;
+                _updatingArchiveSpeed = false;
+            }
             if (PlaybackPositionSlider != null)
             {
                 PlaybackPositionSlider.IsEnabled = false;
@@ -2241,6 +2413,7 @@ namespace VideoPlayer
             DownloadStatusText.Visibility = Visibility.Visible;
             DownloadStatusText.Text = $"Wyszukiwanie nagrań: {_currentDevice.Name}, kanał {channel}…";
             ArchiveRecordsGrid.ItemsSource = null;
+            RefreshRecordingTimeline();
             _archiveAvailableDays.Clear();
             RefreshOpenArchiveCalendars();
             DevicesListBox.IsEnabled = false;
@@ -2312,6 +2485,7 @@ namespace VideoPlayer
                 });
 
                 ArchiveRecordsGrid.ItemsSource = records;
+                RefreshRecordingTimeline();
                 foreach (DahuaRecordItem record in records)
                 {
                     // A detailed search is stronger confirmation than the month availability probe.
