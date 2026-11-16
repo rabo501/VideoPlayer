@@ -424,9 +424,11 @@
                                        FontWeight="Bold" FontSize="11" HorizontalAlignment="Right"/>
                         </DockPanel>
                         <Slider x:Name="PlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
-                                IsEnabled="False" PreviewMouseLeftButtonDown="PlaybackSlider_MouseLeftButtonDown"
+                                IsEnabled="False" IsMoveToPointEnabled="True"
+                                PreviewMouseLeftButtonDown="PlaybackSlider_MouseLeftButtonDown"
                                 PreviewMouseLeftButtonUp="PlaybackSlider_MouseLeftButtonUp"
-                                TickFrequency="60" IsSnapToTickEnabled="False"/>
+                                LostMouseCapture="PlaybackSlider_LostMouseCapture"
+                                TickFrequency="1" IsSnapToTickEnabled="False"/>
                         <Border Background="#101722" BorderBrush="#344155" BorderThickness="1" CornerRadius="4"
                                 Padding="5,3" Margin="0,5,0,2">
                             <Grid>
@@ -437,7 +439,7 @@
                                 <Canvas x:Name="RecordingTimelineCanvas" Grid.RowSpan="2" Height="44"
                                         ClipToBounds="True" Background="Transparent"
                                         SizeChanged="RecordingTimelineCanvas_SizeChanged"
-                                        MouseLeftButtonDown="RecordingTimelineCanvas_MouseLeftButtonDown"
+                                        PreviewMouseLeftButtonDown="RecordingTimelineCanvas_MouseLeftButtonDown"
                                         MouseWheel="RecordingTimelineCanvas_MouseWheel"
                                         MouseRightButtonDown="RecordingTimelineCanvas_ResetZoom"/>
                             </Grid>
