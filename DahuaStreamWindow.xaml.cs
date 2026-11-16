@@ -880,7 +880,7 @@ namespace VideoPlayer
             ChannelButtonsPanel.Children.Clear();
             _channelButtons.Clear();
 
-            foreach (var chInfo in GetVisibleChannels().OrderBy(c => c.Number).Take(16))
+            foreach (var chInfo in GetVisibleChannels().OrderBy(c => c.Number))
             {
                 int ch = chInfo.Number;
                 string displayName = string.IsNullOrWhiteSpace(chInfo.Name) ? $"CH {ch}" : $"{chInfo.Name}\n[CH {ch}]";
