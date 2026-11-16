@@ -409,9 +409,12 @@
                                 <Button Content="Przełącz" Click="CustomChannel_Click" Padding="10,2" Margin="4,0,0,0" />
                             </StackPanel>
                         </DockPanel>
-                        <WrapPanel x:Name="ChannelButtonsPanel">
-                            <!-- Kafelki z nazwami kanałów generowane w C# -->
-                        </WrapPanel>
+                        <ScrollViewer MaxHeight="112" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <WrapPanel x:Name="ChannelButtonsPanel">
+                                <!-- Wszystkie aktywne kanały; przewijanie pionowe przy większej liczbie -->
+                            </WrapPanel>
+                        </ScrollViewer>
                     </StackPanel>
                 </Border>
 
