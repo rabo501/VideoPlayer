@@ -437,7 +437,9 @@
                                 <Canvas x:Name="RecordingTimelineCanvas" Grid.RowSpan="2" Height="44"
                                         ClipToBounds="True" Background="Transparent"
                                         SizeChanged="RecordingTimelineCanvas_SizeChanged"
-                                        MouseLeftButtonDown="RecordingTimelineCanvas_MouseLeftButtonDown"/>
+                                        MouseLeftButtonDown="RecordingTimelineCanvas_MouseLeftButtonDown"
+                                        MouseWheel="RecordingTimelineCanvas_MouseWheel"
+                                        MouseRightButtonDown="RecordingTimelineCanvas_ResetZoom"/>
                             </Grid>
                         </Border>
                         <DockPanel Margin="0,4,0,0">
