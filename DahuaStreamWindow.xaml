@@ -424,6 +424,7 @@
                                        FontWeight="Bold" FontSize="11" HorizontalAlignment="Right"/>
                         </DockPanel>
                         <Slider x:Name="PlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
+                                Margin="24,0,8,0"
                                 IsEnabled="False" IsMoveToPointEnabled="True"
                                 PreviewMouseLeftButtonDown="PlaybackSlider_MouseLeftButtonDown"
                                 PreviewMouseLeftButtonUp="PlaybackSlider_MouseLeftButtonUp"
