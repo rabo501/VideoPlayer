@@ -65,6 +65,8 @@ namespace VideoPlayer
         private bool _connectForCalendarAvailability;
         private double _archivePlaybackSpeed = 1.0;
         private bool _updatingArchiveSpeed;
+        private double _recordingTimelineZoom = 1.0;
+        private double _recordingTimelineStartHour = 0.0;
 
         private sealed class MultiViewSlot
         {
@@ -1952,10 +1954,15 @@ namespace VideoPlayer
             const double left = 24;
             const double right = 8;
             double usableWidth = Math.Max(1, width - left - right);
-            double xForHour(double hour) => left + usableWidth * hour / 24.0;
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStartHour = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double viewEndHour = viewStartHour + visibleHours;
+            double xForHour(double hour) => left + usableWidth * (hour - viewStartHour) / visibleHours;
 
-            // Hour labels and subtle vertical guides, like the recorder timeline in SmartPSS.
-            for (int hour = 0; hour <= 24; hour += 2)
+            // Adapt label density to the current zoom level.
+            int labelStep = visibleHours <= 3 ? 1 : visibleHours <= 8 ? 2 : visibleHours <= 16 ? 4 : 2;
+            int firstLabel = (int)Math.Ceiling(viewStartHour / labelStep) * labelStep;
+            for (int hour = firstLabel; hour <= Math.Min(24, viewEndHour); hour += labelStep)
             {
                 double xPos = xForHour(hour);
                 var line = new System.Windows.Shapes.Line
@@ -1988,8 +1995,11 @@ namespace VideoPlayer
                 if (segmentEnd <= segmentStart || record.StartTime.Date > selectedDay || record.EndTime.Date < selectedDay)
                     continue;
 
-                double x1 = xForHour((segmentStart - selectedDay).TotalHours);
-                double x2 = xForHour((segmentEnd - selectedDay).TotalHours);
+                double recordStartHour = (segmentStart - selectedDay).TotalHours;
+                double recordEndHour = (segmentEnd - selectedDay).TotalHours;
+                if (recordEndHour < viewStartHour || recordStartHour > viewEndHour) continue;
+                double x1 = xForHour(Math.Max(recordStartHour, viewStartHour));
+                double x2 = xForHour(Math.Min(recordEndHour, viewEndHour));
                 var block = new System.Windows.Shapes.Rectangle
                 {
                     Width = Math.Max(2, x2 - x1),
@@ -2011,7 +2021,7 @@ namespace VideoPlayer
             {
                 var hint = new TextBlock
                 {
-                    Text = "Wyszukaj nagrania, aby wyświetlić godziny zarejestrowanego materiału",
+                    Text = $"Widok {viewStartHour:00}:00–{viewEndHour:00}:00 | Kółko myszy: przybliż/oddal | Prawy przycisk: reset",
                     Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
                     FontSize = 9,
                     IsHitTestVisible = false
@@ -2022,13 +2032,45 @@ namespace VideoPlayer
             }
         }
 
+        private void RecordingTimelineCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (RecordingTimelineCanvas.ActualWidth <= 0) return;
+
+            const double left = 24;
+            double usableWidth = Math.Max(1, RecordingTimelineCanvas.ActualWidth - left - 8);
+            Point pointer = e.GetPosition(RecordingTimelineCanvas);
+            double pointerRatio = Math.Clamp((pointer.X - left) / usableWidth, 0, 1);
+            double oldVisibleHours = 24.0 / _recordingTimelineZoom;
+            double oldStart = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - oldVisibleHours);
+            double anchorHour = oldStart + pointerRatio * oldVisibleHours;
+
+            double factor = e.Delta > 0 ? 1.25 : 1.0 / 1.25;
+            _recordingTimelineZoom = Math.Clamp(_recordingTimelineZoom * factor, 1.0, 12.0);
+            double newVisibleHours = 24.0 / _recordingTimelineZoom;
+            _recordingTimelineStartHour = Math.Clamp(anchorHour - pointerRatio * newVisibleHours,
+                0, 24.0 - newVisibleHours);
+
+            RefreshRecordingTimeline();
+            e.Handled = true;
+        }
+
+        private void RecordingTimelineCanvas_ResetZoom(object sender, MouseButtonEventArgs e)
+        {
+            _recordingTimelineZoom = 1.0;
+            _recordingTimelineStartHour = 0.0;
+            RefreshRecordingTimeline();
+            e.Handled = true;
+        }
+
         private void RecordingTimelineCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (_currentDevice == null || RecordingTimelineCanvas.ActualWidth <= 0) return;
             Point point = e.GetPosition(RecordingTimelineCanvas);
             const double left = 24;
             double usableWidth = Math.Max(1, RecordingTimelineCanvas.ActualWidth - left - 8);
-            double hour = Math.Clamp((point.X - left) / usableWidth * 24.0, 0, 24);
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStartHour = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double hour = Math.Clamp(viewStartHour + (point.X - left) / usableWidth * visibleHours, 0, 24);
             DateTime selectedTime = (StartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(hour * 3600);
             StartTimeBox.Text = selectedTime.ToString("HH:mm:ss");
 
