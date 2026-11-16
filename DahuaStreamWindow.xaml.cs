@@ -77,47 +77,46 @@ namespace VideoPlayer
             if (PlaybackPositionSlider == null || _multiPlaybackHandles.Count == 0) return;
 
             double visibleHours = 24.0 / _recordingTimelineZoom;
-            double viewStart = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
-            double viewEnd = viewStart + visibleHours;
+            double viewStartHour = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double viewEndHour = viewStartHour + visibleHours;
             double playbackStartHour = (_playbackRangeStart - _playbackRangeStart.Date).TotalHours;
-            double playbackEndHour = (_playbackRangeEnd - _playbackRangeStart.Date).TotalHours;
 
             if (keepPlayheadVisible)
             {
                 double elapsed = _playbackElapsedBeforePause;
                 if (!_synchronizedPlaybackPaused)
                     elapsed += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
-                double playheadHour = (_playbackRangeStart.AddSeconds(elapsed) - _playbackRangeStart.Date).TotalHours;
-                if (playheadHour < viewStart || playheadHour > viewEnd)
+
+                double playheadHour = playbackStartHour + elapsed / 3600.0;
+                if (playheadHour < viewStartHour || playheadHour > viewEndHour)
                 {
-                    _recordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
-                    viewStart = _recordingTimelineStartHour;
-                    viewEnd = viewStart + visibleHours;
+                    _recordingTimelineStartHour = Math.Clamp(
+                        playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+                    viewStartHour = _recordingTimelineStartHour;
+                    viewEndHour = viewStartHour + visibleHours;
                     RefreshRecordingTimeline();
                 }
             }
 
-            double overlapStart = Math.Max(viewStart, playbackStartHour);
-            double overlapEnd = Math.Min(viewEnd, playbackEndHour);
-            if (overlapEnd <= overlapStart)
-            {
-                double edge = viewEnd < playbackStartHour ? 0 : GetPlaybackDurationSeconds();
-                PlaybackPositionSlider.Minimum = edge;
-                PlaybackPositionSlider.Maximum = edge + 1;
-                PlaybackPositionSlider.Value = edge;
-                return;
-            }
+            // Important: do NOT clamp this range to the recording duration.
+            // The slider must represent the complete visible timeline window.
+            // Example: a 1-hour recording in a 2-hour zoomed window occupies
+            // exactly half of the slider track, matching the green timeline block.
+            double minOffset = (viewStartHour - playbackStartHour) * 3600.0;
+            double maxOffset = (viewEndHour - playbackStartHour) * 3600.0;
+            if (maxOffset <= minOffset) maxOffset = minOffset + 1;
 
-            double minOffset = Math.Clamp((overlapStart - playbackStartHour) * 3600.0, 0, GetPlaybackDurationSeconds());
-            double maxOffset = Math.Clamp((overlapEnd - playbackStartHour) * 3600.0, minOffset + 1, GetPlaybackDurationSeconds());
             PlaybackPositionSlider.Minimum = minOffset;
             PlaybackPositionSlider.Maximum = maxOffset;
+
             double currentOffset = _playbackElapsedBeforePause;
             if (!_synchronizedPlaybackPaused)
                 currentOffset += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+
+            // The displayed thumb position is allowed to sit at the edge of the
+            // visible window, while actual SDK seeking is clamped to the recording.
             PlaybackPositionSlider.Value = Math.Clamp(currentOffset, minOffset, maxOffset);
         }
-
 
         private sealed class MultiViewSlot
         {
@@ -2227,7 +2226,7 @@ namespace VideoPlayer
             PlaybackPositionSlider.Value = Math.Clamp(elapsed, PlaybackPositionSlider.Minimum, PlaybackPositionSlider.Maximum);
             TimeSpan position = TimeSpan.FromSeconds(elapsed);
             PlaybackPositionText.Text = $"{_playbackRangeStart.Add(position):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
-            if (elapsed >= PlaybackPositionSlider.Maximum)
+            if (elapsed >= GetPlaybackDurationSeconds())
             {
                 _playbackUiTimer.Stop();
                 PlaybackSyncStatusText.Text = "Koniec zakresu archiwum";
