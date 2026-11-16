@@ -2010,30 +2010,48 @@ namespace VideoPlayer
             double viewEndHour = viewStartHour + visibleHours;
             double xForHour(double hour) => left + usableWidth * (hour - viewStartHour) / visibleHours;
 
-            // Adapt label density to the current zoom level.
-            int labelStep = visibleHours <= 3 ? 1 : visibleHours <= 8 ? 2 : visibleHours <= 16 ? 4 : 2;
-            int firstLabel = (int)Math.Ceiling(viewStartHour / labelStep) * labelStep;
-            for (int hour = firstLabel; hour <= Math.Min(24, viewEndHour); hour += labelStep)
+            // Tick/label interval follows zoom: at close zoom show minutes,
+            // at wider views gradually switch to 15/30/60/120-minute marks.
+            int tickMinutes = visibleHours <= 0.5 ? 1
+                : visibleHours <= 1.0 ? 2
+                : visibleHours <= 2.5 ? 5
+                : visibleHours <= 4.0 ? 10
+                : visibleHours <= 8.0 ? 15
+                : visibleHours <= 12.0 ? 30
+                : 120;
+
+            double viewStartMinutes = viewStartHour * 60.0;
+            double viewEndMinutes = viewEndHour * 60.0;
+            int firstTick = (int)(Math.Ceiling(viewStartMinutes / tickMinutes) * tickMinutes);
+            for (int minuteOfDay = firstTick; minuteOfDay <= Math.Min(1440, viewEndMinutes); minuteOfDay += tickMinutes)
             {
+                double hour = minuteOfDay / 60.0;
                 double xPos = xForHour(hour);
+                bool majorTick = minuteOfDay % 60 == 0;
                 var line = new System.Windows.Shapes.Line
                 {
-                    X1 = xPos, X2 = xPos, Y1 = 0, Y2 = 42,
-                    Stroke = new SolidColorBrush(Color.FromRgb(55, 65, 81)),
-                    StrokeThickness = 1,
+                    X1 = xPos,
+                    X2 = xPos,
+                    Y1 = majorTick ? 0 : 13,
+                    Y2 = 22,
+                    Stroke = new SolidColorBrush(majorTick
+                        ? Color.FromRgb(100, 116, 139)
+                        : Color.FromRgb(55, 65, 81)),
+                    StrokeThickness = majorTick ? 1.0 : 0.7,
                     IsHitTestVisible = false
                 };
                 RecordingTimelineCanvas.Children.Add(line);
+
                 var label = new TextBlock
                 {
-                    Text = hour.ToString("00"),
+                    Text = $"{minuteOfDay / 60:00}:{minuteOfDay % 60:00}",
                     Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
-                    FontSize = 9,
-                    Width = 20,
+                    FontSize = majorTick ? 9 : 8,
+                    Width = 34,
                     TextAlignment = TextAlignment.Center,
                     IsHitTestVisible = false
                 };
-                Canvas.SetLeft(label, Math.Clamp(xPos - 10, 0, Math.Max(0, width - 20)));
+                Canvas.SetLeft(label, Math.Clamp(xPos - 17, 0, Math.Max(0, width - 34)));
                 Canvas.SetTop(label, 0);
                 RecordingTimelineCanvas.Children.Add(label);
             }
