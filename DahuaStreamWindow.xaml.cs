@@ -63,6 +63,60 @@ namespace VideoPlayer
         private bool _isSeekingPlayback;
         private bool _updatingChannelChecks;
         private bool _connectForCalendarAvailability;
+        private double _archivePlaybackSpeed = 1.0;
+        private bool _updatingArchiveSpeed;
+        private double _recordingTimelineZoom = 1.0;
+        private double _recordingTimelineStartHour = 0.0;
+        private double GetPlaybackDurationSeconds() =>
+            Math.Max(1, (_playbackRangeEnd - _playbackRangeStart).TotalSeconds);
+
+        // Slider values remain offsets from playback start, but its visible
+        // range follows the currently zoomed portion of the 24-hour timeline.
+        private void UpdatePlaybackSliderRange(bool keepPlayheadVisible)
+        {
+            if (PlaybackPositionSlider == null || _multiPlaybackHandles.Count == 0) return;
+
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStartHour = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double viewEndHour = viewStartHour + visibleHours;
+            double playbackStartHour = (_playbackRangeStart - _playbackRangeStart.Date).TotalHours;
+
+            if (keepPlayheadVisible)
+            {
+                double elapsed = _playbackElapsedBeforePause;
+                if (!_synchronizedPlaybackPaused)
+                    elapsed += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+
+                double playheadHour = playbackStartHour + elapsed / 3600.0;
+                if (playheadHour < viewStartHour || playheadHour > viewEndHour)
+                {
+                    _recordingTimelineStartHour = Math.Clamp(
+                        playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+                    viewStartHour = _recordingTimelineStartHour;
+                    viewEndHour = viewStartHour + visibleHours;
+                    RefreshRecordingTimeline();
+                }
+            }
+
+            // Important: do NOT clamp this range to the recording duration.
+            // The slider must represent the complete visible timeline window.
+            // Example: a 1-hour recording in a 2-hour zoomed window occupies
+            // exactly half of the slider track, matching the green timeline block.
+            double minOffset = (viewStartHour - playbackStartHour) * 3600.0;
+            double maxOffset = (viewEndHour - playbackStartHour) * 3600.0;
+            if (maxOffset <= minOffset) maxOffset = minOffset + 1;
+
+            PlaybackPositionSlider.Minimum = minOffset;
+            PlaybackPositionSlider.Maximum = maxOffset;
+
+            double currentOffset = _playbackElapsedBeforePause;
+            if (!_synchronizedPlaybackPaused)
+                currentOffset += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+
+            // The displayed thumb position is allowed to sit at the edge of the
+            // visible window, while actual SDK seeking is clamped to the recording.
+            PlaybackPositionSlider.Value = Math.Clamp(currentOffset, minOffset, maxOffset);
+        }
 
         private sealed class MultiViewSlot
         {
@@ -826,7 +880,7 @@ namespace VideoPlayer
             ChannelButtonsPanel.Children.Clear();
             _channelButtons.Clear();
 
-            foreach (var chInfo in GetVisibleChannels().OrderBy(c => c.Number).Take(16))
+            foreach (var chInfo in GetVisibleChannels().OrderBy(c => c.Number))
             {
                 int ch = chInfo.Number;
                 string displayName = string.IsNullOrWhiteSpace(chInfo.Name) ? $"CH {ch}" : $"{chInfo.Name}\n[CH {ch}]";
@@ -1891,10 +1945,15 @@ namespace VideoPlayer
             _playbackElapsedBeforePause = 0;
             _playbackSegmentStartedAt = DateTime.Now;
             _synchronizedPlaybackPaused = false;
+            _archivePlaybackSpeed = 1.0;
+            _updatingArchiveSpeed = true;
+            ArchiveSpeedBox.SelectedIndex = 2;
+            _updatingArchiveSpeed = false;
             PlaybackPositionSlider.Minimum = 0;
             PlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
             PlaybackPositionSlider.Value = 0;
             PlaybackPositionSlider.IsEnabled = true;
+            UpdatePlaybackSliderRange(keepPlayheadVisible: false);
 
             try
             {
@@ -1928,20 +1987,286 @@ namespace VideoPlayer
             }
         }
 
+        private void RecordingTimelineCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            RefreshRecordingTimeline();
+        }
+
+        private void RefreshRecordingTimeline()
+        {
+            if (RecordingTimelineCanvas == null) return;
+            RecordingTimelineCanvas.Children.Clear();
+            double width = RecordingTimelineCanvas.ActualWidth;
+            if (width <= 0) return;
+
+            DateTime selectedDay = (StartDatePicker.SelectedDate ?? DateTime.Today).Date;
+            var records = (ArchiveRecordsGrid.ItemsSource as IEnumerable<DahuaRecordItem>)?.ToList()
+                          ?? new List<DahuaRecordItem>();
+            const double left = 24;
+            const double right = 8;
+            double usableWidth = Math.Max(1, width - left - right);
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStartHour = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double viewEndHour = viewStartHour + visibleHours;
+            double xForHour(double hour) => left + usableWidth * (hour - viewStartHour) / visibleHours;
+
+            // Tick/label interval follows zoom: at close zoom show minutes,
+            // at wider views gradually switch to 15/30/60/120-minute marks.
+            int tickMinutes = visibleHours <= 0.5 ? 1
+                : visibleHours <= 1.0 ? 2
+                : visibleHours <= 2.5 ? 5
+                : visibleHours <= 4.0 ? 10
+                : visibleHours <= 8.0 ? 15
+                : visibleHours <= 12.0 ? 30
+                : 120;
+
+            double viewStartMinutes = viewStartHour * 60.0;
+            double viewEndMinutes = viewEndHour * 60.0;
+            int firstTick = (int)(Math.Ceiling(viewStartMinutes / tickMinutes) * tickMinutes);
+            for (int minuteOfDay = firstTick; minuteOfDay <= Math.Min(1440, viewEndMinutes); minuteOfDay += tickMinutes)
+            {
+                double hour = minuteOfDay / 60.0;
+                double xPos = xForHour(hour);
+                bool majorTick = minuteOfDay % 60 == 0;
+                var line = new System.Windows.Shapes.Line
+                {
+                    X1 = xPos,
+                    X2 = xPos,
+                    Y1 = majorTick ? 0 : 13,
+                    Y2 = 22,
+                    Stroke = new SolidColorBrush(majorTick
+                        ? Color.FromRgb(100, 116, 139)
+                        : Color.FromRgb(55, 65, 81)),
+                    StrokeThickness = majorTick ? 1.0 : 0.7,
+                    IsHitTestVisible = false
+                };
+                RecordingTimelineCanvas.Children.Add(line);
+
+                var label = new TextBlock
+                {
+                    Text = $"{minuteOfDay / 60:00}:{minuteOfDay % 60:00}",
+                    Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+                    FontSize = majorTick ? 9 : 8,
+                    Width = 34,
+                    TextAlignment = TextAlignment.Center,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(label, Math.Clamp(xPos - 17, 0, Math.Max(0, width - 34)));
+                Canvas.SetTop(label, 0);
+                RecordingTimelineCanvas.Children.Add(label);
+            }
+
+            foreach (DahuaRecordItem record in records)
+            {
+                DateTime segmentStart = record.StartTime < selectedDay ? selectedDay : record.StartTime;
+                DateTime dayEnd = selectedDay.AddDays(1);
+                DateTime segmentEnd = record.EndTime > dayEnd ? dayEnd : record.EndTime;
+                if (segmentEnd <= segmentStart || record.StartTime.Date > selectedDay || record.EndTime.Date < selectedDay)
+                    continue;
+
+                double recordStartHour = (segmentStart - selectedDay).TotalHours;
+                double recordEndHour = (segmentEnd - selectedDay).TotalHours;
+                if (recordEndHour < viewStartHour || recordStartHour > viewEndHour) continue;
+                double x1 = xForHour(Math.Max(recordStartHour, viewStartHour));
+                double x2 = xForHour(Math.Min(recordEndHour, viewEndHour));
+                var block = new System.Windows.Shapes.Rectangle
+                {
+                    Width = Math.Max(2, x2 - x1),
+                    Height = 10,
+                    RadiusX = 2,
+                    RadiusY = 2,
+                    Fill = new SolidColorBrush(Color.FromRgb(34, 197, 94)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(74, 222, 128)),
+                    StrokeThickness = 0.5,
+                    ToolTip = $"{record.StartTime:HH:mm:ss} – {record.EndTime:HH:mm:ss}",
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(block, x1);
+                Canvas.SetTop(block, 25);
+                RecordingTimelineCanvas.Children.Add(block);
+            }
+
+            if (records.Count == 0)
+            {
+                var hint = new TextBlock
+                {
+                    Text = $"Widok {viewStartHour:00}:00–{viewEndHour:00}:00 | Kółko myszy: przybliż/oddal | Prawy przycisk: reset",
+                    Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
+                    FontSize = 9,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(hint, left);
+                Canvas.SetTop(hint, 27);
+                RecordingTimelineCanvas.Children.Add(hint);
+            }
+        }
+
+        private void RecordingTimelineCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (RecordingTimelineCanvas.ActualWidth <= 0) return;
+
+            const double left = 24;
+            double usableWidth = Math.Max(1, RecordingTimelineCanvas.ActualWidth - left - 8);
+            Point pointer = e.GetPosition(RecordingTimelineCanvas);
+            double pointerRatio = Math.Clamp((pointer.X - left) / usableWidth, 0, 1);
+            double oldVisibleHours = 24.0 / _recordingTimelineZoom;
+            double oldStart = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - oldVisibleHours);
+            double anchorHour = oldStart + pointerRatio * oldVisibleHours;
+
+            double factor = e.Delta > 0 ? 1.25 : 1.0 / 1.25;
+            _recordingTimelineZoom = Math.Clamp(_recordingTimelineZoom * factor, 1.0, 12.0);
+            double newVisibleHours = 24.0 / _recordingTimelineZoom;
+            _recordingTimelineStartHour = Math.Clamp(anchorHour - pointerRatio * newVisibleHours,
+                0, 24.0 - newVisibleHours);
+
+            RefreshRecordingTimeline();
+            UpdatePlaybackSliderRange(keepPlayheadVisible: false);
+            e.Handled = true;
+        }
+
+        private void RecordingTimelineCanvas_ResetZoom(object sender, MouseButtonEventArgs e)
+        {
+            _recordingTimelineZoom = 1.0;
+            _recordingTimelineStartHour = 0.0;
+            RefreshRecordingTimeline();
+            UpdatePlaybackSliderRange(keepPlayheadVisible: false);
+            e.Handled = true;
+        }
+
+        private void RecordingTimelineCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_currentDevice == null || RecordingTimelineCanvas.ActualWidth <= 0) return;
+            Point point = e.GetPosition(RecordingTimelineCanvas);
+            const double left = 24;
+            double usableWidth = Math.Max(1, RecordingTimelineCanvas.ActualWidth - left - 8);
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStartHour = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double pointerRatio = Math.Clamp((point.X - left) / usableWidth, 0, 1);
+            double hour = Math.Clamp(viewStartHour + pointerRatio * visibleHours, 0, 24);
+            DateTime selectedTime = (StartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(hour * 3600);
+            StartTimeBox.Text = selectedTime.ToString("HH:mm:ss");
+
+            if (_multiPlaybackHandles.Count > 0 &&
+                selectedTime >= _playbackRangeStart && selectedTime <= _playbackRangeEnd)
+            {
+                int offset = (int)Math.Round((selectedTime - _playbackRangeStart).TotalSeconds);
+                offset = (int)Math.Clamp(offset, 0, GetPlaybackDurationSeconds());
+                SeekSynchronizedPlayback(offset);
+                PlaybackSyncStatusText.Text = $"Przewinięto do {selectedTime:HH:mm:ss}";
+            }
+            else
+            {
+                PlaybackSyncStatusText.Text = _multiPlaybackHandles.Count == 0
+                    ? $"Wybrano {selectedTime:HH:mm:ss}. Najpierw uruchom archiwum dla wybranego zakresu."
+                    : $"Godzina {selectedTime:HH:mm:ss} jest poza aktualnym zakresem odtwarzania.";
+            }
+            e.Handled = true;
+        }
+
+        private void ArchiveSpeedBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_updatingArchiveSpeed || !IsLoaded || _multiPlaybackHandles.Count == 0 ||
+                ArchiveSpeedBox.SelectedItem is not ComboBoxItem item ||
+                !double.TryParse(item.Tag?.ToString(), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out double requestedSpeed))
+                return;
+
+            double elapsed = _playbackElapsedBeforePause;
+            if (!_synchronizedPlaybackPaused)
+                elapsed += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+
+            int succeeded = 0;
+            foreach (IntPtr handle in _multiPlaybackHandles)
+            {
+                bool ok = DahuaNetSdk.CLIENT_NormalPlayBack(handle);
+                int steps = requestedSpeed == 1.0 ? 0 : (int)Math.Round(Math.Abs(Math.Log(requestedSpeed, 2)));
+                for (int step = 0; ok && step < steps; step++)
+                    ok = requestedSpeed > 1.0
+                        ? DahuaNetSdk.CLIENT_FastPlayBack(handle)
+                        : DahuaNetSdk.CLIENT_SlowPlayBack(handle);
+                if (ok) succeeded++;
+            }
+
+            if (succeeded != _multiPlaybackHandles.Count)
+            {
+                foreach (IntPtr handle in _multiPlaybackHandles)
+                    DahuaNetSdk.CLIENT_NormalPlayBack(handle);
+                _archivePlaybackSpeed = 1.0;
+                _updatingArchiveSpeed = true;
+                ArchiveSpeedBox.SelectedIndex = 2;
+                _updatingArchiveSpeed = false;
+                PlaybackSyncStatusText.Text = "Rejestrator nie przyjął zmiany tempa na wszystkich kanałach. Przywrócono 1×.";
+                return;
+            }
+
+            _playbackElapsedBeforePause = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
+            _playbackSegmentStartedAt = DateTime.Now;
+            _archivePlaybackSpeed = requestedSpeed;
+            PlaybackSyncStatusText.Text = $"Tempo odtwarzania: {requestedSpeed.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}× ({succeeded} kanałów)";
+        }
+
+        private void SeekSynchronizedPlayback(int offsetSeconds)
+        {
+            offsetSeconds = (int)Math.Clamp(offsetSeconds, 0, GetPlaybackDurationSeconds());
+            int succeeded = 0;
+            foreach (IntPtr handle in _multiPlaybackHandles)
+                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
+            if (succeeded != _multiPlaybackHandles.Count)
+            {
+                PlaybackSyncStatusText.Text = $"Przewijanie nie powiodło się na wszystkich kanałach ({succeeded}/{_multiPlaybackHandles.Count}).";
+                return;
+            }
+            _playbackElapsedBeforePause = offsetSeconds;
+            _playbackSegmentStartedAt = DateTime.Now;
+            UpdatePlaybackSliderRange(keepPlayheadVisible: true);
+            PlaybackPositionSlider.Value = Math.Clamp(offsetSeconds, PlaybackPositionSlider.Minimum, PlaybackPositionSlider.Maximum);
+            PlaybackPositionText.Text = $"{_playbackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
+            PlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_multiPlaybackHandles.Count}";
+        }
+
         private void PlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (_multiPlaybackHandles.Count == 0) return;
             _isSeekingPlayback = true;
+        }
+
+        private void PlaybackSlider_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            // Some WPF themes transfer mouse capture from Slider to its Thumb.
+            // Commit the final value if the normal mouse-up route was bypassed.
+            if (_isSeekingPlayback && _multiPlaybackHandles.Count > 0)
+                CommitPlaybackSliderSeek();
+        }
+
+        private void CommitPlaybackSliderSeek()
+        {
+            if (!_isSeekingPlayback) return;
+            _isSeekingPlayback = false;
+            if (_multiPlaybackHandles.Count == 0) return;
+
+            int offsetSeconds = (int)Math.Round(PlaybackPositionSlider.Value);
+            offsetSeconds = (int)Math.Clamp(offsetSeconds, 0, GetPlaybackDurationSeconds());
+            SeekSynchronizedPlayback(offsetSeconds);
         }
 
         private void PlaybackUiTimer_Tick(object? sender, EventArgs e)
         {
             if (_isSeekingPlayback || _synchronizedPlaybackPaused || _multiPlaybackHandles.Count == 0) return;
-            double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
-            elapsed = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
-            PlaybackPositionSlider.Value = elapsed;
+            double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+            elapsed = Math.Clamp(elapsed, 0, GetPlaybackDurationSeconds());
+            double playheadHour = (_playbackRangeStart.AddSeconds(elapsed) - _playbackRangeStart.Date).TotalHours;
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStart = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            if (playheadHour < viewStart || playheadHour > viewStart + visibleHours)
+            {
+                _recordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+                RefreshRecordingTimeline();
+                UpdatePlaybackSliderRange(keepPlayheadVisible: false);
+            }
+            PlaybackPositionSlider.Value = Math.Clamp(elapsed, PlaybackPositionSlider.Minimum, PlaybackPositionSlider.Maximum);
             TimeSpan position = TimeSpan.FromSeconds(elapsed);
             PlaybackPositionText.Text = $"{_playbackRangeStart.Add(position):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
-            if (elapsed >= PlaybackPositionSlider.Maximum)
+            if (elapsed >= GetPlaybackDurationSeconds())
             {
                 _playbackUiTimer.Stop();
                 PlaybackSyncStatusText.Text = "Koniec zakresu archiwum";
@@ -1969,7 +2294,7 @@ namespace VideoPlayer
             }
             if (pause)
             {
-                _playbackElapsedBeforePause += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
+                _playbackElapsedBeforePause += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
                 _synchronizedPlaybackPaused = true;
                 _playbackUiTimer.Stop();
             }
@@ -1984,22 +2309,7 @@ namespace VideoPlayer
 
         private void PlaybackSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            _isSeekingPlayback = false;
-            if (_multiPlaybackHandles.Count == 0) return;
-            int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, PlaybackPositionSlider.Maximum);
-            int succeeded = 0;
-            foreach (IntPtr handle in _multiPlaybackHandles)
-                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
-            if (succeeded != _multiPlaybackHandles.Count)
-            {
-                StatusLabel.Text = $"Przewijanie nie powiodło się na wszystkich kanałach ({succeeded}/{_multiPlaybackHandles.Count}).";
-                PlaybackSyncStatusText.Text = "Pozycja kanałów może być różna";
-                return;
-            }
-            _playbackElapsedBeforePause = offsetSeconds;
-            _playbackSegmentStartedAt = DateTime.Now;
-            PlaybackPositionText.Text = $"{_playbackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
-            PlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_multiPlaybackHandles.Count}";
+            CommitPlaybackSliderSeek();
         }
 
         private void StopPlaybackHandlesOnly()
@@ -2018,6 +2328,13 @@ namespace VideoPlayer
             StopPlaybackHandlesOnly();
             _synchronizedPlaybackPaused = false;
             _playbackElapsedBeforePause = 0;
+            _archivePlaybackSpeed = 1.0;
+            if (ArchiveSpeedBox != null)
+            {
+                _updatingArchiveSpeed = true;
+                ArchiveSpeedBox.SelectedIndex = 2;
+                _updatingArchiveSpeed = false;
+            }
             if (PlaybackPositionSlider != null)
             {
                 PlaybackPositionSlider.IsEnabled = false;
@@ -2241,6 +2558,7 @@ namespace VideoPlayer
             DownloadStatusText.Visibility = Visibility.Visible;
             DownloadStatusText.Text = $"Wyszukiwanie nagrań: {_currentDevice.Name}, kanał {channel}…";
             ArchiveRecordsGrid.ItemsSource = null;
+            RefreshRecordingTimeline();
             _archiveAvailableDays.Clear();
             RefreshOpenArchiveCalendars();
             DevicesListBox.IsEnabled = false;
@@ -2312,6 +2630,7 @@ namespace VideoPlayer
                 });
 
                 ArchiveRecordsGrid.ItemsSource = records;
+                RefreshRecordingTimeline();
                 foreach (DahuaRecordItem record in records)
                 {
                     // A detailed search is stronger confirmation than the month availability probe.
