@@ -427,11 +427,36 @@
                                 IsEnabled="False" PreviewMouseLeftButtonDown="PlaybackSlider_MouseLeftButtonDown"
                                 PreviewMouseLeftButtonUp="PlaybackSlider_MouseLeftButtonUp"
                                 TickFrequency="60" IsSnapToTickEnabled="False"/>
+                        <Border Background="#101722" BorderBrush="#344155" BorderThickness="1" CornerRadius="4"
+                                Padding="5,3" Margin="0,5,0,2">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="24"/>
+                                    <RowDefinition Height="20"/>
+                                </Grid.RowDefinitions>
+                                <Canvas x:Name="RecordingTimelineCanvas" Grid.RowSpan="2" Height="44"
+                                        ClipToBounds="True" Background="Transparent"
+                                        SizeChanged="RecordingTimelineCanvas_SizeChanged"
+                                        MouseLeftButtonDown="RecordingTimelineCanvas_MouseLeftButtonDown"/>
+                            </Grid>
+                        </Border>
                         <DockPanel Margin="0,4,0,0">
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                 <Button Content="▶ Start" Click="StartSynchronizedPlayback_Click" Style="{StaticResource GreenButton}" Padding="10,5"/>
                                 <Button Content="Ⅱ / ▶" Click="ToggleSynchronizedPlayback_Click" Padding="10,5"/>
                                 <Button Content="■ Stop" Click="StopSynchronizedPlayback_Click" Style="{StaticResource RedButton}" Padding="10,5"/>
+                                <TextBlock Text="Tempo" VerticalAlignment="Center" Margin="8,0,5,6" Foreground="#CBD5E1"/>
+                                <ComboBox x:Name="ArchiveSpeedBox" Width="78" Height="30" Margin="0,0,5,0"
+                                          SelectedIndex="2" SelectionChanged="ArchiveSpeedBox_SelectionChanged">
+                                    <ComboBoxItem Content="0,25×" Tag="0.25"/>
+                                    <ComboBoxItem Content="0,5×" Tag="0.5"/>
+                                    <ComboBoxItem Content="1×" Tag="1"/>
+                                    <ComboBoxItem Content="2×" Tag="2"/>
+                                    <ComboBoxItem Content="4×" Tag="4"/>
+                                    <ComboBoxItem Content="8×" Tag="8"/>
+                                    <ComboBoxItem Content="16×" Tag="16"/>
+                                    <ComboBoxItem Content="32×" Tag="32"/>
+                                </ComboBox>
                             </StackPanel>
                             <TextBlock x:Name="PlaybackSyncStatusText" Text="Wybierz kanały i zakres czasu."
                                        Foreground="#CBD5E1" FontSize="10" VerticalAlignment="Center" TextWrapping="Wrap"/>
