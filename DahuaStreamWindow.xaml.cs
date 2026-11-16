@@ -67,6 +67,57 @@ namespace VideoPlayer
         private bool _updatingArchiveSpeed;
         private double _recordingTimelineZoom = 1.0;
         private double _recordingTimelineStartHour = 0.0;
+        private double GetPlaybackDurationSeconds() =>
+            Math.Max(1, (_playbackRangeEnd - _playbackRangeStart).TotalSeconds);
+
+        // Slider values remain offsets from playback start, but its visible
+        // range follows the currently zoomed portion of the 24-hour timeline.
+        private void UpdatePlaybackSliderRange(bool keepPlayheadVisible)
+        {
+            if (PlaybackPositionSlider == null || _multiPlaybackHandles.Count == 0) return;
+
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStart = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double viewEnd = viewStart + visibleHours;
+            double playbackStartHour = (_playbackRangeStart - _playbackRangeStart.Date).TotalHours;
+            double playbackEndHour = (_playbackRangeEnd - _playbackRangeStart.Date).TotalHours;
+
+            if (keepPlayheadVisible)
+            {
+                double elapsed = _playbackElapsedBeforePause;
+                if (!_synchronizedPlaybackPaused)
+                    elapsed += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+                double playheadHour = (_playbackRangeStart.AddSeconds(elapsed) - _playbackRangeStart.Date).TotalHours;
+                if (playheadHour < viewStart || playheadHour > viewEnd)
+                {
+                    _recordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+                    viewStart = _recordingTimelineStartHour;
+                    viewEnd = viewStart + visibleHours;
+                    RefreshRecordingTimeline();
+                }
+            }
+
+            double overlapStart = Math.Max(viewStart, playbackStartHour);
+            double overlapEnd = Math.Min(viewEnd, playbackEndHour);
+            if (overlapEnd <= overlapStart)
+            {
+                double edge = viewEnd < playbackStartHour ? 0 : GetPlaybackDurationSeconds();
+                PlaybackPositionSlider.Minimum = edge;
+                PlaybackPositionSlider.Maximum = edge + 1;
+                PlaybackPositionSlider.Value = edge;
+                return;
+            }
+
+            double minOffset = Math.Clamp((overlapStart - playbackStartHour) * 3600.0, 0, GetPlaybackDurationSeconds());
+            double maxOffset = Math.Clamp((overlapEnd - playbackStartHour) * 3600.0, minOffset + 1, GetPlaybackDurationSeconds());
+            PlaybackPositionSlider.Minimum = minOffset;
+            PlaybackPositionSlider.Maximum = maxOffset;
+            double currentOffset = _playbackElapsedBeforePause;
+            if (!_synchronizedPlaybackPaused)
+                currentOffset += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
+            PlaybackPositionSlider.Value = Math.Clamp(currentOffset, minOffset, maxOffset);
+        }
+
 
         private sealed class MultiViewSlot
         {
@@ -1903,6 +1954,7 @@ namespace VideoPlayer
             PlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
             PlaybackPositionSlider.Value = 0;
             PlaybackPositionSlider.IsEnabled = true;
+            UpdatePlaybackSliderRange(keepPlayheadVisible: false);
 
             try
             {
@@ -2051,6 +2103,7 @@ namespace VideoPlayer
                 0, 24.0 - newVisibleHours);
 
             RefreshRecordingTimeline();
+            UpdatePlaybackSliderRange(keepPlayheadVisible: false);
             e.Handled = true;
         }
 
@@ -2059,6 +2112,7 @@ namespace VideoPlayer
             _recordingTimelineZoom = 1.0;
             _recordingTimelineStartHour = 0.0;
             RefreshRecordingTimeline();
+            UpdatePlaybackSliderRange(keepPlayheadVisible: false);
             e.Handled = true;
         }
 
@@ -2078,8 +2132,10 @@ namespace VideoPlayer
             if (_multiPlaybackHandles.Count > 0 &&
                 selectedTime >= _playbackRangeStart && selectedTime <= _playbackRangeEnd)
             {
-                int offset = (int)Math.Clamp((selectedTime - _playbackRangeStart).TotalSeconds, 0, PlaybackPositionSlider.Maximum);
-                PlaybackPositionSlider.Value = offset;
+                int offset = (int)Math.Clamp((selectedTime - _playbackRangeStart).TotalSeconds, 0, GetPlaybackDurationSeconds());
+                _playbackElapsedBeforePause = offset;
+                UpdatePlaybackSliderRange(keepPlayheadVisible: false);
+                PlaybackPositionSlider.Value = Math.Clamp(offset, PlaybackPositionSlider.Minimum, PlaybackPositionSlider.Maximum);
                 SeekSynchronizedPlayback(offset);
             }
             else
@@ -2143,6 +2199,8 @@ namespace VideoPlayer
             }
             _playbackElapsedBeforePause = offsetSeconds;
             _playbackSegmentStartedAt = DateTime.Now;
+            UpdatePlaybackSliderRange(keepPlayheadVisible: true);
+            PlaybackPositionSlider.Value = Math.Clamp(offsetSeconds, PlaybackPositionSlider.Minimum, PlaybackPositionSlider.Maximum);
             PlaybackPositionText.Text = $"{_playbackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
             PlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_multiPlaybackHandles.Count}";
         }
@@ -2156,8 +2214,17 @@ namespace VideoPlayer
         {
             if (_isSeekingPlayback || _synchronizedPlaybackPaused || _multiPlaybackHandles.Count == 0) return;
             double elapsed = _playbackElapsedBeforePause + (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
-            elapsed = Math.Clamp(elapsed, 0, PlaybackPositionSlider.Maximum);
-            PlaybackPositionSlider.Value = elapsed;
+            elapsed = Math.Clamp(elapsed, 0, GetPlaybackDurationSeconds());
+            double playheadHour = (_playbackRangeStart.AddSeconds(elapsed) - _playbackRangeStart.Date).TotalHours;
+            double visibleHours = 24.0 / _recordingTimelineZoom;
+            double viewStart = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
+            if (playheadHour < viewStart || playheadHour > viewStart + visibleHours)
+            {
+                _recordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+                RefreshRecordingTimeline();
+                UpdatePlaybackSliderRange(keepPlayheadVisible: false);
+            }
+            PlaybackPositionSlider.Value = Math.Clamp(elapsed, PlaybackPositionSlider.Minimum, PlaybackPositionSlider.Maximum);
             TimeSpan position = TimeSpan.FromSeconds(elapsed);
             PlaybackPositionText.Text = $"{_playbackRangeStart.Add(position):HH:mm:ss} / {_playbackRangeEnd:HH:mm:ss}";
             if (elapsed >= PlaybackPositionSlider.Maximum)
@@ -2205,7 +2272,7 @@ namespace VideoPlayer
         {
             _isSeekingPlayback = false;
             if (_multiPlaybackHandles.Count == 0) return;
-            int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, PlaybackPositionSlider.Maximum);
+            int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, GetPlaybackDurationSeconds());
             SeekSynchronizedPlayback(offsetSeconds);
         }
 
