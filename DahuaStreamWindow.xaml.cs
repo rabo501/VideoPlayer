@@ -2146,7 +2146,7 @@ namespace VideoPlayer
             }
             if (pause)
             {
-                _playbackElapsedBeforePause += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds;
+                _playbackElapsedBeforePause += (DateTime.Now - _playbackSegmentStartedAt).TotalSeconds * _archivePlaybackSpeed;
                 _synchronizedPlaybackPaused = true;
                 _playbackUiTimer.Stop();
             }
