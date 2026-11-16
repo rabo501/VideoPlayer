@@ -2141,23 +2141,24 @@ namespace VideoPlayer
             double usableWidth = Math.Max(1, RecordingTimelineCanvas.ActualWidth - left - 8);
             double visibleHours = 24.0 / _recordingTimelineZoom;
             double viewStartHour = Math.Clamp(_recordingTimelineStartHour, 0, 24.0 - visibleHours);
-            double hour = Math.Clamp(viewStartHour + (point.X - left) / usableWidth * visibleHours, 0, 24);
+            double pointerRatio = Math.Clamp((point.X - left) / usableWidth, 0, 1);
+            double hour = Math.Clamp(viewStartHour + pointerRatio * visibleHours, 0, 24);
             DateTime selectedTime = (StartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(hour * 3600);
             StartTimeBox.Text = selectedTime.ToString("HH:mm:ss");
 
-            // If the clicked time belongs to the active playback interval, seek all channels.
             if (_multiPlaybackHandles.Count > 0 &&
                 selectedTime >= _playbackRangeStart && selectedTime <= _playbackRangeEnd)
             {
-                int offset = (int)Math.Clamp((selectedTime - _playbackRangeStart).TotalSeconds, 0, GetPlaybackDurationSeconds());
-                _playbackElapsedBeforePause = offset;
-                UpdatePlaybackSliderRange(keepPlayheadVisible: false);
-                PlaybackPositionSlider.Value = Math.Clamp(offset, PlaybackPositionSlider.Minimum, PlaybackPositionSlider.Maximum);
+                int offset = (int)Math.Round((selectedTime - _playbackRangeStart).TotalSeconds);
+                offset = (int)Math.Clamp(offset, 0, GetPlaybackDurationSeconds());
                 SeekSynchronizedPlayback(offset);
+                PlaybackSyncStatusText.Text = $"Przewinięto do {selectedTime:HH:mm:ss}";
             }
             else
             {
-                PlaybackSyncStatusText.Text = $"Wybrano godzinę {selectedTime:HH:mm:ss}. Ustaw zakres i naciśnij Start.";
+                PlaybackSyncStatusText.Text = _multiPlaybackHandles.Count == 0
+                    ? $"Wybrano {selectedTime:HH:mm:ss}. Najpierw uruchom archiwum dla wybranego zakresu."
+                    : $"Godzina {selectedTime:HH:mm:ss} jest poza aktualnym zakresem odtwarzania.";
             }
             e.Handled = true;
         }
@@ -2206,6 +2207,7 @@ namespace VideoPlayer
 
         private void SeekSynchronizedPlayback(int offsetSeconds)
         {
+            offsetSeconds = (int)Math.Clamp(offsetSeconds, 0, GetPlaybackDurationSeconds());
             int succeeded = 0;
             foreach (IntPtr handle in _multiPlaybackHandles)
                 if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
@@ -2224,7 +2226,27 @@ namespace VideoPlayer
 
         private void PlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (_multiPlaybackHandles.Count == 0) return;
             _isSeekingPlayback = true;
+        }
+
+        private void PlaybackSlider_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            // Some WPF themes transfer mouse capture from Slider to its Thumb.
+            // Commit the final value if the normal mouse-up route was bypassed.
+            if (_isSeekingPlayback && _multiPlaybackHandles.Count > 0)
+                CommitPlaybackSliderSeek();
+        }
+
+        private void CommitPlaybackSliderSeek()
+        {
+            if (!_isSeekingPlayback) return;
+            _isSeekingPlayback = false;
+            if (_multiPlaybackHandles.Count == 0) return;
+
+            int offsetSeconds = (int)Math.Round(PlaybackPositionSlider.Value);
+            offsetSeconds = (int)Math.Clamp(offsetSeconds, 0, GetPlaybackDurationSeconds());
+            SeekSynchronizedPlayback(offsetSeconds);
         }
 
         private void PlaybackUiTimer_Tick(object? sender, EventArgs e)
@@ -2287,10 +2309,7 @@ namespace VideoPlayer
 
         private void PlaybackSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            _isSeekingPlayback = false;
-            if (_multiPlaybackHandles.Count == 0) return;
-            int offsetSeconds = (int)Math.Clamp(PlaybackPositionSlider.Value, 0, GetPlaybackDurationSeconds());
-            SeekSynchronizedPlayback(offsetSeconds);
+            CommitPlaybackSliderSeek();
         }
 
         private void StopPlaybackHandlesOnly()
