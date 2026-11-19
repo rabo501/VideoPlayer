@@ -691,6 +691,7 @@
                                 </ListBox>
                                 <WrapPanel>
                                     <Button Content="Przejdź do" Click="GoToMarker_Click" />
+                                    <Button Content="Podgląd obszaru ruchu" Click="MotionPreview_Click" />
                                     <Button Content="Usuń" Click="DeleteMarker_Click" />
                                 </WrapPanel>
 
