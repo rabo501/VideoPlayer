@@ -51,7 +51,7 @@ namespace VideoPlayer
             InitializeComponent();
             Assembly assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
             Version? appVersion = assembly.GetName().Version;
-            string displayVersion = appVersion == null ? "1.5.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
+            string displayVersion = appVersion == null ? "1.6.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
             AssemblyInformationalVersionAttribute? informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
             string productVersion = !string.IsNullOrWhiteSpace(informational?.InformationalVersion) ? informational!.InformationalVersion : displayVersion;
 
