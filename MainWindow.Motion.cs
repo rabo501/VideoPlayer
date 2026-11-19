@@ -69,6 +69,7 @@ namespace VideoPlayer
                     {
                         Id = Guid.NewGuid(),
                         Seconds = Math.Clamp(item.StartSeconds, 0, PositionSlider.Maximum),
+                        EndSeconds = Math.Clamp(item.EndSeconds, 0, PositionSlider.Maximum),
                         Description = $"Ruch ({item.PeakChangedRatio:0.0}% obszaru)"
                     });
                 SaveTimelineMarkers();
