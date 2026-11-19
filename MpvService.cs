@@ -48,12 +48,17 @@ namespace VideoPlayer
             }
             catch { await DisposeAsync(); throw; }
         }
-        public async Task<JsonElement> RequestAsync(object[] command, CancellationToken ct=default)
+        public Task<JsonElement> RequestAsync(object[] command, CancellationToken ct=default)
+            => RequestCoreAsync(command, null, ct);
+
+        private async Task<JsonElement> RequestCoreAsync(object[] command, int? requestedId, CancellationToken ct)
         {
             if (!IsReady || _disposed) throw new IOException("Brak połączenia z mpv.");
-            int id=Interlocked.Increment(ref _nextId);
+            int id = requestedId ?? Interlocked.Increment(ref _nextId);
+            if (id <= 0) throw new ArgumentOutOfRangeException(nameof(requestedId), "Identyfikator żądania musi być dodatni.");
             var tcs=new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _pending[id]=tcs;
+            if (!_pending.TryAdd(id, tcs))
+                throw new InvalidOperationException($"Żądanie mpv o identyfikatorze {id} już oczekuje na odpowiedź.");
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct,_lifetime.Token);
             timeout.CancelAfter(TimeSpan.FromSeconds(12));
             try
@@ -75,8 +80,15 @@ namespace VideoPlayer
             { throw new TimeoutException("mpv nie odpowiedział w ciągu 12 sekund."); }
             finally { _pending.TryRemove(id,out _); }
         }
-        public async Task SendAsync(params object[] command) { await RequestAsync(command).ConfigureAwait(false); }
-        public async Task SendRequestAsync(int requestId,params object[] command) { await SendAsync(command); }
+        public async Task SendAsync(params object[] command)
+        {
+            await RequestAsync(command).ConfigureAwait(false);
+        }
+
+        public async Task SendRequestAsync(int requestId, params object[] command)
+        {
+            await RequestCoreAsync(command, requestId, CancellationToken.None).ConfigureAwait(false);
+        }
         private async Task ReadAsync()
         {
             string reason="Połączenie z mpv zostało zamknięte.";
