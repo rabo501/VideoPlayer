@@ -43,7 +43,7 @@ namespace VideoPlayer
         }
         private async void Open_Click(object sender,RoutedEventArgs e)
         {
-            if(!_ready||_opening||_exporting||_shutdownRequested){StatusText.Text="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
+            if(!_ready||_opening||_exporting||_motionDetectionRunning||_shutdownRequested){StatusText.Text="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
             var d=new Microsoft.Win32.OpenFileDialog{Title="Wybierz film",Filter="Pliki wideo|*.mp4;*.mkv;*.avi;*.mov;*.webm;*.m4v;*.wmv;*.ts|Wszystkie pliki|*.*"};
             if(d.ShowDialog(this)==true)await OpenMediaAsync(d.FileName);
         }
