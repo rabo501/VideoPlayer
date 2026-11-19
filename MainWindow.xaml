@@ -400,14 +400,15 @@
             <Setter Property="Padding" Value="7" />
         </Style>
 
-        <!-- Menu główne i rozwijane pozycje: wysoki kontrast, większy tekst i wygodne odstępy. -->
+        <!-- Płaskie pozycje menu: bez obramowań, z czytelnym odstępem i delikatnym podświetleniem. -->
         <Style TargetType="{x:Type MenuItem}">
-            <Setter Property="Background" Value="#202938" />
+            <Setter Property="Background" Value="#202B3B" />
             <Setter Property="Foreground" Value="#F1F5F9" />
             <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="13,9" />
-            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="11,8" />
+            <Setter Property="Margin" Value="0,4" />
+            <Setter Property="MinHeight" Value="42" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -415,9 +416,8 @@
             <Setter Property="OverridesDefaultStyle" Value="False" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#2563EB" />
+                    <Setter Property="Background" Value="#2B3C53" />
                     <Setter Property="Foreground" Value="#FFFFFF" />
-                    <Setter Property="BorderBrush" Value="#60A5FA" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Foreground" Value="#8290A3" />
@@ -433,7 +433,7 @@
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="2,0" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderThickness" Value="0" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
