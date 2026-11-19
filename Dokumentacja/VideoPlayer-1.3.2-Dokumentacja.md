@@ -1,7 +1,7 @@
-# VideoPlayer 1.3.2
+# VideoPlayer 1.6.0
 ## Dokumentacja użytkownika i uruchomienia
 
-Stan dokumentacji: 21.10.2026. Podstawa: kod źródłowy paczki 1.3.2. Dokument obejmuje odtwarzanie, analizę nagrań, fragmenty, zdarzenia, OCR, eksport, raporty i przechowywanie danych.
+Stan dokumentacji: 19.11.2026. Wydanie: 1.6.0. Dokument opisuje aktualny zakres aplikacji, lokalny OCR, wykrywanie ruchu, integrację Dahua, eksport, raporty oraz przechowywanie danych.
 
 ## 1. Przeznaczenie i najważniejsze ograniczenia
 
@@ -18,12 +18,12 @@ Paczka zawiera projekt źródłowy, nie instalator. Do budowania potrzebny jest 
 3. Do katalogu projektu VideoPlayer skopiuj własne katalogi mpv i ffmpeg z działającej instalacji. Zachowaj także pliki towarzyszące silnikom.
 4. Otwórz projekt VideoPlayer/VideoPlayer.csproj w Visual Studio, przywróć zależności i zbuduj dla x64.
 5. W katalogu uruchomieniowym sprawdź obecność mpv/mpv.exe, ffmpeg/ffmpeg.exe, scripts/review.lua oraz katalogów x64 i tessdata. Samo istnienie plików obok źródeł nie wystarczy, jeśli nie trafiły do wyniku budowania.
-6. Przy problemie uruchomienia OCR sprawdź Microsoft Visual C++ Redistributable 2015–2022 x64, natywne biblioteki w x64 i model tessdata/eng.traineddata. W paczce pozostaw pliki licencji.
+6. Przy problemie uruchomienia OCR sprawdź Microsoft Visual C++ Redistributable 2015–2022 x64, biblioteki x64\\tesseract50.dll i x64\\leptonica-1.82.0.dll oraz model tessdata\\eng.traineddata. Wszystkie muszą znaleźć się w katalogu wynikowym. W paczce pozostaw pliki licencji.
 7. Uruchom program z katalogu, w którym masz prawo zapisu: baza SQLite powstaje obok uruchomionej aplikacji.
 
-Wersja 1.3.2 zawiera pliki lokalnego OCR. Nie wymaga przesyłania klatki do internetowego serwisu rozpoznawania. Pierwsze budowanie projektu może wymagać pobrania zależności.
+Wersja 1.6.0 zawiera lokalny OCR oraz narzędzia analizy nagrań. Nie wymaga przesyłania klatki do internetowego serwisu rozpoznawania. Pierwsze budowanie projektu może wymagać pobrania zależności.
 
-Uwaga o oznaczeniu wersji: część tekstów w oknie głównym, tytule po otwarciu filmu i oknie Informacje nadal zawiera numer 1.2.1. To pozostawione etykiety interfejsu; niniejszy dokument dotyczy kodu paczki 1.3.2. Ta aktualizacja dokumentacji nie zmienia kodu aplikacji.
+Numer wydania jest ustawiany centralnie w pliku VideoPlayer.csproj. Tytuł okna i okno Informacje pokazują wersję zestawu aplikacji.
 
 ## 3. Interfejs
 
@@ -115,7 +115,38 @@ Narożniki są zapisane w oryginalnych współrzędnych klatki. Zmiana zoomu, pr
 
 OCR działa lokalnie. Model, silnik i biblioteki muszą znajdować się w przewidzianych katalogach. Numer jest propozycją, nie gwarantowanym odczytem ani identyfikacją pojazdu. Program nie powinien zastępować wizualnego sprawdzenia znaków podobnych, np. O/0 czy I/1. Rozmycie, mała liczba pikseli, prześwietlenie, brud i silna perspektywa mogą uniemożliwić poprawny wynik mimo prostowania. Powiększenie ułatwia zaznaczenie, ale nie odzyskuje brakujących szczegółów.
 
-## 10. Eksport wideo
+## 10. Wykrywanie ruchu
+
+### 10.1. Uruchomienie analizy
+
+1. Otwórz nagranie i wybierz przycisk Wykryj ruch na pasku odtwarzacza.
+2. W oknie ustawień zobaczysz klatkę z aktualnej pozycji nagrania.
+3. Przeciągnij lewym przyciskiem myszy po obrazie, aby zaznaczyć prostokątny obszar analizy. Zaznaczenie jest pokazane zieloną ramką.
+4. Jeśli nie zaznaczysz obszaru albo wybierzesz Cały obraz, analizowana będzie cała klatka.
+5. Ustaw czułość, minimalny obszar zmiany i minimalny czas zdarzenia, a następnie wybierz Rozpocznij analizę.
+6. Postęp jest pokazywany na pasku postępu. Anuluj analizę przerywa bieżące zadanie.
+7. Po zakończeniu wykryte zdarzenia zostaną dodane do listy zdarzeń i oznaczone zakresami na osi czasu.
+
+### 10.2. Parametry
+
+| Parametr | Zakres | Znaczenie |
+|---|---:|---|
+| Czułość — próg różnicy jasności | 1–100 | Próg różnicy jasności pikseli. Niższa wartość oznacza większą czułość. |
+| Minimalny obszar zmiany | 0,5–10% | Minimalny udział zmienionych pikseli w analizowanym obszarze. |
+| Minimalny czas zdarzenia | 0,5–5 s | Krótsze wykrycia są odrzucane. |
+
+Analiza jest wykonywana przez FFmpeg na próbkach 2 klatek/s, przeskalowanych do 320×180 i obrazu monochromatycznego. Zmiany pikseli i procent zmienionego obszaru są liczone tylko wewnątrz wskazanego prostokąta. Przy analizie całego obrazu obszarem odniesienia jest cała klatka.
+
+### 10.3. Zdarzenia i podgląd
+
+Każde wykryte zdarzenie zapisuje czas początku i końca, maksymalny udział zmienionego obszaru oraz prostokąt obejmujący wykryte zmiany. Zakres zdarzenia jest prezentowany na osi czasu jako pomarańczowy pas. Dane są przechowywane w lokalnej bazie VideoPlayer.db.
+
+Aby obejrzeć obszar, zaznacz zdarzenie na liście i wybierz Podgląd obszaru ruchu. Program pobiera klatkę z czasu zdarzenia i pokazuje ją w osobnym oknie z zielonym prostokątem. Starsze zdarzenia, zapisane przed wprowadzeniem współrzędnych obszaru, nie mają danych do takiego podglądu.
+
+### 10.4. Ograniczenia
+
+Wykrywanie porównuje jasność kolejnych próbek, nie rozpoznaje obiektów ani osób i nie określa rodzaju ruchu. Zmiana oświetlenia, szum, kompresja, migotanie obrazu lub ruch kamery mogą powodować fałszywe wykrycia. Ruch krótszy niż odstęp między próbkami może zostać pominięty. Wyniki należy zweryfikować na nagraniu źródłowym.
+## 11. Eksport wideo
 
 ### 10.1. Pojedynczy fragment
 
@@ -147,7 +178,7 @@ Wybierz Zapisz film bez zaznaczonego fragmentu i potwierdź operację. Powstaje 
 
 Obserwuj opis operacji, pasek postępu i komunikat końcowy. Anuluj przerywa bieżące zadanie. Przy zamykaniu podczas operacji program pyta o jej przerwanie. Dla eksportowanych wyników wybieraj nowe nazwy: aplikacja odmawia nadpisania istniejącego wyniku w swoim oknie wyboru ścieżki. Zapis JPG ma oddzielne systemowe okno potwierdzania nadpisania.
 
-## 11. Raporty zdarzeń
+## 12. Raporty zdarzeń
 
 ### 11.1. CSV
 
@@ -161,7 +192,7 @@ Stopka i metadane autora PDF korzystają z pełnej nazwy użytkownika Windows. G
 
 Raport nie stanowi niezależnego potwierdzenia prawdziwości opisu albo poprawności OCR: zapisuje wynik pracy użytkownika z materiałem.
 
-## 12. Sesje, historia i baza danych
+## 13. Sesje, historia i baza danych
 
 Zapisz sesję zachowuje pozycję filmu, wybraną prędkość, stan pauzy, zoom, przesunięcie, tryb wypełnienia, bieżące granice i listę fragmentów. Zapis sesji jest wykonywany także przy zmianie materiału; przy prawidłowym zamknięciu zachowywane są dane pracy. Opcja Przywracaj pozycję i widok decyduje o odtwarzaniu poprzednich ustawień podczas otwierania pliku. Zakresy i zdarzenia należy odróżnić od samego przywracania widoku.
 
@@ -173,7 +204,7 @@ Powiązanie analizy opiera się na ścieżce pliku. Przeniesienie lub zmiana naz
 
 Kopię bazy wykonuj po zamknięciu programu. Jeśli obok bazy pozostają pliki SQLite -wal lub -shm, nie usuwaj ich arbitralnie i zachowaj spójną kopię katalogu. Zabezpieczaj oddzielnie nagrania źródłowe, wyeksportowane filmy, zapisane klatki i raporty. Po aktualizacji sprawdź, czy używana jest właściwa baza w aktualnym katalogu uruchomieniowym.
 
-## 13. Skróty i gesty — zestawienie
+## 14. Skróty i gesty — zestawienie
 
 | Skrót lub gest | Okno / działanie |
 |---|---|
@@ -191,7 +222,7 @@ Kopię bazy wykonuj po zamknięciu programu. Jeśli obok bazy pozostają pliki S
 
 Skróty analizy nie powinny przejmować liter podczas wpisywania tekstu w polach edycyjnych i pracy z listami rozwijanymi. Nie wszystkie skróty okna głównego obowiązują w oknie OCR. R jest skrótem głównego widoku; w OCR do przywrócenia pełnej klatki służy Dopasuj.
 
-## 14. Rozwiązywanie problemów
+## 15. Rozwiązywanie problemów
 
 | Objaw | Co sprawdzić |
 |---|---|
@@ -200,7 +231,7 @@ Skróty analizy nie powinny przejmować liter podczas wpisywania tekstu w polach
 | Nie można wyeksportować zakresu | Ustawienie obu granic, koniec późniejszy od początku, granice w długości filmu, dostępność źródła i FFmpeg |
 | Błąd przy kopiowaniu strumieni | Zgodność kodeków z MP4; zamiast kopiowania użyj ponownego kodowania |
 | Brak parametrów materiału lub miniatur PDF | Dostępność FFmpeg i prawidłowy plik źródłowy |
-| Nie działa lokalny OCR | x64, model eng.traineddata, biblioteki natywne i Visual C++ Redistributable |
+| Nie działa lokalny OCR | x64\\tesseract50.dll, x64\\leptonica-1.82.0.dll, tessdata\\eng.traineddata oraz Microsoft Visual C++ Redistributable 2015–2022 (x64) |
 | OCR nie odczytuje czytelnej tablicy | Dokładniejsze narożniki, kontrola wyprostowanego podglądu, inna klatka, ograniczenie tła |
 | Nieaktywny zapis numeru | Poprawność numeru i zaznaczenie potwierdzenia zgodności z obrazem |
 | Zniknęły dawne sesje lub zdarzenia | Właściwa baza VideoPlayer.db i ta sama ścieżka nagrania |
@@ -209,11 +240,11 @@ Skróty analizy nie powinny przejmować liter podczas wpisywania tekstu w polach
 
 Menu Pomoc udostępnia pomoc podstawową, ponowne uruchomienie mpv i informacje o programie. Niniejsza dokumentacja jest pełniejsza niż starsze teksty pomocy wbudowanej.
 
-## 15. Weryfikacja i zakres tej aktualizacji
+## 16. Weryfikacja i zakres wydania 1.6.0
 
-Dla paczki kodu 1.3.2 kompilacja zakończyła się bez błędów i ostrzeżeń, a 37 testów OCR, geometrii, współrzędnych i widoku zakończyło się poprawnie. Nie oznacza to testu wszystkich funkcji na Windows: obsługa myszy w WPF, biblioteki natywne, pełna nazwa konta i wyniki na rzeczywistych filmach wymagają sprawdzenia w docelowym środowisku.
+Wydanie 1.6.0 obejmuje lokalny OCR, wykrywanie ruchu z obszarem ROI, zapis przedziałów czasowych zdarzeń i podgląd obszaru ruchu oraz istniejące funkcje odtwarzania, eksportu, raportowania i integracji Dahua. Kompilację x64 oraz testy na docelowym komputerze Windows należy wykonać przed opublikowaniem paczki.
 
-Ta aktualizacja ujednolica dokumentację. Nie zmienia logiki aplikacji, schematu bazy, eksportu CSV ani pliku ReportService.cs. Starsze instrukcje cząstkowe pozostawiono jako materiały historyczne; w razie różnic w opisie bieżących funkcji korzystaj z tego dokumentu.
+Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.6.0. Starsze instrukcje cząstkowe oraz dokument DOCX/ZIP oznaczone 1.3.2 mają charakter archiwalny; w razie różnic korzystaj z dokumentacji 1.6.0.
 
 ### Lista kontroli po instalacji
 
@@ -224,3 +255,18 @@ Ta aktualizacja ujednolica dokumentację. Nie zmienia logiki aplikacji, schematu
 - Wyeksportuj pojedynczy zakres, listę i nowy film bez fragmentu; obejrzyj wyniki.
 - Wygeneruj CSV oraz PDF z miniaturami i bez nich. Sprawdź autora, stopkę, czasy i opisy.
 - Potwierdź, że oryginalny film pozostał bez zmian i że znasz lokalizację właściwej bazy.
+
+## 17. Przygotowanie publikacji 1.6.0
+
+- [ ] Ustawiono konfigurację Release i platformę x64.
+- [ ] Wykonano czystą kompilację oraz publikację na docelowym Windows z .NET 8 Desktop Runtime.
+- [ ] W katalogu wynikowym są mpv\\mpv.exe i pliki towarzyszące, ffmpeg\\ffmpeg.exe oraz wymagane biblioteki FFmpeg.
+- [ ] W katalogu wynikowym są x64\\tesseract50.dll, x64\\leptonica-1.82.0.dll, tessdata\\eng.traineddata i Tesseract.dll.
+- [ ] Na komputerze docelowym jest Microsoft Visual C++ Redistributable 2015–2022 (x64).
+- [ ] W paczce są scripts\\review.lua, VideoPlayer.ico oraz pliki licencji.
+- [ ] Sprawdzono OCR, detekcję ruchu na zaznaczonym obszarze i całym obrazie, anulowanie, zapis zakresów i podgląd obszaru.
+- [ ] Sprawdzono eksport MP4, JPG, CSV i PDF oraz integrację Dahua, jeśli jest używana.
+- [ ] Wykonano kopię bazy danych i przetestowano aktualizację istniejącej bazy.
+- [ ] Wydanie zawiera numer 1.6.0 w nazwie paczki i informacjach o programie.
+
+**Ważne:** pliki natywne OCR muszą być dołączone do paczki wydania, nawet jeśli na komputerze deweloperskim OCR działa dzięki bibliotekom już zainstalowanym w systemie. Instalacja Visual C++ Redistributable nie zastępuje bibliotek Tesseract i Leptonica.
