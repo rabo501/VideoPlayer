@@ -77,7 +77,7 @@ namespace VideoPlayer
             string key = NormalizePath(sourcePath);
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
-            command.CommandText = @"SELECT Id, Seconds, Description, VehicleMake, EndSeconds FROM TimelineMarkers
+            command.CommandText = @"SELECT Id, Seconds, Description, VehicleMake, EndSeconds, MotionX, MotionY, MotionWidth, MotionHeight FROM TimelineMarkers
                                     WHERE SourcePath = $sourcePath ORDER BY Seconds;";
             command.Parameters.AddWithValue("$sourcePath", key);
             using var reader = command.ExecuteReader();
@@ -90,7 +90,11 @@ namespace VideoPlayer
                     Seconds = reader.GetDouble(1),
                     Description = reader.GetString(2),
                     VehicleMake = reader.GetString(3),
-                    EndSeconds = reader.IsDBNull(4) ? null : reader.GetDouble(4)
+                    EndSeconds = reader.IsDBNull(4) ? null : reader.GetDouble(4),
+                    MotionX = reader.IsDBNull(5) ? null : reader.GetDouble(5),
+                    MotionY = reader.IsDBNull(6) ? null : reader.GetDouble(6),
+                    MotionWidth = reader.IsDBNull(7) ? null : reader.GetDouble(7),
+                    MotionHeight = reader.IsDBNull(8) ? null : reader.GetDouble(8)
                 });
             }
             return markers;
@@ -115,14 +119,18 @@ namespace VideoPlayer
             {
                 using var insert = connection.CreateCommand();
                 insert.Transaction = transaction;
-                insert.CommandText = @"INSERT INTO TimelineMarkers (Id, SourcePath, Seconds, Description, VehicleMake, EndSeconds)
-                                       VALUES ($id, $sourcePath, $seconds, $description, $vehicleMake, $endSeconds);";
+                insert.CommandText = @"INSERT INTO TimelineMarkers (Id, SourcePath, Seconds, Description, VehicleMake, EndSeconds, MotionX, MotionY, MotionWidth, MotionHeight)
+                                       VALUES ($id, $sourcePath, $seconds, $description, $vehicleMake, $endSeconds, $motionX, $motionY, $motionWidth, $motionHeight);";
                 insert.Parameters.AddWithValue("$id", marker.Id.ToString("D"));
                 insert.Parameters.AddWithValue("$sourcePath", key);
                 insert.Parameters.AddWithValue("$seconds", marker.Seconds);
                 insert.Parameters.AddWithValue("$description", marker.Description ?? string.Empty);
                 insert.Parameters.AddWithValue("$vehicleMake", marker.VehicleMake ?? string.Empty);
                 insert.Parameters.AddWithValue("$endSeconds", (object?)marker.EndSeconds ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$motionX", (object?)marker.MotionX ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$motionY", (object?)marker.MotionY ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$motionWidth", (object?)marker.MotionWidth ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$motionHeight", (object?)marker.MotionHeight ?? DBNull.Value);
                 insert.ExecuteNonQuery();
             }
             transaction.Commit();
@@ -220,6 +228,7 @@ namespace VideoPlayer
             // Add the new field to existing portable databases without losing saved markers.
             bool hasVehicleMake = false;
             bool hasEndSeconds = false;
+            bool hasMotionX = false, hasMotionY = false, hasMotionWidth = false, hasMotionHeight = false;
             using (var columns = connection.CreateCommand())
             {
                 columns.CommandText = "PRAGMA table_info(TimelineMarkers);";
@@ -230,6 +239,10 @@ namespace VideoPlayer
                         hasVehicleMake = true;
                     if (string.Equals(reader.GetString(1), "EndSeconds", StringComparison.OrdinalIgnoreCase))
                         hasEndSeconds = true;
+                    if (string.Equals(reader.GetString(1), "MotionX", StringComparison.OrdinalIgnoreCase)) hasMotionX = true;
+                    if (string.Equals(reader.GetString(1), "MotionY", StringComparison.OrdinalIgnoreCase)) hasMotionY = true;
+                    if (string.Equals(reader.GetString(1), "MotionWidth", StringComparison.OrdinalIgnoreCase)) hasMotionWidth = true;
+                    if (string.Equals(reader.GetString(1), "MotionHeight", StringComparison.OrdinalIgnoreCase)) hasMotionHeight = true;
                 }
             }
             if (!hasVehicleMake)
@@ -242,6 +255,13 @@ namespace VideoPlayer
             {
                 using var alter = connection.CreateCommand();
                 alter.CommandText = "ALTER TABLE TimelineMarkers ADD COLUMN EndSeconds REAL NULL;";
+                alter.ExecuteNonQuery();
+            }
+            foreach (var column in new[] { ("MotionX", hasMotionX), ("MotionY", hasMotionY), ("MotionWidth", hasMotionWidth), ("MotionHeight", hasMotionHeight) })
+            {
+                if (column.Item2) continue;
+                using var alter = connection.CreateCommand();
+                alter.CommandText = $"ALTER TABLE TimelineMarkers ADD COLUMN {column.Item1} REAL NULL;";
                 alter.ExecuteNonQuery();
             }
         }
@@ -295,14 +315,18 @@ namespace VideoPlayer
                                 if (!double.IsFinite(marker.Seconds) || marker.Seconds < 0) continue;
                                 using var command = connection.CreateCommand();
                                 command.Transaction = transaction;
-                                command.CommandText = @"INSERT OR REPLACE INTO TimelineMarkers (Id, SourcePath, Seconds, Description, VehicleMake, EndSeconds)
-                                                        VALUES ($id, $sourcePath, $seconds, $description, $vehicleMake, $endSeconds);";
+                                command.CommandText = @"INSERT OR REPLACE INTO TimelineMarkers (Id, SourcePath, Seconds, Description, VehicleMake, EndSeconds, MotionX, MotionY, MotionWidth, MotionHeight)
+                                                        VALUES ($id, $sourcePath, $seconds, $description, $vehicleMake, $endSeconds, $motionX, $motionY, $motionWidth, $motionHeight);";
                                 command.Parameters.AddWithValue("$id", marker.Id.ToString("D"));
                                 command.Parameters.AddWithValue("$sourcePath", NormalizePath(pair.Key));
                                 command.Parameters.AddWithValue("$seconds", marker.Seconds);
                                 command.Parameters.AddWithValue("$description", marker.Description ?? string.Empty);
                                 command.Parameters.AddWithValue("$vehicleMake", marker.VehicleMake ?? string.Empty);
                                 command.Parameters.AddWithValue("$endSeconds", (object?)marker.EndSeconds ?? DBNull.Value);
+                                command.Parameters.AddWithValue("$motionX", (object?)marker.MotionX ?? DBNull.Value);
+                                command.Parameters.AddWithValue("$motionY", (object?)marker.MotionY ?? DBNull.Value);
+                                command.Parameters.AddWithValue("$motionWidth", (object?)marker.MotionWidth ?? DBNull.Value);
+                                command.Parameters.AddWithValue("$motionHeight", (object?)marker.MotionHeight ?? DBNull.Value);
                                 command.ExecuteNonQuery();
                             }
                             transaction.Commit();
@@ -410,6 +434,10 @@ namespace VideoPlayer
         public string Description { get; set; } = "";
         public string VehicleMake { get; set; } = "";
         public double? EndSeconds { get; set; }
+        public double? MotionX { get; set; }
+        public double? MotionY { get; set; }
+        public double? MotionWidth { get; set; }
+        public double? MotionHeight { get; set; }
         public override string ToString()
         {
             TimeSpan time = TimeSpan.FromSeconds(Math.Max(0, Seconds));
