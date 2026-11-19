@@ -60,8 +60,8 @@ namespace VideoPlayer
                     duration,
                     pixelDifferenceThreshold: 22,
                     changedAreaPercent: 1.5,
-                    progress,
-                    _motionDetectionCts.Token);
+                    progress: progress,
+                    cancellationToken: _motionDetectionCts.Token);
 
                 if (_closing || !string.Equals(source, _sourceFilePath, StringComparison.OrdinalIgnoreCase)) return;
 
