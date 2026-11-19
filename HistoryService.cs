@@ -412,7 +412,8 @@ namespace VideoPlayer
         {
             TimeSpan time = TimeSpan.FromSeconds(Math.Max(0, Seconds));
             string make = string.IsNullOrWhiteSpace(VehicleMake) ? "" : " | Marka: " + VehicleMake;
-            return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00} — {Description}{make}";
+            string range = EndSeconds is double end && end > Seconds ? " – " + TimeSpan.FromSeconds(end).ToString(@"hh\\:mm\\:ss") : "";
+            return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}{range} — {Description}{make}";
         }
     }
 
