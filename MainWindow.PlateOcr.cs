@@ -470,8 +470,11 @@ namespace VideoPlayer
                 OcrStatusText.Text = "Nie udało się uruchomić OCR. Możesz wpisać numer ręcznie.";
                 if (!_closing)
                 {
+                    string details = ex.Message;
+                    for (Exception? inner = ex.InnerException; inner != null; inner = inner.InnerException)
+                        details += "\\n\\nSzczegóły: " + inner.GetType().Name + ": " + inner.Message;
                     MessageBox.Show(this,
-                        ex.Message + "\n\nSprawdź katalogi x64 i tessdata. Silnik wymaga Microsoft Visual C++ Redistributable 2015–2022 (x64).",
+                        details + "\\n\\nWymagane pliki: x64\\\\tesseract50.dll, x64\\\\leptonica-1.82.0.dll oraz tessdata\\\\eng.traineddata. Zainstaluj również Microsoft Visual C++ Redistributable 2015–2022 (x64).",
                         "OCR lokalny", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
