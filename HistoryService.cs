@@ -30,6 +30,8 @@ namespace VideoPlayer
             }.ToString();
 
             bool databaseAlreadyExisted = File.Exists(_databasePath);
+            if (databaseAlreadyExisted)
+                BackupBeforeSchemaMigrationIfNeeded();
             InitializeDatabase();
             if (!databaseAlreadyExisted)
                 ImportLegacyJson();
@@ -186,6 +188,48 @@ namespace VideoPlayer
             var connection = new SqliteConnection(_connectionString);
             connection.Open();
             return connection;
+        }
+
+        /// <summary>
+        /// Creates a consistent SQLite backup before changing an existing database schema.
+        /// SQLite's backup API includes committed WAL data, unlike copying the .db file directly.
+        /// </summary>
+        private void BackupBeforeSchemaMigrationIfNeeded()
+        {
+            using var source = OpenConnection();
+            var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var table = source.CreateCommand())
+            {
+                table.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='TimelineMarkers' LIMIT 1;";
+                if (table.ExecuteScalar() == null)
+                    return;
+            }
+
+            using (var columns = source.CreateCommand())
+            {
+                columns.CommandText = "PRAGMA table_info(TimelineMarkers);";
+                using var reader = columns.ExecuteReader();
+                while (reader.Read())
+                    existingColumns.Add(reader.GetString(1));
+            }
+
+            string[] requiredColumns = { "VehicleMake", "EndSeconds", "MotionX", "MotionY", "MotionWidth", "MotionHeight" };
+            if (requiredColumns.All(existingColumns.Contains))
+                return;
+
+            string backupDirectory = Path.Combine(_directory, "backups");
+            Directory.CreateDirectory(backupDirectory);
+            string backupPath = Path.Combine(
+                backupDirectory,
+                $"VideoPlayer_pre-migration_{DateTime.Now:yyyyMMdd_HHmmss_fff}.db");
+
+            using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = backupPath,
+                Mode = SqliteOpenMode.ReadWriteCreate
+            }.ToString());
+            destination.Open();
+            source.BackupDatabase(destination);
         }
 
         private void InitializeDatabase()
