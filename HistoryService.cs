@@ -225,10 +225,12 @@ namespace VideoPlayer
                 columns.CommandText = "PRAGMA table_info(TimelineMarkers);";
                 using var reader = columns.ExecuteReader();
                 while (reader.Read())
+                {
                     if (string.Equals(reader.GetString(1), "VehicleMake", StringComparison.OrdinalIgnoreCase))
                         hasVehicleMake = true;
                     if (string.Equals(reader.GetString(1), "EndSeconds", StringComparison.OrdinalIgnoreCase))
                         hasEndSeconds = true;
+                }
             }
             if (!hasVehicleMake)
             {
