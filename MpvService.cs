@@ -56,6 +56,12 @@ namespace VideoPlayer
             if (!IsReady || _disposed) throw new IOException("Brak połączenia z mpv.");
             int id = requestedId ?? Interlocked.Increment(ref _nextId);
             if (id <= 0) throw new ArgumentOutOfRangeException(nameof(requestedId), "Identyfikator żądania musi być dodatni.");
+            if (requestedId.HasValue)
+            {
+                int current;
+                while ((current = Volatile.Read(ref _nextId)) < id &&
+                       Interlocked.CompareExchange(ref _nextId, id, current) != current) { }
+            }
             var tcs=new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
             if (!_pending.TryAdd(id, tcs))
                 throw new InvalidOperationException($"Żądanie mpv o identyfikatorze {id} już oczekuje na odpowiedź.");
