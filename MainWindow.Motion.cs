@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -70,7 +71,11 @@ namespace VideoPlayer
                         Id = Guid.NewGuid(),
                         Seconds = Math.Clamp(item.StartSeconds, 0, PositionSlider.Maximum),
                         EndSeconds = Math.Clamp(item.EndSeconds, 0, PositionSlider.Maximum),
-                        Description = $"Ruch ({item.PeakChangedRatio:0.0}% obszaru)"
+                        MotionX = item.MotionX,
+                        MotionY = item.MotionY,
+                        MotionWidth = item.MotionWidth,
+                        MotionHeight = item.MotionHeight,
+                        Description = $"Ruch ({item.PeakChangedRatio:0.0}% zaznaczonego obszaru)"
                     });
                 SaveTimelineMarkers();
                 RefreshTimelineMarkerList();
@@ -94,6 +99,35 @@ namespace VideoPlayer
                 _motionDetectionCts?.Dispose(); _motionDetectionCts = null; _motionDetectionRunning = false;
                 if (!_closing) { MotionDetectButton.IsEnabled = true; MotionCancelButton.Visibility = Visibility.Collapsed; MotionCancelButton.IsEnabled = false; }
             }
+        }
+
+        private async void MotionPreview_Click(object sender, RoutedEventArgs e)
+        {
+            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker marker)
+            {
+                MessageBox.Show(this, "Wybierz zdarzenie z listy.", "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (marker.MotionX is not double x || marker.MotionY is not double y ||
+                marker.MotionWidth is not double w || marker.MotionHeight is not double h)
+            {
+                MessageBox.Show(this, "To zdarzenie nie ma zapisanego obszaru ruchu. Podgląd jest dostępny dla zdarzeń wykrytych po tej aktualizacji.", "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string preview = Path.Combine(Path.GetTempPath(), "VideoPlayer_motion_preview_" + Guid.NewGuid().ToString("N") + ".jpg");
+            try
+            {
+                string ffmpeg = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
+                var psi = new ProcessStartInfo { FileName = ffmpeg, UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
+                foreach (string arg in new[] { "-hide_banner", "-loglevel", "error", "-ss", marker.Seconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), "-i", _sourceFilePath!, "-frames:v", "1", "-q:v", "2", "-y", preview }) psi.ArgumentList.Add(arg);
+                using var process = Process.Start(psi) ?? throw new InvalidOperationException("Nie udało się uruchomić FFmpeg.");
+                string error = await process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                if (process.ExitCode != 0 || !File.Exists(preview)) throw new IOException("Nie udało się pobrać klatki zdarzenia. " + error.Trim());
+                new MotionEventPreviewWindow(preview, x, y, w, h) { Owner = this }.ShowDialog();
+            }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            finally { try { if (File.Exists(preview)) File.Delete(preview); } catch { } }
         }
 
         private void MotionCancel_Click(object sender, RoutedEventArgs e)
