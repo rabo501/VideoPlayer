@@ -51,6 +51,7 @@ namespace VideoPlayer
         {
             if(!_ready||_opening||_exporting||_shutdownRequested)return;
             if(!File.Exists(path)){StatusText.Text="Plik nie istnieje.";return;}
+            SetWorkspaceMode(WorkspaceMode.Player);
             SaveSession();_opening=true;
             try
             {
@@ -92,7 +93,7 @@ namespace VideoPlayer
                 finally{_restoring=false;}
                 RefreshRanges();UpdateClipRangeText();
                 MediaInfoText.Text="Odczytywanie parametrów…";_=UpdateMediaInfoAsync(path);
-                Title="VideoPlayer 1.4.0 — "+_fileName;
+                Title="VideoPlayer 1.5.0 — "+_fileName;
                 StatusText.Text=restore?"Przywrócono sesję: "+_fileName:_fileName;
             }
             catch(Exception ex)
