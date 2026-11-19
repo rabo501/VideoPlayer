@@ -32,6 +32,7 @@ namespace VideoPlayer
         private readonly List<string> _recentFiles = new(), _recentScreenshots = new();
         private readonly List<TimelineMarker> _timelineMarkers = new();
         private readonly List<Button> _markerButtons = new();
+        private readonly List<Border> _motionRangeBands = new();
         private readonly ObservableCollection<ClipRange> _clips = new();
         private bool _ready, _closing, _dragging, _updatingSlider, _eofReached, _paused = true, _opening, _restoring, _shutdownRequested, _allowClose;
         private bool _exporting, _screenshotBusy, _changingScale;
