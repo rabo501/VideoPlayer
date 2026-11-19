@@ -47,7 +47,7 @@ namespace VideoPlayer
             {
                 "-hide_banner", "-loglevel", "error", "-i", sourcePath,
                 "-an", "-sn", "-dn",
-                "-vf", $"fps={FramesPerSecond},scale={FrameWidth}:{FrameHeight}:flags=area,format=gray",
+                "-vf", $"fps={FramesPerSecond},scale={FrameWidth}:{FrameHeight}:force_original_aspect_ratio=decrease:flags=area,pad={FrameWidth}:{FrameHeight}:(ow-iw)/2:(oh-ih)/2,format=gray",
                 "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"
             }) psi.ArgumentList.Add(arg);
 
