@@ -60,7 +60,13 @@ namespace VideoPlayer
             _canvas.Children.Add(_rectangle);
             root.Children.Add(_frame);
             Content = root;
-            _image.Source = new BitmapImage(new Uri(imagePath));
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(imagePath);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            _image.Source = bitmap;
             _canvas.SizeChanged += (_, __) => RedrawRectangle();
             _canvas.MouseLeftButtonDown += CanvasDown;
             _canvas.MouseMove += CanvasMove;
