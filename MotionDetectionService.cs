@@ -79,12 +79,12 @@ namespace VideoPlayer
                         {
                             if (active == null || seconds - active.EndSeconds > 2.0)
                             {
-                                active = new MotionEvent { StartSeconds = Math.Max(0, seconds - 0.5), EndSeconds = seconds, PeakChangedRatio = ratio };
+                                active = new MotionEvent { StartSeconds = Math.Max(0, seconds - 0.5), EndSeconds = Math.Min(durationSeconds > 0 ? durationSeconds : double.MaxValue, seconds + 0.5), PeakChangedRatio = ratio };
                                 events.Add(active);
                             }
                             else
                             {
-                                active.EndSeconds = seconds;
+                                active.EndSeconds = Math.Min(durationSeconds > 0 ? durationSeconds : double.MaxValue, seconds + 0.5);
                                 active.PeakChangedRatio = Math.Max(active.PeakChangedRatio, ratio);
                             }
                         }
