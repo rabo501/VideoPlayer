@@ -371,10 +371,34 @@ namespace VideoPlayer
             foreach (var button in _markerButtons)
                 TimelineOverlay.Children.Remove(button);
             _markerButtons.Clear();
+            foreach (var band in _motionRangeBands) TimelineOverlay.Children.Remove(band);
+            _motionRangeBands.Clear();
 
             double width = TimelineOverlay.ActualWidth;
             double duration = PositionSlider.Maximum - PositionSlider.Minimum;
             if (width <= 0 || duration <= 0 || !PositionSlider.IsEnabled) return;
+
+            foreach (TimelineMarker marker in _timelineMarkers.Where(m => m.EndSeconds.HasValue && m.EndSeconds.Value > m.Seconds))
+            {
+                double startX = Math.Clamp((marker.Seconds - PositionSlider.Minimum) / duration * width, 0, width);
+                double endX = Math.Clamp((marker.EndSeconds!.Value - PositionSlider.Minimum) / duration * width, 0, width);
+                var band = new Border
+                {
+                    Height = 14,
+                    Width = Math.Max(2, endX - startX),
+                    Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(105, 255, 145, 0)),
+                    BorderBrush = System.Windows.Media.Brushes.DarkOrange,
+                    BorderThickness = new Thickness(0, 1, 0, 1),
+                    CornerRadius = new CornerRadius(2),
+                    ToolTip = $"{FormatClipTime(marker.Seconds)} – {FormatClipTime(marker.EndSeconds.Value)} — {marker.Description}",
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(band, startX);
+                Canvas.SetTop(band, Math.Max(0, (TimelineOverlay.ActualHeight - band.Height) / 2));
+                Canvas.SetZIndex(band, 2);
+                TimelineOverlay.Children.Add(band);
+                _motionRangeBands.Add(band);
+            }
 
             foreach (TimelineMarker marker in _timelineMarkers)
             {
@@ -387,7 +411,9 @@ namespace VideoPlayer
                     BorderThickness = new Thickness(1),
                     BorderBrush = System.Windows.Media.Brushes.White,
                     Background = System.Windows.Media.Brushes.DarkOrange,
-                    ToolTip = $"{FormatClipTime(marker.Seconds)} — {marker.Description}",
+                    ToolTip = marker.EndSeconds is double end && end > marker.Seconds
+                        ? $"{FormatClipTime(marker.Seconds)} – {FormatClipTime(end)} — {marker.Description}"
+                        : $"{FormatClipTime(marker.Seconds)} — {marker.Description}",
                     Cursor = Cursors.Hand,
                     Focusable = true
                 };
