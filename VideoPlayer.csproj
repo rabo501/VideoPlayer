@@ -34,7 +34,7 @@
   <ItemGroup>
     <Reference Include="Tesseract"><HintPath>lib\Tesseract.dll</HintPath><Private>true</Private></Reference>
     <!-- Biblioteki SDK (zarówno natywne DLL, jak i pozostałe pliki) pozostają w katalogu lib. -->
-    <Content Include="lib\**\*;tessdata\**\*;licenses\**\*">
+    <Content Include="lib\**\*;tessdata\**\*;x64\**\*;licenses\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
