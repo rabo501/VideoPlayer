@@ -1211,7 +1211,9 @@
                 <Button Content="◀ Klatka" Click="PreviousFrame_Click" Margin="0,0,6,0" Padding="10,8" />
                 <Button x:Name="PlayButton" Content="Play / Pauza" Style="{StaticResource PlayButtonStyle}" Click="PlayPause_Click" Margin="0,0,6,0" MinWidth="100" Padding="14,8" />
                 <Button Content="Klatka ▶" Click="NextFrame_Click" Margin="0,0,14,0" Padding="10,8" />
-                <Button x:Name="ScreenshotButton" Content="Zapisz klatkę (S)" Click="Screenshot_Click" Margin="0" Padding="10,8" />
+                <Button x:Name="ScreenshotButton" Content="Zapisz klatkę (S)" Click="Screenshot_Click" Margin="0,0,6,0" Padding="10,8" />
+                <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" Margin="0,0,6,0" Padding="10,8" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
+                <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Click="MotionCancel_Click" Margin="0" Padding="10,8" Visibility="Collapsed" IsEnabled="False" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Prędkość" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#AEB9CA" />
