@@ -11,7 +11,9 @@ namespace VideoPlayer.ViewModels
             EventCenterViewModel? eventCenter = null,
             MotionDetectionViewModel? motion = null,
             ExportViewModel? export = null,
-            PlateSearchViewModel? plateSearch = null)
+            PlateSearchViewModel? plateSearch = null,
+            CaseArchiveViewModel? cases = null,
+            HistoryViewModel? history = null)
         {
             PlateOcr = plateOcr ?? new PlateOcrViewModel();
             Dahua = dahua ?? new DahuaViewModel();
@@ -19,6 +21,8 @@ namespace VideoPlayer.ViewModels
             Motion = motion ?? new MotionDetectionViewModel();
             Export = export ?? new ExportViewModel();
             PlateSearch = plateSearch ?? new PlateSearchViewModel();
+            Cases = cases ?? new CaseArchiveViewModel();
+            History = history ?? new HistoryViewModel();
 
             Export.IsMotionRunning = Motion.IsRunning;
             Motion.PropertyChanged += (_, e) =>
@@ -34,6 +38,8 @@ namespace VideoPlayer.ViewModels
         public MotionDetectionViewModel Motion { get; }
         public ExportViewModel Export { get; }
         public PlateSearchViewModel PlateSearch { get; }
+        public CaseArchiveViewModel Cases { get; }
+        public HistoryViewModel History { get; }
 
         [ObservableProperty]
         private string _statusMessage = "Uruchamianie odtwarzacza…";

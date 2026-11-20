@@ -237,7 +237,7 @@ namespace VideoPlayer
             }
             catch (Exception ex)
             {
-                StatusText.Text = "Nie udało się zapisać znaczników: " + ex.Message;
+                ViewModel.StatusMessage = "Nie udało się zapisać znaczników: " + ex.Message;
             }
         }
 
@@ -269,7 +269,7 @@ namespace VideoPlayer
             ViewModel.EventCenter.AddMarker(marker);
             SaveTimelineMarkers();
             UpdateTimelineOverlay();
-            StatusText.Text = "Dodano znacznik: " + description;
+            ViewModel.StatusMessage = "Dodano znacznik: " + description;
         }
 
         private void UpdateMarker_Click(object sender, RoutedEventArgs e)
@@ -297,7 +297,7 @@ namespace VideoPlayer
         {
             if (ViewModel.EventCenter.SelectedMarker is not TimelineMarker selected) return;
             await SeekAsync(selected.Seconds);
-            StatusText.Text = "Przejście do zdarzenia: " + selected.Description;
+            ViewModel.StatusMessage = "Przejście do zdarzenia: " + selected.Description;
         }
 
         private void DeleteMarker_Click(object sender, RoutedEventArgs e)
@@ -315,7 +315,7 @@ namespace VideoPlayer
             {
                 ViewModel.EventCenter.SelectedMarker = marker;
                 await SeekAsync(marker.Seconds);
-                StatusText.Text = "Przejście do zdarzenia: " + marker.Description;
+                ViewModel.StatusMessage = "Przejście do zdarzenia: " + marker.Description;
             }
         }
 
@@ -377,7 +377,7 @@ namespace VideoPlayer
                 {
                     ViewModel.EventCenter.SelectedMarker = marker;
                     await SeekAsync(marker.Seconds);
-                    StatusText.Text = "Przejście do zdarzenia: " + marker.Description;
+                    ViewModel.StatusMessage = "Przejście do zdarzenia: " + marker.Description;
                 };
                 Canvas.SetLeft(button, Math.Clamp(x - button.Width / 2, 0, Math.Max(0, width - button.Width)));
                 Canvas.SetTop(button, Math.Max(0, (TimelineOverlay.ActualHeight - button.Height) / 2));

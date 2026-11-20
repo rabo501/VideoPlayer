@@ -118,7 +118,7 @@ namespace VideoPlayer
         {
             if (ViewModel.PlateOcr.IsBusy)
             {
-                StatusText.Text = "Poczekaj na zatrzymanie bieżącego rozpoznawania OCR.";
+                ViewModel.StatusMessage = "Poczekaj na zatrzymanie bieżącego rozpoznawania OCR.";
                 ViewModel.PlateOcr.CancelRecognition();
                 return;
             }

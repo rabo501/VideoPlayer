@@ -33,10 +33,9 @@ namespace VideoPlayer
         private ReportService _reports = null!;
         private CaseRepository _cases = null!;
         private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(3) };
-        private readonly List<string> _recentFiles = new(), _recentScreenshots = new();
         private readonly List<Button> _markerButtons = new();
         private readonly List<Border> _motionRangeBands = new();
-        private readonly string _displayVersion = "1.7.0";
+        private readonly string _displayVersion = "1.8.0";
         private bool _ready, _closing, _dragging, _updatingSlider, _eofReached, _paused = true, _opening, _restoring, _shutdownRequested, _allowClose;
         private bool _screenshotBusy, _changingScale;
         private string _fileName = "";
@@ -52,7 +51,7 @@ namespace VideoPlayer
             DataContext = ViewModel;
             Assembly assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
             Version? appVersion = assembly.GetName().Version;
-            _displayVersion = appVersion == null ? "1.7.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
+            _displayVersion = appVersion == null ? "1.8.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
             AssemblyInformationalVersionAttribute? informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
             string productVersion = !string.IsNullOrWhiteSpace(informational?.InformationalVersion) ? informational!.InformationalVersion : _displayVersion;
 
@@ -76,12 +75,11 @@ namespace VideoPlayer
                 _historyService = new HistoryService();
                 ViewModel.PlateSearch.AttachSearchProvider((plate, make, source) => _historyService.SearchMarkers(plate, make, source));
                 _cases = new CaseRepository();
-                RefreshCaseArchiveList();
+                ViewModel.Cases.AttachRepository(_cases);
                 _reviews = new ReviewRepository();
                 _exports = new ExportService(_ffmpegService);
                 _reports = new ReportService(_exports);
-                LoadHistory();
-                RefreshHistoryControls();
+                ViewModel.History.AttachService(_historyService);
                 LoadDahuaDeviceList();
                 await StartPlayerAsync();
                 InitializeVideoMouseInput();
@@ -89,7 +87,7 @@ namespace VideoPlayer
             }
             catch (Exception ex)
             {
-                StatusText.Text = "Błąd inicjalizacji: " + ex.Message;
+                ViewModel.StatusMessage = "Błąd inicjalizacji: " + ex.Message;
                 MessageBox.Show(this, ex.Message + "\nSprawdź uprawnienia do katalogu programu i pliki mpv/FFmpeg.", "Błąd uruchamiania");
             }
         }
@@ -102,7 +100,7 @@ namespace VideoPlayer
             _ready = true;
             string[] props = { "time-pos", "duration", "eof-reached", "pause", "video-zoom", "video-pan-x", "video-pan-y", "panscan" };
             for (int i = 0; i < props.Length; i++) await _mpvService.SendAsync("observe_property", i + 1, props[i]);
-            StatusText.Text = "Gotowy. Otwórz film. Kółko: zoom; przeciąganie: przesuwanie; R: reset widoku.";
+            ViewModel.StatusMessage = "Gotowy. Otwórz film. Kółko: zoom; przeciąganie: przesuwanie; R: reset widoku.";
         }
 
         private void OnDisconnected(string reason)
@@ -115,7 +113,7 @@ namespace VideoPlayer
                 _ready = false;
                 _screenshotBusy = false;
                 ScreenshotButton.IsEnabled = true;
-                StatusText.Text = "Utracono mpv: " + reason + " Użyj Uruchom ponownie mpv.";
+                ViewModel.StatusMessage = "Utracono mpv: " + reason + " Użyj Uruchom ponownie mpv.";
             });
         }
 
@@ -142,7 +140,7 @@ namespace VideoPlayer
                 _opening = false;
                 if (path != null && File.Exists(path)) await OpenMediaAsync(path);
             }
-            catch (Exception ex) { StatusText.Text = ex.Message; }
+            catch (Exception ex) { ViewModel.StatusMessage = ex.Message; }
             finally { _opening = false; }
         }
 
@@ -158,7 +156,7 @@ namespace VideoPlayer
                 await SetViewAsync(z, 0, 0, p);
                 SaveSession();
             }
-            catch (Exception ex) { StatusText.Text = ex.Message; }
+            catch (Exception ex) { ViewModel.StatusMessage = ex.Message; }
             finally { _changingScale = false; }
         }
 
@@ -188,7 +186,7 @@ namespace VideoPlayer
             catch (Exception ex)
             {
                 _restoring = false;
-                StatusText.Text = ex.Message;
+                ViewModel.StatusMessage = ex.Message;
             }
         }
 
@@ -212,9 +210,9 @@ namespace VideoPlayer
                     ClipEnd = ViewModel.Export.ClipEnd,
                     Clips = new List<ClipRange>(ViewModel.Export.Clips)
                 });
-                if (show) StatusText.Text = "Sesja została zapisana.";
+                if (show) ViewModel.StatusMessage = "Sesja została zapisana.";
             }
-            catch (Exception ex) { if (!_closing) StatusText.Text = "Błąd zapisu sesji: " + ex.Message; }
+            catch (Exception ex) { if (!_closing) ViewModel.StatusMessage = "Błąd zapisu sesji: " + ex.Message; }
         }
 
         private async void OnPreviewKeyDown(object sender, KeyEventArgs e)

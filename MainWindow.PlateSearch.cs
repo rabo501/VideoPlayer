@@ -68,7 +68,7 @@ namespace VideoPlayer
             {
                 await SendAsync("set_property", "pause", true);
                 await SeekAsync(result.Seconds);
-                StatusText.Text = "Wynik wyszukiwania: " + result.PlateNumber + " — " + result.TimeText;
+                ViewModel.StatusMessage = "Wynik wyszukiwania: " + result.PlateNumber + " — " + result.TimeText;
             }
         }
     }

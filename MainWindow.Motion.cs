@@ -14,7 +14,7 @@ namespace VideoPlayer
         {
             if (ViewModel.Motion.IsRunning || !CanOperate() || !PositionSlider.IsEnabled || string.IsNullOrWhiteSpace(_sourceFilePath))
             {
-                StatusText.Text = "Najpierw otwórz nagranie i zakończ bieżącą operację.";
+                ViewModel.StatusMessage = "Najpierw otwórz nagranie i zakończ bieżącą operację.";
                 return;
             }
 
@@ -79,18 +79,18 @@ namespace VideoPlayer
                 UpdateTimelineOverlay();
 
                 ViewModel.Export.SetExternalProgress("Wykrywanie ruchu", 100, "Analiza zakończona");
-                StatusText.Text = found.Count == 0
+                ViewModel.StatusMessage = found.Count == 0
                     ? "Analiza zakończona. Nie wykryto ruchu."
                     : $"Wykrywanie ruchu zakończone. Znaleziono {found.Count} zdarzeń.";
             }
             catch (OperationCanceledException)
             {
-                StatusText.Text = "Analiza ruchu została anulowana.";
+                ViewModel.StatusMessage = "Analiza ruchu została anulowana.";
                 ViewModel.Export.SetExternalProgress("Wykrywanie ruchu", ViewModel.Motion.ProgressPercent, "Anulowano");
             }
             catch (Exception ex)
             {
-                StatusText.Text = "Błąd analizy ruchu: " + ex.Message;
+                ViewModel.StatusMessage = "Błąd analizy ruchu: " + ex.Message;
                 MessageBox.Show(this, ex.Message, "Wykrywanie ruchu", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally

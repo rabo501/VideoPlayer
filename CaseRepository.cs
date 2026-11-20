@@ -13,11 +13,13 @@ namespace VideoPlayer
     {
         private readonly string _connectionString;
 
-        public CaseRepository()
+        public CaseRepository(string? directory = null)
         {
+            string baseDir = directory ?? AppContext.BaseDirectory;
+            Directory.CreateDirectory(baseDir);
             _connectionString = new SqliteConnectionStringBuilder
             {
-                DataSource = Path.Combine(AppContext.BaseDirectory, "VideoPlayer.db"),
+                DataSource = Path.Combine(baseDir, "VideoPlayer.db"),
                 Mode = SqliteOpenMode.ReadWriteCreate,
                 Cache = SqliteCacheMode.Shared
             }.ToString();

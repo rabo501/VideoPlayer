@@ -51,73 +51,31 @@ namespace VideoPlayer
             }
         }
 
-        private void LoadHistory()
+        private void RecordRecentFile(string path)
         {
-            AppHistoryData history = _historyService.Load();
-            _recentFiles.Clear();
-            _recentFiles.AddRange(history.RecentFiles);
-            _recentScreenshots.Clear();
-            _recentScreenshots.AddRange(history.RecentScreenshots);
+            string? error = ViewModel.History.AddRecentFile(path);
+            if (!string.IsNullOrEmpty(error) && !_closing)
+                ViewModel.StatusMessage = "Nie udało się zapisać historii: " + error;
         }
 
-        private void SaveHistory()
+        private void RecordRecentScreenshot(string path)
         {
-            try
-            {
-                _historyService.Save(new AppHistoryData
-                {
-                    RecentFiles = _recentFiles,
-                    RecentScreenshots = _recentScreenshots
-                });
-            }
-            catch (Exception ex)
-            {
-                if (!_closing) StatusText.Text = "Nie udało się zapisać historii: " + ex.Message;
-            }
-        }
-
-        private void AddRecentFile(string path)
-        {
-            _recentFiles.RemoveAll(x => string.Equals(x, path, StringComparison.OrdinalIgnoreCase));
-            _recentFiles.Insert(0, path);
-            if (_recentFiles.Count > 10) _recentFiles.RemoveRange(10, _recentFiles.Count - 10);
-            SaveHistory();
-            RefreshHistoryControls();
-        }
-
-        private void AddRecentScreenshot(string path)
-        {
-            _recentScreenshots.RemoveAll(x => string.Equals(x, path, StringComparison.OrdinalIgnoreCase));
-            _recentScreenshots.Insert(0, path);
-            if (_recentScreenshots.Count > 30) _recentScreenshots.RemoveRange(30, _recentScreenshots.Count - 30);
-            SaveHistory();
-            RefreshHistoryControls();
-        }
-
-        private void RefreshHistoryControls()
-        {
-            if (RecentFilesBox == null || ScreenshotsBox == null) return;
-            RecentFilesBox.Items.Clear();
-            foreach (string path in _recentFiles.Where(File.Exists))
-                RecentFilesBox.Items.Add(new ComboBoxItem { Content = Path.GetFileName(path), Tag = path, ToolTip = path });
-            if (RecentFilesBox.Items.Count > 0) RecentFilesBox.SelectedIndex = 0;
-            ScreenshotsBox.Items.Clear();
-            foreach (string path in _recentScreenshots.Where(File.Exists))
-                ScreenshotsBox.Items.Add(new ComboBoxItem { Content = Path.GetFileName(path), Tag = path, ToolTip = path });
-            if (ScreenshotsBox.Items.Count > 0) ScreenshotsBox.SelectedIndex = 0;
+            string? error = ViewModel.History.AddRecentScreenshot(path);
+            if (!string.IsNullOrEmpty(error) && !_closing)
+                ViewModel.StatusMessage = "Nie udało się zapisać historii: " + error;
         }
 
         private async void OpenRecent_Click(object sender, RoutedEventArgs e)
         {
-            if (RecentFilesBox.SelectedItem is ComboBoxItem item && item.Tag is string path)
-                await OpenMediaAsync(path);
+            if (ViewModel.History.SelectedRecentFile is { } entry)
+                await OpenMediaAsync(entry.FullPath);
         }
 
         private void OpenScreenshot_Click(object sender, RoutedEventArgs e)
         {
-            if (ScreenshotsBox.SelectedItem is not ComboBoxItem item || item.Tag is not string path || !File.Exists(path))
+            if (ViewModel.History.SelectedRecentScreenshot is not { } entry || !File.Exists(entry.FullPath))
             { MessageBox.Show(this, "Nie ma dostępnego zrzutu do otwarcia.", "Zrzuty klatek"); return; }
-            try { Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true }); }
+            try { Process.Start(new ProcessStartInfo { FileName = entry.FullPath, UseShellExecute = true }); }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Nie można otworzyć zrzutu", MessageBoxButton.OK, MessageBoxImage.Error); }
         }
 
@@ -125,7 +83,7 @@ namespace VideoPlayer
         {
             try
             {
-                string? selected = (ScreenshotsBox.SelectedItem as ComboBoxItem)?.Tag as string;
+                string? selected = ViewModel.History.SelectedRecentScreenshot?.FullPath;
                 string folder = !string.IsNullOrWhiteSpace(selected) && File.Exists(selected)
                     ? Path.GetDirectoryName(selected)!
                     : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "VideoPlayer");

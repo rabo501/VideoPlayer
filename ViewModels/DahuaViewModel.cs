@@ -36,6 +36,7 @@ namespace VideoPlayer.ViewModels
         private string _calendarAvailabilityStatusText = "Otwórz kalendarz, aby sprawdzić dostępność nagrań.";
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsDownloadStatusVisible))]
         private string _downloadStatusText = string.Empty;
 
         [ObservableProperty]
@@ -50,10 +51,15 @@ namespace VideoPlayer.ViewModels
         private bool _isSdkInitialized;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsArchiveInputsEnabled), nameof(IsDownloadStatusVisible))]
         private bool _isArchiveSearching;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsArchiveInputsEnabled), nameof(IsDownloadStatusVisible))]
         private bool _isDownloadBusy;
+
+        [ObservableProperty]
+        private bool _isStreamOverlayVisible = true;
 
         [ObservableProperty]
         private DahuaDeviceItem? _selectedDevice;
@@ -63,6 +69,8 @@ namespace VideoPlayer.ViewModels
 
         public bool CanConnect => !IsConnected && !IsConnecting;
         public bool CanDisconnect => IsConnected && !IsConnecting;
+        public bool IsArchiveInputsEnabled => !IsArchiveSearching && !IsDownloadBusy;
+        public bool IsDownloadStatusVisible => !string.IsNullOrWhiteSpace(DownloadStatusText) || IsDownloadBusy || IsArchiveSearching;
 
         public DahuaSdkInitResult EnsureSdkInitialized()
         {

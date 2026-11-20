@@ -1,12 +1,12 @@
 # Dokumentacja techniczna integracji Dahua / BCS-NVR
 
-**Stan dokumentu:** aktualizacja dla VideoPlayer 1.7.0  
-**Gałąź kodu:** `wersja-1.7` (bazuje na `studio-net`)  
-**Środowisko:** Windows, WPF, .NET, proces x64, Visual Studio 2022
+**Stan dokumentu:** aktualizacja dla VideoPlayer 1.8.0  
+**Wersja kodu:** `1.8.0` (warstwa logiki sesji wydzielona do `Services/DahuaSessionService.cs` oraz `ViewModels/DahuaViewModel.cs`)  
+**Środowisko:** Windows, WPF, .NET 8, proces x64, Visual Studio 2022/2026
 
 Dokument opisuje aktualny model integracji z rejestratorami Dahua/BCS: konfigurację urządzeń, połączenie NetSDK, podgląd, wyszukiwanie i odtwarzanie archiwum, pobieranie nagrań, obsługę wielu kanałów oraz PTZ. Jest to dokument techniczny dla utrzymania i rozwoju kodu, a nie instrukcja użytkownika krok po kroku.
 
-> **Ważne:** nie pobierać ani nie scalać historycznej gałęzi `dahua-archive-rebuild`. Aktualnym punktem odniesienia jest gałąź `wersja-1.7`. Nazwy kontrolek i szczegóły interfejsu należy weryfikować w aktualnych plikach XAML i kodzie tej gałęzi.
+> **Ważne:** nie pobierać ani nie scalać historycznej gałęzi `dahua-archive-rebuild`. Aktualnym punktem odniesienia jest bieżący kod wersji 1.8.0 (`DahuaSessionService`, `DahuaViewModel`, `MainWindow.xaml`, `MainWindow.Dahua.cs`). Nazwy kontrolek i szczegóły interfejsu należy weryfikować w aktualnych plikach XAML i kodzie tej wersji.
 
 ## 1. Model konfiguracji urządzenia
 
@@ -165,8 +165,8 @@ Poniższa lista jest checklistą do wykonania na docelowym urządzeniu. Sam opis
 
 ## 11. Procedura pracy z kodem i testowania
 
-1. Pobierz aktualną gałąź `wersja-1.7` repozytorium `rabo501/VideoPlayer`.
-2. Otwórz rozwiązanie `VideoPlayer.slnx` w Visual Studio 2022.
+1. Pobierz aktualną wersję kodu repozytorium `rabo501/VideoPlayer` (linia `1.8`).
+2. Otwórz rozwiązanie `VideoPlayer.slnx` w Visual Studio (lub uruchom `dotnet test VideoPlayer.slnx -c Release`).
 3. Ustaw platformę x64 i sprawdź konfigurację kopiowania bibliotek z katalogu `lib`.
 4. Zbuduj rozwiązanie w konfiguracji Debug, a przed publikacją również Release.
 5. Uruchom aplikację w sieci, w której dostępny jest testowy rejestrator.
@@ -175,4 +175,4 @@ Poniższa lista jest checklistą do wykonania na docelowym urządzeniu. Sam opis
 8. Sprawdź presety PTZ oraz nazwy kanałów z polskimi znakami, jeśli urządzenie obsługuje te funkcje.
 9. Wykonaj checklistę z sekcji 10 i zapisz wyniki testów dla konkretnego modelu, firmware i kompilacji.
 
-**Nie używać historycznych instrukcji scalania gałęzi `dahua-archive-rebuild` lub `dahua-SDK`.** Dalsze poprawki integracji należy wprowadzać na aktualnej gałęzi rozwojowej `wersja-1.7`.
+**Nie używać historycznych instrukcji scalania gałęzi `dahua-archive-rebuild` lub `dahua-SDK`.** Dalsze poprawki integracji należy wprowadzać w ramach `DahuaSessionService`, `DahuaViewModel` i powiązanych plików w aktualnej wersji `1.8.0`.

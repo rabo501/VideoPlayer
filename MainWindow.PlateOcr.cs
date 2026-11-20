@@ -60,12 +60,12 @@ namespace VideoPlayer
         {
             if (!CanOperate() || !_ready || _screenshotBusy || !PositionSlider.IsEnabled)
             {
-                StatusText.Text = "Najpierw otwórz nagranie i poczekaj na zakończenie innych operacji.";
+                ViewModel.StatusMessage = "Najpierw otwórz nagranie i poczekaj na zakończenie innych operacji.";
                 return;
             }
             if (ViewModel.PlateOcr.IsBusy)
             {
-                StatusText.Text = "Trwa bieżące rozpoznawanie OCR.";
+                ViewModel.StatusMessage = "Trwa bieżące rozpoznawanie OCR.";
                 return;
             }
 
@@ -96,7 +96,7 @@ namespace VideoPlayer
             {
                 if (!_closing)
                 {
-                    StatusText.Text = "Nie udało się pobrać klatki do OCR: " + ex.Message;
+                    ViewModel.StatusMessage = "Nie udało się pobrać klatki do OCR: " + ex.Message;
                     MessageBox.Show(this, ex.Message, "Rozpoznawanie tablicy", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
@@ -143,7 +143,7 @@ namespace VideoPlayer
             ViewModel.PlateOcr.IsActive = true;
             SetWorkspaceMode(WorkspaceMode.PlateOcr, 1);
             Dispatcher.BeginInvoke(new Action(DrawOcrSelection));
-            StatusText.Text = "Tryb OCR: zaznacz tablicę na podglądzie po lewej i potwierdź wynik po prawej.";
+            ViewModel.StatusMessage = "Tryb OCR: zaznacz tablicę na podglądzie po lewej i potwierdź wynik po prawej.";
         }
 
         private void ResetOcrWorkspaceState(bool silent)
@@ -167,7 +167,7 @@ namespace VideoPlayer
             }
             if (!silent)
             {
-                StatusText.Text = "Zakończono tryb rozpoznawania tablicy.";
+                ViewModel.StatusMessage = "Zakończono tryb rozpoznawania tablicy.";
             }
         }
 
@@ -507,7 +507,7 @@ namespace VideoPlayer
             ResetOcrWorkspaceState(silent: true);
             SetWorkspaceMode(WorkspaceMode.Player, 1);
             await SeekAsync(hit.StartSeconds);
-            StatusText.Text = $"Wynik wyszukiwania tablicy: {plateNumber} — {hit.DisplayText}";
+            ViewModel.StatusMessage = $"Wynik wyszukiwania tablicy: {plateNumber} — {hit.DisplayText}";
         }
 
         private void OcrSave_Click(object sender, RoutedEventArgs e)
@@ -527,7 +527,7 @@ namespace VideoPlayer
                 SetWorkspaceMode(WorkspaceMode.Dahua, 3);
                 string dahuaText = $"OCR (Dahua): {plateNumber}" + (string.IsNullOrWhiteSpace(vehicleMake) ? "" : $" | Marka: {vehicleMake}");
                 ViewModel.Dahua.StatusText = dahuaText;
-                StatusText.Text = dahuaText;
+                ViewModel.StatusMessage = dahuaText;
                 MessageBox.Show(this,
                     $"Rozpoznano numer tablicy: {plateNumber}\nMarka: {(string.IsNullOrWhiteSpace(vehicleMake) ? "nie podano" : vehicleMake)}",
                     "Rozpoznanie tablicy ze strumienia Dahua",
@@ -548,7 +548,7 @@ namespace VideoPlayer
                 SaveTimelineMarkers();
                 UpdateTimelineOverlay();
                 TimelineMarkersListBox.ScrollIntoView(marker);
-                StatusText.Text = "Dodano zdarzenie: " + plateNumber + " — " + TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss\.fff");
+                ViewModel.StatusMessage = "Dodano zdarzenie: " + plateNumber + " — " + TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss\.fff");
             }
         }
 
@@ -561,7 +561,7 @@ namespace VideoPlayer
             bool returnToDahua = ViewModel.PlateOcr.IsFromDahua;
             ResetOcrWorkspaceState(silent: true);
             SetWorkspaceMode(returnToDahua ? WorkspaceMode.Dahua : WorkspaceMode.Player, returnToDahua ? 3 : 1);
-            StatusText.Text = returnToDahua ? "Anulowano OCR. Powrót do kamer Dahua IP." : "Anulowano rozpoznawanie tablicy. Nagranie pozostaje zatrzymane.";
+            ViewModel.StatusMessage = returnToDahua ? "Anulowano OCR. Powrót do kamer Dahua IP." : "Anulowano rozpoznawanie tablicy. Nagranie pozostaje zatrzymane.";
         }
     }
 }

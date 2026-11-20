@@ -39,18 +39,18 @@ namespace VideoPlayer
         private async Task SendAsync(params object[] command)
         {
             if(!_ready||_closing)return;
-            try{await _mpvService.SendAsync(command);}catch(Exception ex){if(!_mpvService.IsReady)_ready=false;if(!_closing)StatusText.Text=ex.Message;}
+            try{await _mpvService.SendAsync(command);}catch(Exception ex){if(!_mpvService.IsReady)_ready=false;if(!_closing)ViewModel.StatusMessage=ex.Message;}
         }
         private async void Open_Click(object sender,RoutedEventArgs e)
         {
-            if(!_ready||_opening||ViewModel.Export.IsBusy||ViewModel.Motion.IsRunning||_shutdownRequested){StatusText.Text="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
+            if(!_ready||_opening||ViewModel.Export.IsBusy||ViewModel.Motion.IsRunning||_shutdownRequested){ViewModel.StatusMessage="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
             var d=new Microsoft.Win32.OpenFileDialog{Title="Wybierz film",Filter="Pliki wideo|*.mp4;*.mkv;*.avi;*.mov;*.webm;*.m4v;*.wmv;*.ts|Wszystkie pliki|*.*"};
             if(d.ShowDialog(this)==true)await OpenMediaAsync(d.FileName);
         }
         private async Task OpenMediaAsync(string path)
         {
             if(!_ready||_opening||ViewModel.Export.IsBusy||_shutdownRequested)return;
-            if(!File.Exists(path)){StatusText.Text="Plik nie istnieje.";return;}
+            if(!File.Exists(path)){ViewModel.StatusMessage="Plik nie istnieje.";return;}
             SetWorkspaceMode(WorkspaceMode.Player);
             SaveSession();_opening=true;
             try
@@ -67,7 +67,7 @@ namespace VideoPlayer
                 await _fileLoaded.Task.WaitAsync(timeout.Token);
                 var duration=await _mpvService.RequestAsync(new object[]{"get_property","duration"});
                 if(duration.ValueKind!=JsonValueKind.Number||!duration.TryGetDouble(out double length)||!double.IsFinite(length)||length<=0)throw new IOException("Nie można ustalić długości filmu.");
-                SetDuration(length);LoadTimelineMarkers();AddRecentFile(path);
+                SetDuration(length);LoadTimelineMarkers();RecordRecentFile(path);
                 bool restore=RestoreSessionCheckBox.IsChecked==true&&session!=null;
                 _restoring=true;
                 try
@@ -96,12 +96,12 @@ namespace VideoPlayer
                 ViewModel.Export.RefreshClipTexts();UpdateTimelineOverlay();
                 _=UpdateMediaInfoAsync(path);
                 Title=$"VideoPlayer {_displayVersion} — "+_fileName;
-                StatusText.Text=restore?"Przywrócono sesję: "+_fileName:_fileName;
+                ViewModel.StatusMessage=restore?"Przywrócono sesję: "+_fileName:_fileName;
             }
             catch(Exception ex)
             {
                 _sourceFilePath=null;ViewModel.Export.ResetForNewMedia(null);UpdateTimelineOverlay();
-                PositionSlider.IsEnabled=false;StatusText.Text="Nie otwarto filmu: "+ex.Message;
+                PositionSlider.IsEnabled=false;ViewModel.StatusMessage="Nie otwarto filmu: "+ex.Message;
                 MessageBox.Show(this,ex.Message,"Otwieranie filmu");
             }
             finally{_fileLoaded=null;_opening=false;}
@@ -135,7 +135,7 @@ namespace VideoPlayer
                 if(d.ShowDialog(this)!=true)return;
                 await _mpvService.RequestAsync(new object[]{"screenshot-to-file",d.FileName,"video"});
                 if(!File.Exists(d.FileName))throw new IOException("Nie powstał plik JPG.");
-                AddRecentScreenshot(d.FileName);StatusText.Text="Zapisano: "+d.FileName;
+                RecordRecentScreenshot(d.FileName);ViewModel.StatusMessage="Zapisano: "+d.FileName;
             }
             catch(Exception ex){if(!_closing)MessageBox.Show(this,ex.Message,"Zapis klatki");}
             finally{_screenshotBusy=false;if(!_closing)ScreenshotButton.IsEnabled=true;}

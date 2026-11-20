@@ -124,7 +124,7 @@ namespace VideoPlayer
         {
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
             {
-                StatusText.Text = "Plik nagrania Dahua nie istnieje.";
+                ViewModel.StatusMessage = "Plik nagrania Dahua nie istnieje.";
                 return;
             }
 
@@ -955,7 +955,7 @@ namespace VideoPlayer
                     }
                 }
 
-                DahuaStreamOverlay.Visibility = Visibility.Collapsed;
+                ViewModel.Dahua.IsStreamOverlayVisible = false;
 
                 if (!_dahuaConnectForCalendarAvailability)
                     StartDahuaMultiLiveForSelectedChannels();
@@ -1034,7 +1034,7 @@ namespace VideoPlayer
             }
             catch { }
 
-            if (DahuaStreamOverlay != null) DahuaStreamOverlay.Visibility = Visibility.Visible;
+            ViewModel.Dahua.IsStreamOverlayVisible = true;
             _dahuaPrimaryPictureBox.Invalidate();
         }
 
@@ -1477,13 +1477,15 @@ namespace VideoPlayer
             finally { _dahuaPtzAreaZoomRunning = false; }
         }
 
-        private void DahuaStartMultiLive_Click(object sender, RoutedEventArgs e)
+        private async void DahuaStartMultiLive_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
             if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
-                DahuaConnect_Click(sender, e);
-                return;
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
+                if (_dahuaMultiViewSlots.Any(slot => slot.StreamHandle != IntPtr.Zero))
+                    return;
             }
             StartDahuaMultiLiveForSelectedChannels();
         }
@@ -1517,7 +1519,7 @@ namespace VideoPlayer
             }
             ViewModel.Dahua.StatusText = $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów.";
             ViewModel.Dahua.PlaybackSyncStatusText = "Podgląd na żywo";
-            DahuaStreamOverlay.Visibility = Visibility.Collapsed;
+            ViewModel.Dahua.IsStreamOverlayVisible = false;
         }
 
         private void DahuaStopMultiLiveStreams()
@@ -1593,7 +1595,7 @@ namespace VideoPlayer
             DahuaArchiveSelectedChannelsText.Text = summary;
         }
 
-        private void DahuaStartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        private async void DahuaStartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
             DateTime? start = GetDahuaStartDateTime();
@@ -1605,8 +1607,8 @@ namespace VideoPlayer
             }
             if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
-                DahuaConnect_Click(sender, e);
-                if (!DahuaSession.IsConnectedTo(_currentDahuaDevice)) return;
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
             }
 
             var channels = _dahuaArchiveSelectedChannels.OrderBy(channel => channel).ToList();
@@ -1671,7 +1673,7 @@ namespace VideoPlayer
                 if (started == 0)
                     throw new InvalidOperationException("Rejestrator nie uruchomił odtwarzania na żadnym z wybranych kanałów.");
                 _dahuaPlaybackUiTimer.Start();
-                DahuaStreamOverlay.Visibility = Visibility.Collapsed;
+                ViewModel.Dahua.IsStreamOverlayVisible = false;
                 string failedSummary = failedChannels.Count == 0
                     ? "Wszystkie wybrane kanały uruchomione."
                     : $"Nie uruchomiono kanałów: {string.Join(", ", failedChannels.Select(channel => $"CH {channel}"))}.";
@@ -2031,7 +2033,7 @@ namespace VideoPlayer
                 if (DahuaSessionService.CapturePicture(handle, fullPath))
                 {
                     ViewModel.Dahua.StatusText = $"Zapisano zrzut: {filename}";
-                    AddRecentScreenshot(fullPath);
+                    RecordRecentScreenshot(fullPath);
                     return fullPath;
                 }
                 ViewModel.Dahua.StatusText = "Błąd zapisu zrzutu z biblioteki Dahua NetSDK.";
@@ -2260,25 +2262,17 @@ namespace VideoPlayer
             }
             if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
-                DahuaConnect_Click(sender, e);
-                if (!DahuaSession.IsConnectedTo(_currentDahuaDevice)) return;
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
             }
 
             int channel = GetSelectedDahuaArchiveChannel();
 
-            DahuaDownloadStatusText.Visibility = Visibility.Visible;
             ViewModel.Dahua.DownloadStatusText = $"Wyszukiwanie nagrań: {_currentDahuaDevice.Name}, kanał {channel}…";
             ViewModel.Dahua.ArchiveRecords.Clear();
             RefreshDahuaRecordingTimeline();
             _dahuaArchiveAvailableDays.Clear();
             RefreshOpenDahuaArchiveCalendars();
-            DahuaDevicesListBox.IsEnabled = false;
-            DahuaArchiveChannelBox.IsEnabled = false;
-            DahuaStartDatePicker.IsEnabled = false;
-            DahuaEndDatePicker.IsEnabled = false;
-            DahuaStartTimeBox.IsEnabled = false;
-            DahuaEndTimeBox.IsEnabled = false;
-            DahuaSearchArchiveButton.IsEnabled = false;
 
             try
             {
@@ -2298,16 +2292,6 @@ namespace VideoPlayer
             {
                 ViewModel.Dahua.DownloadStatusText = "Błąd wyszukiwania archiwum.";
                 MessageBox.Show(this, $"Nie udało się wyszukać nagrań: {ex.Message}", "Archiwum Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                DahuaDevicesListBox.IsEnabled = true;
-                DahuaArchiveChannelBox.IsEnabled = true;
-                DahuaStartDatePicker.IsEnabled = true;
-                DahuaEndDatePicker.IsEnabled = true;
-                DahuaStartTimeBox.IsEnabled = true;
-                DahuaEndTimeBox.IsEnabled = true;
-                DahuaSearchArchiveButton.IsEnabled = true;
             }
         }
 
@@ -2364,13 +2348,7 @@ namespace VideoPlayer
                     return;
             }
 
-            DahuaDownloadProgressBar.Visibility = Visibility.Visible;
-            DahuaDownloadProgressBar.IsIndeterminate = true;
-            DahuaDownloadStatusText.Visibility = Visibility.Visible;
-            DahuaLoadToPlayerButton.IsEnabled = false;
-            DahuaDevicesListBox.IsEnabled = false;
-            DahuaArchiveChannelBox.IsEnabled = false;
-            DahuaSearchArchiveButton.IsEnabled = false;
+            ViewModel.Dahua.IsDownloadBusy = true;
 
             try
             {
@@ -2397,11 +2375,7 @@ namespace VideoPlayer
             }
             finally
             {
-                DahuaDownloadProgressBar.Visibility = Visibility.Collapsed;
-                DahuaLoadToPlayerButton.IsEnabled = true;
-                DahuaDevicesListBox.IsEnabled = true;
-                DahuaArchiveChannelBox.IsEnabled = true;
-                DahuaSearchArchiveButton.IsEnabled = true;
+                ViewModel.Dahua.IsDownloadBusy = false;
             }
         }
 

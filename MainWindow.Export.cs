@@ -58,17 +58,17 @@ namespace VideoPlayer
                 _operationTask = task;
                 string result = await task;
                 ViewModel.Export.CompleteOperationSuccess(result);
-                StatusText.Text = result;
+                ViewModel.StatusMessage = result;
             }
             catch (OperationCanceledException)
             {
                 ViewModel.Export.CompleteOperationCanceled();
-                StatusText.Text = "Operacja anulowana. Ukończone wcześniej pliki eksportu seryjnego pozostają w folderze wynikowym.";
+                ViewModel.StatusMessage = "Operacja anulowana. Ukończone wcześniej pliki eksportu seryjnego pozostają w folderze wynikowym.";
             }
             catch (Exception ex)
             {
                 ViewModel.Export.CompleteOperationFailed();
-                StatusText.Text = ex.Message;
+                ViewModel.StatusMessage = ex.Message;
                 if (!_shutdownRequested) MessageBox.Show(this, ex.Message, title);
             }
             finally
@@ -81,7 +81,7 @@ namespace VideoPlayer
 
         private async void ExportClip_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanOperate() || !ValidRange()) { StatusText.Text = "Otwórz film i ustaw poprawny zakres."; return; }
+            if (!CanOperate() || !ValidRange()) { ViewModel.StatusMessage = "Otwórz film i ustaw poprawny zakres."; return; }
             string source = _sourceFilePath!;
             double start = ViewModel.Export.ClipStart!.Value, end = ViewModel.Export.ClipEnd!.Value;
             bool copy = ViewModel.Export.UseStreamCopy;
@@ -101,7 +101,7 @@ namespace VideoPlayer
 
         private async void RemoveClip_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanOperate() || !ValidRange()) { StatusText.Text = "Otwórz film i ustaw poprawny zakres."; return; }
+            if (!CanOperate() || !ValidRange()) { ViewModel.StatusMessage = "Otwórz film i ustaw poprawny zakres."; return; }
             string source = _sourceFilePath!;
             double start = ViewModel.Export.ClipStart!.Value, end = ViewModel.Export.ClipEnd!.Value;
             if (MessageBox.Show(this, "Powstanie nowy film bez zaznaczenia. Oryginał pozostanie bez zmian. Kontynuować?", "Usuwanie fragmentu", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
@@ -122,7 +122,7 @@ namespace VideoPlayer
             if (_allowClose) return;
             e.Cancel = true;
             if (_shutdownRequested) return;
-            if (_opening) { StatusText.Text = "Poczekaj na zakończenie otwierania pliku, a następnie zamknij okno."; return; }
+            if (_opening) { ViewModel.StatusMessage = "Poczekaj na zakończenie otwierania pliku, a następnie zamknij okno."; return; }
             if (ViewModel.Export.IsBusy && MessageBox.Show(this, "Przerwać operację i zamknąć program? Ukończone pliki seryjne pozostaną zapisane.", "Zamykanie", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             _shutdownRequested = true;
