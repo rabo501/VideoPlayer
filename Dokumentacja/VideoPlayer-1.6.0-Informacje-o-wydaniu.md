@@ -1,4 +1,4 @@
-# VideoPlayer 1.6.0 — informacje o wydaniu
+# VideoPlayer 1.7.0 — informacje o wydaniu
 
 ## Najważniejsze zmiany
 
@@ -19,4 +19,4 @@
 
 Wykrywanie ruchu jest analizą zmian jasności, a nie klasyfikacją obiektów. Wyniki wymagają weryfikacji. OCR również przedstawia propozycję odczytu, którą należy potwierdzić na obrazie.
 
-Przed publikacją wykonaj kompilację i testy na docelowym Windows x64. Szczegóły zawiera VideoPlayer-1.6.0-Dokumentacja.md.
+Przed publikacją wykonaj kompilację i testy na docelowym Windows x64. Szczegóły zawiera VideoPlayer-1.7.0-Dokumentacja.md.
