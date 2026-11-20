@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using Forms = System.Windows.Forms;
 
 namespace VideoPlayer
@@ -73,12 +74,26 @@ namespace VideoPlayer
                 return;
             }
 
+            ApplyCaseMetadata(record);
+            CaseArchiveStatusText.Text = $"Wczytano sprawę {record.CaseNumber}. Powiązane nagrania: {record.SourceCount}. Zapisz ponownie, aby dołączyć bieżące nagranie.";
+            StatusText.Text = "Wczytano dane sprawy z lokalnego archiwum.";
+        }
+
+        private void ReportCasesBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ReportCasesBox.SelectedItem is CaseRecord selected)
+            {
+                ApplyCaseMetadata(selected);
+                CaseArchiveStatusText.Text = $"Wybrano sprawę {selected.CaseNumber}. Powiązane nagrania: {selected.SourceCount}. Otwarcie kolejnego pliku i zapis dołączy go do tej sprawy.";
+            }
+        }
+
+        private void ApplyCaseMetadata(CaseRecord record)
+        {
             ReportCaseNumberBox.Text = record.CaseNumber;
             ReportCaseTitleBox.Text = record.Title;
             ReportLocationBox.Text = record.Location;
             ReportNotesBox.Text = record.Notes;
-            CaseArchiveStatusText.Text = $"Wczytano sprawę {record.CaseNumber}. Powiązane nagrania: {record.SourceCount}. Zapisz ponownie, aby dołączyć bieżące nagranie.";
-            StatusText.Text = "Wczytano dane sprawy z lokalnego archiwum.";
         }
 
         private void DeleteCase_Click(object sender, RoutedEventArgs e)
