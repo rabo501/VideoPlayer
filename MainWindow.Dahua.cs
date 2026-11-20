@@ -1644,7 +1644,7 @@ namespace VideoPlayer
                     var command = horizontalOffset > 0
                         ? DahuaNetSdk.EM_PTZ_COMMAND.RIGHT
                         : DahuaNetSdk.EM_PTZ_COMMAND.LEFT;
-                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(horizontalOffset) * 650, 90, 650));
+                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(horizontalOffset) * 650, 90, 650), slot.Channel);
                 }
 
                 if (Math.Abs(verticalOffset) > 0.07)
@@ -1652,18 +1652,18 @@ namespace VideoPlayer
                     var command = verticalOffset > 0
                         ? DahuaNetSdk.EM_PTZ_COMMAND.DOWN
                         : DahuaNetSdk.EM_PTZ_COMMAND.UP;
-                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(verticalOffset) * 550, 90, 550));
+                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(verticalOffset) * 550, 90, 550), slot.Channel);
                 }
 
                 // Następnie wykonujemy fizyczny zoom obiektywu. Czas jest
                 // przybliżeniem zależnym od wielkości zaznaczenia, nie od skali obrazu.
                 double relativeWidth = area.Width / (double)viewWidth;
                 double relativeHeight = area.Height / (double)viewHeight;
-                double targetFactor = Math.Clamp(1.0 / Math.Max(0.08, Math.Max(relativeWidth, relativeHeight)), 1.0, 6.0);
+                double targetFactor = Math.Clamp(1.0 / Math.Max(0.08, Math.Min(relativeWidth, relativeHeight)), 1.0, 6.0);
                 if (targetFactor > 1.08)
                 {
                     int zoomDuration = (int)Math.Clamp(Math.Log(targetFactor) * 430, 100, 1500);
-                    await RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN, zoomDuration);
+                    await RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN, zoomDuration, slot.Channel);
                 }
 
                 DahuaStatusLabel.Text = "PTZ: zakończono przybliżanie zaznaczonego obszaru. W razie potrzeby skoryguj ręcznie kierunek lub zoom.";
@@ -1675,10 +1675,10 @@ namespace VideoPlayer
             finally { _dahuaPtzAreaZoomRunning = false; }
         }
 
-        private async Task RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND command, int durationMs)
+        private async Task RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND command, int durationMs, int? channelNumber = null)
         {
             if (_dahuaLoginId == IntPtr.Zero) return;
-            int channelIndex = Math.Max(0, _dahuaCurrentChannel - 1);
+            int channelIndex = Math.Max(0, (channelNumber ?? _dahuaCurrentChannel) - 1);
             bool started = DahuaNetSdk.CLIENT_DHPTZControlEx2(
                 _dahuaLoginId, channelIndex, (uint)command, 4, 4, 0, false, IntPtr.Zero);
             if (!started)
