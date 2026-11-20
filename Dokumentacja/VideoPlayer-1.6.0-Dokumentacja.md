@@ -182,11 +182,11 @@ Obserwuj opis operacji, pasek postępu i komunikat końcowy. Anuluj przerywa bie
 
 ### 11.1. CSV
 
-W zakładce Zdarzenia wybierz Raport CSV i wskaż plik wynikowy. Raport zawiera kolumny Plik, Czas, Sekundy i Opis, rozdzielane średnikiem. Obejmuje także zapisane i potwierdzone odczyty tablic, ponieważ są zdarzeniami. CSV nie zawiera miniatur; jego eksport nie został zmieniony przez poprawkę autora PDF.
+W zakładce Zdarzenia wybierz Raport CSV i wskaż plik wynikowy. Raport jest zapisywany jako UTF-8 z BOM, z separatorem średnika. Zawiera dane sprawy, ścieżkę źródłową, zdarzenia i ich zakresy czasowe, typ, opis, markę pojazdu, powiązane zdarzenia ruchu, parametry nagrania oraz historię eksportów danego źródła. W kolumnie Rodzaj rozróżniane są wiersze „Zdarzenie” i „Eksport”. Dane sprawy są pobierane z aktualnych pól formularza.
 
 ### 11.2. PDF
 
-Wybierz Raport PDF. Opcja Miniatury w PDF pozwala dołączyć obrazy dla czasów zdarzeń; ich generowanie wymaga FFmpeg i może wydłużyć operację. Raport przedstawia opisane punkty nagrania w kolejności czasu.
+Wybierz Raport PDF. Opcja Miniatury w PDF pozwala dołączyć obrazy dla czasów zdarzeń; ich generowanie wymaga FFmpeg i może wydłużyć operację. Raport przedstawia dane sprawy, źródło i parametry nagrania, podsumowanie kategorii zdarzeń, czasy początku i końca, opisy, informacje o pojeździe, powiązane zdarzenia ruchu oraz historię eksportów. Zakresy czasu są liczone od początku pliku, a nie według zegara kamery.
 
 Stopka i metadane autora PDF korzystają z pełnej nazwy użytkownika Windows. Gdy nie uda się ustalić imienia i nazwiska, wpisywane jest dokładnie: „Nie ustalono imienia i nazwiska”. Cała stopka ma czcionkę Arial 8, krój zwykły i kolor szary. Odczyt danych konta wymaga sprawdzenia w docelowym środowisku Windows; nie należy zakładać, że każde konto udostępnia pełną nazwę.
 
