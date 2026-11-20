@@ -788,9 +788,15 @@
                                             MouseWheel="DahuaRecordingTimelineCanvas_MouseWheel"
                                             MouseRightButtonDown="DahuaRecordingTimelineCanvas_ResetZoom" />
                                 </Border>
+                                <Border Background="#14243A" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="5" Padding="7,5" Margin="0,0,0,7">
+                                    <StackPanel>
+                                        <TextBlock Text="KANAŁY DO ODTWARZANIA RÓWNOCZESNEGO" Foreground="#93C5FD" FontSize="10" FontWeight="Bold" />
+                                        <TextBlock x:Name="DahuaArchiveSelectedChannelsText" Text="Domyślnie: kanał wybrany w panelu Archiwum NVR." Foreground="#F8FAFC" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
                                 <DockPanel>
                                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                                        <Button Content="Wybierz kanały" Click="DahuaSelectArchiveChannels_Click" Padding="10,4" Margin="0,0,5,0" ToolTip="Wybierz kamery, z których archiwum ma być odtwarzane równocześnie" />
+                                        <Button Content="Wybór kanałów archiwum…" Click="DahuaSelectArchiveChannels_Click" Padding="10,4" Margin="0,0,5,0" ToolTip="Wybierz kilka kamer, których nagrania mają być odtwarzane równocześnie" />
                                         <Button Content="▶ Start" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" Padding="10,4" Margin="0,0,5,0" />
                                         <Button Content="Ⅱ / ▶" Click="DahuaToggleSynchronizedPlayback_Click" Padding="10,4" Margin="0,0,5,0" />
                                         <Button Content="■ Stop" Click="DahuaStopSynchronizedPlayback_Click" Style="{StaticResource DahuaRedButton}" Padding="10,4" Margin="0,0,8,0" />
@@ -1209,8 +1215,9 @@
                                                 <TextBlock Text="Pobierz nagranie wg kanału i czasu, aby wczytać je bezpośrednio do głównego odtwarzacza (klatkowanie, OCR, cięcie i eksport MP4/PDF)." Foreground="#DCFCE7" FontSize="11" TextWrapping="Wrap" />
                                             </Border>
 
-                                            <TextBlock Text="KANAŁ KAMERY" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,8" SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
+                                            <TextBlock Text="POJEDYNCZY KANAŁ — WYSZUKIWANIE / POBIERANIE" Style="{StaticResource DahuaFieldLabel}" />
+                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,3" SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
+                                            <TextBlock Text="Ten wybór dotyczy wyszukiwania i pobierania jednego nagrania. Nie zmienia listy kanałów odtwarzanych równocześnie w głównym oknie." Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,9" />
 
                                             <TextBlock Text="POCZĄTEK (OD)" Style="{StaticResource DahuaFieldLabel}" />
                                             <Grid Margin="0,0,0,8">
