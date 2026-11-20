@@ -338,7 +338,7 @@ namespace VideoPlayer
                 await _reports.CsvAsync(source, MarkerSnapshot(), output, CurrentReportMetadata(),
                     _currentMediaInfo, _historyService.LoadExports(source), ct).ConfigureAwait(false);
                 return "Zapisano raport CSV: " + output;
-            });
+            }, requireSource: selectedCase == null);
         }
 
         private async void PdfReport_Click(object sender, RoutedEventArgs e)
@@ -379,7 +379,7 @@ namespace VideoPlayer
                 await _reports.PdfAsync(source, MarkerSnapshot(), output, images, CurrentReportMetadata(),
                     _currentMediaInfo, _historyService.LoadExports(source), OperationProgress(ct), ct).ConfigureAwait(false);
                 return "Zapisano raport PDF: " + output;
-            });
+            }, requireSource: selectedCase == null);
         }
     }
 }
