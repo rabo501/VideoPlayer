@@ -27,6 +27,13 @@ Numer wydania jest ustawiany centralnie w pliku VideoPlayer.csproj. Tytuł okna 
 
 ## 3. Interfejs
 
+## 3.1. Podgląd na żywo NVR i sterowanie PTZ
+
+W podglądzie Live ustaw układ **1 kanał** i upewnij się, że urządzenie jest połączone oraz wybrano kanał kamery obrotowej PTZ. Przytrzymaj lewy przycisk myszy i przeciągnij prostokąt wokół interesującego obszaru. Po zwolnieniu przycisku kamera wykona krótkie ruchy w kierunku środka zaznaczenia, a następnie optycznie przybliży obraz. Kółko myszy w tym układzie również steruje optycznym zoomem.
+
+To sterowanie kamerą, a nie cyfrowe powiększenie obrazu w programie. Dopasowanie jest orientacyjne — zależy od modelu i szybkości PTZ. W razie potrzeby użyj przycisków kierunkowych i zoomu do korekty. Funkcja wymaga kamery PTZ; na kamerze stałopozycyjnej nie będzie działać. W układach 4/9/16 zaznaczanie obszaru PTZ jest niedostępne.
+
+
 Główne okno zawiera menu, obszar wideo, panel narzędzi, oś czasu, przyciski odtwarzania oraz pasek stanu i postępu operacji. Panel narzędzi można pokazać lub ukryć i zmienić jego szerokość separatorem.
 
 | Zakładka | Zastosowanie |
