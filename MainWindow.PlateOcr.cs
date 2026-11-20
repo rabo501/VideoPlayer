@@ -653,7 +653,7 @@ namespace VideoPlayer
             {
                 var hits = await SearchPlateInRecordingAsync(
                     source, target, points, referenceWidth, referenceHeight,
-                    duration, effectiveInterval, estimatedSamples, _plateVideoSearchCts.Token);
+                    duration, effectiveInterval, _plateVideoSearchCts.Token);
 
                 if (_closing || !_ocrActive) return;
                 OcrSearchResultsList.ItemsSource = hits;
@@ -692,7 +692,7 @@ namespace VideoPlayer
 
         private async Task<IReadOnlyList<PlateVideoSearchHit>> SearchPlateInRecordingAsync(
             string source, string target, PlatePoint[] points, int referenceWidth, int referenceHeight,
-            double duration, int intervalSeconds, int estimatedSamples, CancellationToken cancellationToken)
+            double duration, int intervalSeconds, CancellationToken cancellationToken)
         {
             string folder = Path.Combine(Path.GetTempPath(), "VideoPlayer_PlateSearch_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
@@ -806,7 +806,7 @@ namespace VideoPlayer
                     }
 
                     OcrSearchProgressText.Text =
-                        $"Analiza OCR: {i + 1}/{frames.Length} próbek • {TimeSpan.FromSeconds(seconds).ToString(@"hh\\:mm\\:ss")} • trafienia: {hits.Count}";
+                        $"Analiza OCR: {i + 1}/{frames.Length} próbek • {TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss")} • trafienia: {hits.Count}";
                 }
 
                 return hits;
