@@ -944,20 +944,34 @@ namespace VideoPlayer
         // Ruch po przekątnej realizujemy równoczesnymi poleceniami osi poziomej i pionowej.
         private void SendDahuaPtzDiagonal(string? direction, bool stop)
         {
-            var commands = direction?.ToUpperInvariant() switch
-            {
-                "UP_LEFT" => (DahuaNetSdk.EM_PTZ_COMMAND.UP, DahuaNetSdk.EM_PTZ_COMMAND.LEFT),
-                "UP_RIGHT" => (DahuaNetSdk.EM_PTZ_COMMAND.UP, DahuaNetSdk.EM_PTZ_COMMAND.RIGHT),
-                "DOWN_LEFT" => (DahuaNetSdk.EM_PTZ_COMMAND.DOWN, DahuaNetSdk.EM_PTZ_COMMAND.LEFT),
-                "DOWN_RIGHT" => (DahuaNetSdk.EM_PTZ_COMMAND.DOWN, DahuaNetSdk.EM_PTZ_COMMAND.RIGHT),
-                _ => ((DahuaNetSdk.EM_PTZ_COMMAND?)null, (DahuaNetSdk.EM_PTZ_COMMAND?)null)
-            };
+            DahuaNetSdk.EM_PTZ_COMMAND vertical;
+            DahuaNetSdk.EM_PTZ_COMMAND horizontal;
 
-            if (commands.Item1.HasValue && commands.Item2.HasValue)
+            switch (direction?.ToUpperInvariant())
             {
-                SendDahuaPtz(commands.Item1.Value, stop);
-                SendDahuaPtz(commands.Item2.Value, stop);
+                case "UP_LEFT":
+                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.UP;
+                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.LEFT;
+                    break;
+                case "UP_RIGHT":
+                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.UP;
+                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.RIGHT;
+                    break;
+                case "DOWN_LEFT":
+                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.DOWN;
+                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.LEFT;
+                    break;
+                case "DOWN_RIGHT":
+                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.DOWN;
+                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.RIGHT;
+                    break;
+                default:
+                    return;
             }
+
+            // Uruchom oba kierunki i zatrzymaj oba po zwolnieniu przycisku.
+            SendDahuaPtz(vertical, stop);
+            SendDahuaPtz(horizontal, stop);
         }
 
         private void DahuaPtzDiagonal_Down(object sender, MouseButtonEventArgs e)
