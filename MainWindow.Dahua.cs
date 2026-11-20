@@ -1564,6 +1564,7 @@ namespace VideoPlayer
             {
                 ConfigureDahuaRecordModes(_dahuaLoginId);
                 int started = 0;
+                var failedChannels = new List<int>();
                 foreach (var slot in _dahuaMultiViewSlots)
                 {
                     var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
@@ -1576,13 +1577,22 @@ namespace VideoPlayer
                         _dahuaMultiPlaybackHandles.Add(slot.PlaybackHandle);
                         started++;
                     }
+                    else
+                    {
+                        failedChannels.Add(slot.Channel);
+                    }
                 }
                 if (started == 0)
                     throw new InvalidOperationException("Rejestrator nie uruchomił odtwarzania na żadnym z wybranych kanałów.");
                 _dahuaPlaybackUiTimer.Start();
                 DahuaStreamOverlay.Visibility = Visibility.Collapsed;
-                DahuaPlaybackSyncStatusText.Text = $"Synchronizacja czasu: {started}/{channels.Count} kanałów";
-                DahuaStatusLabel.Text = $"Odtwarzanie zsynchronizowane: {started} kanałów od {start.Value:HH:mm:ss}.";
+                string failedSummary = failedChannels.Count == 0
+                    ? "Wszystkie wybrane kanały uruchomione."
+                    : $"Nie uruchomiono kanałów: {string.Join(", ", failedChannels.Select(channel => $"CH {channel}"))}.";
+                DahuaPlaybackSyncStatusText.Text = $"Odtwarzanie archiwum: {started}/{channels.Count} kanałów. {failedSummary}";
+                DahuaStatusLabel.Text = failedChannels.Count == 0
+                    ? $"Odtwarzanie wielokanałowe uruchomione: {started} kanałów od {start.Value:HH:mm:ss}."
+                    : $"Odtwarzanie częściowe: {started}/{channels.Count} kanałów od {start.Value:HH:mm:ss}. Brak: {string.Join(", ", failedChannels.Select(channel => $"CH {channel}"))}.";
             }
             catch (Exception ex)
             {
