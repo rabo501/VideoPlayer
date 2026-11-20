@@ -1,7 +1,7 @@
-# VideoPlayer 1.6.0
+# VideoPlayer 1.7.0
 ## Dokumentacja użytkownika i uruchomienia
 
-Stan dokumentacji: 19.11.2026. Wydanie: 1.6.0. Dokument opisuje aktualny zakres aplikacji, lokalny OCR, wykrywanie ruchu, integrację Dahua, eksport, raporty oraz przechowywanie danych.
+Stan dokumentacji: 20.11.2026. Wydanie: 1.7.0. Dokument opisuje aktualny zakres aplikacji, lokalny OCR, wykrywanie ruchu, integrację Dahua, eksport, raporty oraz przechowywanie danych.
 
 ## 1. Przeznaczenie i najważniejsze ograniczenia
 
@@ -21,7 +21,7 @@ Paczka zawiera projekt źródłowy, nie instalator. Do budowania potrzebny jest 
 6. Przy problemie uruchomienia OCR sprawdź Microsoft Visual C++ Redistributable 2015–2022 x64, biblioteki x64\\tesseract50.dll i x64\\leptonica-1.82.0.dll oraz model tessdata\\eng.traineddata. Wszystkie muszą znaleźć się w katalogu wynikowym. W paczce pozostaw pliki licencji.
 7. Uruchom program z katalogu, w którym masz prawo zapisu: baza SQLite powstaje obok uruchomionej aplikacji.
 
-Wersja 1.6.0 zawiera lokalny OCR oraz narzędzia analizy nagrań. Nie wymaga przesyłania klatki do internetowego serwisu rozpoznawania. Pierwsze budowanie projektu może wymagać pobrania zależności.
+Wersja 1.7.0 zawiera lokalny OCR oraz narzędzia analizy nagrań. Nie wymaga przesyłania klatki do internetowego serwisu rozpoznawania. Pierwsze budowanie projektu może wymagać pobrania zależności.
 
 Numer wydania jest ustawiany centralnie w pliku VideoPlayer.csproj. Tytuł okna i okno Informacje pokazują wersję zestawu aplikacji.
 
@@ -252,11 +252,11 @@ Skróty analizy nie powinny przejmować liter podczas wpisywania tekstu w polach
 
 Menu Pomoc udostępnia pomoc podstawową, ponowne uruchomienie mpv i informacje o programie. Niniejsza dokumentacja jest pełniejsza niż starsze teksty pomocy wbudowanej.
 
-## 16. Weryfikacja i zakres wydania 1.6.0
+## 16. Weryfikacja i zakres wydania 1.7.0
 
-Wydanie 1.6.0 obejmuje lokalny OCR, wykrywanie ruchu z obszarem ROI, zapis przedziałów czasowych zdarzeń i podgląd obszaru ruchu oraz istniejące funkcje odtwarzania, eksportu, raportowania i integracji Dahua. Kompilację x64 oraz testy na docelowym komputerze Windows należy wykonać przed opublikowaniem paczki.
+Wydanie 1.7.0 obejmuje lokalny OCR, wykrywanie ruchu z obszarem ROI, zapis przedziałów czasowych zdarzeń i podgląd obszaru ruchu oraz istniejące funkcje odtwarzania, eksportu, raportowania i integracji Dahua. Kompilację x64 oraz testy na docelowym komputerze Windows należy wykonać przed opublikowaniem paczki.
 
-Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.6.0. Starsze instrukcje cząstkowe oraz dokument DOCX/ZIP oznaczone 1.3.2 mają charakter archiwalny; w razie różnic korzystaj z dokumentacji 1.6.0.
+Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.7.0. Starsze instrukcje cząstkowe oraz dokument DOCX/ZIP oznaczone 1.3.2 mają charakter archiwalny; w razie różnic korzystaj z dokumentacji 1.7.0.
 
 ### Lista kontroli po instalacji
 
@@ -268,7 +268,7 @@ Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.
 - Wygeneruj CSV oraz PDF z miniaturami i bez nich. Sprawdź autora, stopkę, czasy i opisy.
 - Potwierdź, że oryginalny film pozostał bez zmian i że znasz lokalizację właściwej bazy.
 
-## 17. Przygotowanie publikacji 1.6.0
+## 17. Przygotowanie publikacji 1.7.0
 
 - [ ] Ustawiono konfigurację Release i platformę x64.
 - [ ] Wykonano czystą kompilację oraz publikację na docelowym Windows z .NET 8 Desktop Runtime.
@@ -279,6 +279,6 @@ Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.
 - [ ] Sprawdzono OCR, detekcję ruchu na zaznaczonym obszarze i całym obrazie, anulowanie, zapis zakresów i podgląd obszaru.
 - [ ] Sprawdzono eksport MP4, JPG, CSV i PDF oraz integrację Dahua, jeśli jest używana.
 - [ ] Wykonano kopię bazy danych i przetestowano aktualizację istniejącej bazy.
-- [ ] Wydanie zawiera numer 1.6.0 w nazwie paczki i informacjach o programie.
+- [ ] Wydanie zawiera numer 1.7.0 w nazwie paczki i informacjach o programie.
 
 **Ważne:** pliki natywne OCR muszą być dołączone do paczki wydania, nawet jeśli na komputerze deweloperskim OCR działa dzięki bibliotekom już zainstalowanym w systemie. Instalacja Visual C++ Redistributable nie zastępuje bibliotek Tesseract i Leptonica.
