@@ -940,6 +940,36 @@ namespace VideoPlayer
         private void DahuaPtzDown_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.DOWN, false);
         private void DahuaPtzLeft_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.LEFT, false);
         private void DahuaPtzRight_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.RIGHT, false);
+
+        // Ruch po przekątnej realizujemy równoczesnymi poleceniami osi poziomej i pionowej.
+        private void SendDahuaPtzDiagonal(string? direction, bool stop)
+        {
+            var commands = direction?.ToUpperInvariant() switch
+            {
+                "UP_LEFT" => (DahuaNetSdk.EM_PTZ_COMMAND.UP, DahuaNetSdk.EM_PTZ_COMMAND.LEFT),
+                "UP_RIGHT" => (DahuaNetSdk.EM_PTZ_COMMAND.UP, DahuaNetSdk.EM_PTZ_COMMAND.RIGHT),
+                "DOWN_LEFT" => (DahuaNetSdk.EM_PTZ_COMMAND.DOWN, DahuaNetSdk.EM_PTZ_COMMAND.LEFT),
+                "DOWN_RIGHT" => (DahuaNetSdk.EM_PTZ_COMMAND.DOWN, DahuaNetSdk.EM_PTZ_COMMAND.RIGHT),
+                _ => ((DahuaNetSdk.EM_PTZ_COMMAND?)null, (DahuaNetSdk.EM_PTZ_COMMAND?)null)
+            };
+
+            if (commands.Item1.HasValue && commands.Item2.HasValue)
+            {
+                SendDahuaPtz(commands.Item1.Value, stop);
+                SendDahuaPtz(commands.Item2.Value, stop);
+            }
+        }
+
+        private void DahuaPtzDiagonal_Down(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Button button) SendDahuaPtzDiagonal(button.Tag?.ToString(), false);
+        }
+
+        private void DahuaPtzDiagonal_Stop(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Button button) SendDahuaPtzDiagonal(button.Tag?.ToString(), true);
+        }
+
         private void DahuaPtzZoomIn_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN, false);
         private void DahuaPtzZoomOut_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_OUT, false);
         private void DahuaPtzFocusIn_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.FOCUS_IN, false);
