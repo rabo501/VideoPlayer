@@ -34,12 +34,19 @@ namespace VideoPlayer
                 await using(var stream=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,true))
                 await using(var writer=new StreamWriter(stream,new UTF8Encoding(true)))
                 {
-                    await writer.WriteLineAsync("Rodzaj;Numer sprawy;Tytuł sprawy;Miejsce;Uwagi;Plik źródłowy;Czas;Koniec;Sekundy;Sekundy końca;Typ zdarzenia;Opis;Marka pojazdu;Powiązane zdarzenia ruchu;Data eksportu;Operacja;Plik wynikowy;Szczegóły".AsMemory(),ct);
+                    await writer.WriteLineAsync("Rodzaj;Numer sprawy;Tytuł sprawy;Miejsce;Uwagi;Plik źródłowy;Czas;Koniec;Sekundy;Sekundy końca;Typ zdarzenia;Opis;Marka pojazdu;Powiązane zdarzenia ruchu;Data eksportu;Operacja;Plik wynikowy;Szczegóły;Kodek wideo;Rozdzielczość;FPS;Kodek audio;Czas trwania nagrania;Rozmiar źródła (B)".AsMemory(),ct);
                     string caseNumber=CsvCell(metadata.CaseNumber);
                     string caseTitle=CsvCell(metadata.CaseTitle);
                     string location=CsvCell(metadata.Location);
                     string notes=CsvCell(metadata.Notes);
                     string sourceCell=CsvCell(source);
+                    string videoCodec=CsvCell(mediaInfo?.VideoCodec ?? "");
+                    string resolution=CsvCell(mediaInfo?.Resolution ?? "");
+                    string fps=CsvCell(mediaInfo?.Fps ?? "");
+                    string audioCodec=CsvCell(mediaInfo?.AudioCodec ?? "");
+                    string duration=CsvCell(mediaInfo == null ? "" : Timestamp(mediaInfo.Duration));
+                    string fileSize=CsvCell(mediaInfo == null ? "" : mediaInfo.FileSize.ToString(CultureInfo.InvariantCulture));
+                    string[] mediaFields={videoCodec,resolution,fps,audioCodec,duration,fileSize};
 
                     foreach(var marker in markers.OrderBy(m=>m.Seconds))
                     {
@@ -53,7 +60,7 @@ namespace VideoPlayer
                             CsvCell(endSeconds),CsvCell(marker.EventType),CsvCell(marker.Description),
                             CsvCell(marker.VehicleMake),CsvCell(marker.RelatedMotionCount.ToString(CultureInfo.InvariantCulture)),
                             CsvCell(""),CsvCell(""),CsvCell(""),CsvCell("")
-                        });
+                        }.Concat(mediaFields));
                         await writer.WriteLineAsync(line.AsMemory(),ct);
                     }
 
@@ -70,7 +77,7 @@ namespace VideoPlayer
                             CsvCell(""),CsvCell(""),CsvCell(""),CsvCell(""),
                             CsvCell(export.CreatedLocal.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)),
                             CsvCell(export.Operation),CsvCell(export.OutputPath),CsvCell(export.Details)
-                        });
+                        }.Concat(mediaFields));
                         await writer.WriteLineAsync(line.AsMemory(),ct);
                     }
                 }
@@ -238,7 +245,11 @@ namespace VideoPlayer
                 }
                 var sourceInfo=new FileInfo(source);
                 Text("Rozmiar pliku źródłowego: "+sourceInfo.Length.ToString("N0",CultureInfo.GetCultureInfo("pl-PL"))+" B",font);
-                Text("Liczba zdarzeń: "+markers.Count+". Czasy liczone od początku pliku, nie zegar kamery.",font);
+                int plateCount=markers.Count(m=>string.Equals(m.EventType,"Tablica",StringComparison.OrdinalIgnoreCase));
+                int motionCount=markers.Count(m=>string.Equals(m.EventType,"Ruch",StringComparison.OrdinalIgnoreCase));
+                int manualCount=markers.Count(m=>string.Equals(m.EventType,"Ręczne",StringComparison.OrdinalIgnoreCase));
+                Text("Liczba zdarzeń: "+markers.Count+" | Tablice: "+plateCount+" | Ruch: "+motionCount+" | Ręczne: "+manualCount+".",font);
+                Text("Czasy zdarzeń są względne względem początku pliku, nie są czasem zegara kamery.",font);
                 y+=10;
                 if(!string.IsNullOrWhiteSpace(metadata.Notes))y+=4;
                 if(exports.Count>0)
@@ -258,9 +269,14 @@ namespace VideoPlayer
                 foreach(var m in markers)
                 {
                     ct.ThrowIfCancellationRequested();if(y+60>bottom)Page();
-                    Text("Czas od początku nagrania: "+Timestamp(m.Seconds),bold);
+                    string eventRange=m.EndSeconds.HasValue&&m.EndSeconds.Value>m.Seconds
+                        ? Timestamp(m.Seconds)+" – "+Timestamp(m.EndSeconds.Value)
+                        : Timestamp(m.Seconds);
+                    Text("["+m.EventType+"] Czas od początku nagrania: "+eventRange,bold);
                     if(!string.IsNullOrWhiteSpace(m.VehicleMake))
-                        Text("Marka pojazdu (wpisana ręcznie): "+m.VehicleMake,font);
+                        Text("Marka pojazdu: "+m.VehicleMake,font);
+                    if(m.RelatedMotionCount>0)
+                        Text("Powiązane zdarzenia ruchu: "+m.RelatedMotionCount,font);
                     Text("Opis: "+m.Description,font);
                     if(images.TryGetValue(m.Id,out string? image))
                     {
