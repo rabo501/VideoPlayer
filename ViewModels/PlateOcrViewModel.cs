@@ -336,6 +336,7 @@ namespace VideoPlayer.ViewModels
         {
             // Operacje zwalniają własne źródła tokenów w blokach finally.
             // Tutaj tylko żądamy anulowania, aby nie ścigać się z ich zakończeniem.
+            IsActive = false;
             _workCts?.Cancel();
             _searchCts?.Cancel();
         }

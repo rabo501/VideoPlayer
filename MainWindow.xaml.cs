@@ -66,7 +66,7 @@ namespace VideoPlayer
             PreviewKeyDown += OnPreviewKeyDown;
             SizeChanged += (_, __) => ConstrainToolsWidth();
             _saveTimer.Tick += (_, __) => SaveSession();
-            Closed += (_, __) => { ViewModel.Motion.Cancel(); _mouseSendTimer.Stop(); _videoMouse?.Dispose(); };
+            Closed += (_, __) => { _mouseSendTimer.Stop(); _videoMouse?.Dispose(); };
         }
 
         private async void RestartMpv_Click(object sender, RoutedEventArgs e)
