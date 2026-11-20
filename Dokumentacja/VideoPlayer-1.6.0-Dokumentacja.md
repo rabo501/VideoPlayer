@@ -200,7 +200,7 @@ Po wybraniu sprawy na liście jej metadane są automatycznie wczytywane do formu
 
 **Raport zbiorczy sprawy:** wybierz sprawę na liście i użyj Raport CSV albo Raport PDF. Raport obejmuje wszystkie przypisane nagrania, ich zdarzenia, historię eksportów i parametry techniczne. Nie trzeba wcześniej otwierać żadnego nagrania. W PDF każde zdarzenie jest opisane nazwą i ścieżką źródła; opcjonalne miniatury są pobierane z właściwego nagrania. CSV zawiera osobny wiersz „Nagranie” dla każdego źródła, dzięki czemu widoczne są także pliki bez zapisanych zdarzeń. Jeśli plik został przeniesiony lub usunięty, raport oznaczy niedostępne źródło, ale nadal uwzględni zachowane w bazie zdarzenia i eksporty.
 
-Przycisk Usuń sprawę wymaga potwierdzenia. Usuwa tylko dane sprawy i jej powiązania z nagraniami. Nie usuwa plików źródłowych, znaczników, historii eksportów ani plików wynikowych.
+Przycisk Bieżące nagranie czyści wybór sprawy, aby raport dotyczył aktualnie otwartego pliku. Przycisk Usuń sprawę wymaga potwierdzenia. Usuwa tylko dane sprawy i jej powiązania z nagraniami. Nie usuwa plików źródłowych, znaczników, historii eksportów ani plików wynikowych.
 
 Archiwum przechowuje metadane spraw i ścieżki do nagrań w lokalnej bazie VideoPlayer.db. Nie kopiuje, nie przenosi ani nie modyfikuje plików źródłowych. Przeniesienie nagrania może spowodować, że zapisana ścieżka przestanie wskazywać na istniejący plik. Kopię bazy wykonuj przed aktualizacją programu i przed testami migracji.
 
