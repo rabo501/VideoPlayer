@@ -10,7 +10,9 @@ namespace VideoPlayer
 {
     public partial class MainWindow
     {
-        private bool CanOperate() => !_exporting && !_motionDetectionRunning && !_opening && !_shutdownRequested && _exports != null && _sourceFilePath != null && File.Exists(_sourceFilePath);
+        private bool CanOperate(bool requireSource = true) =>
+            !_exporting && !_motionDetectionRunning && !_opening && !_shutdownRequested && _exports != null &&
+            (!requireSource || (_sourceFilePath != null && File.Exists(_sourceFilePath)));
         private bool ValidRange() => _clipStart.HasValue && _clipEnd.HasValue && _clipEnd.Value > _clipStart.Value;
         private string SelectedProfile => (ExportProfileBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "standard";
         private bool ConfirmCopy(bool copy) => !copy || MessageBox.Show(this, "Kopiowanie strumieni może przesunąć granice cięcia. Kodeki muszą być zgodne z MP4. Kontynuować?", "Eksport", MessageBoxButton.YesNo) == MessageBoxResult.Yes;
@@ -31,9 +33,9 @@ namespace VideoPlayer
                 ExportProgressText.Text = prefix + p.Detail;
             });
 
-        private async Task RunOperationAsync(string title, Func<CancellationToken, Task<string>> work)
+        private async Task RunOperationAsync(string title, Func<CancellationToken, Task<string>> work, bool requireSource = true)
         {
-            if (!CanOperate()) return;
+            if (!CanOperate(requireSource)) return;
             _exporting = true;
             _operationCts = new CancellationTokenSource();
             SetOperationUi(true);
