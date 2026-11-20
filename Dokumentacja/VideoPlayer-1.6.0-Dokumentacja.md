@@ -192,6 +192,14 @@ Stopka i metadane autora PDF korzystają z pełnej nazwy użytkownika Windows. G
 
 Raport nie stanowi niezależnego potwierdzenia prawdziwości opisu albo poprawności OCR: zapisuje wynik pracy użytkownika z materiałem.
 
+### 12.3. Lokalne archiwum spraw
+
+W zakładce Zdarzenia znajduje się sekcja Archiwum spraw. Wpisz numer sprawy, tytuł, miejsce i uwagi w sekcji danych sprawy, a następnie wybierz Zapisz / aktualizuj sprawę. Numer sprawy jest wymagany. Zapis powiązuje sprawę z aktualnie otwartym nagraniem. Kolejne nagrania można dołączać do tej samej sprawy, otwierając je i ponownie zapisując sprawę z tym samym numerem.
+
+Aby przywrócić metadane do formularza, wybierz sprawę na liście i kliknij Wczytaj dane sprawy. Wczytanie nie otwiera automatycznie nagrania. Po wczytaniu danych i otwarciu innego materiału zapisz sprawę ponownie, aby powiązać nową ścieżkę źródłową.
+
+Archiwum przechowuje metadane spraw i ścieżki do nagrań w lokalnej bazie VideoPlayer.db. Nie kopiuje, nie przenosi ani nie modyfikuje plików źródłowych. Przeniesienie nagrania może spowodować, że zapisana ścieżka przestanie wskazywać na istniejący plik. Kopię bazy wykonuj przed aktualizacją programu i przed testami migracji.
+
 ## 13. Sesje, historia i baza danych
 
 Zapisz sesję zachowuje pozycję filmu, wybraną prędkość, stan pauzy, zoom, przesunięcie, tryb wypełnienia, bieżące granice i listę fragmentów. Zapis sesji jest wykonywany także przy zmianie materiału; przy prawidłowym zamknięciu zachowywane są dane pracy. Opcja Przywracaj pozycję i widok decyduje o odtwarzaniu poprzednich ustawień podczas otwierania pliku. Zakresy i zdarzenia należy odróżnić od samego przywracania widoku.
