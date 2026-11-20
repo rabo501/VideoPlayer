@@ -82,7 +82,13 @@ namespace VideoPlayer
             APERTURE_OUT = 9,
             POINT_MOVE_CONTROL = 10, // Idź do zapisanego presetu (Goto preset)
             POINT_SET_CONTROL = 11,  // Zapisz pozycję jako preset (Set preset)
-            POINT_DEL_CONTROL = 12   // Usuń preset (Delete preset)
+            POINT_DEL_CONTROL = 12,  // Usuń preset (Delete preset)
+
+            // Rozszerzone komendy PTZ Dahua — ruch po przekątnej.
+            LEFTTOP = 0x20,
+            RIGHTTOP = 0x21,
+            LEFTDOWN = 0x22,
+            RIGHTDOWN = 0x23
         }
 
         public enum NET_CAPTURE_FORMATS
