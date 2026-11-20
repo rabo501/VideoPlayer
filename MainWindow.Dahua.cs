@@ -944,34 +944,49 @@ namespace VideoPlayer
         // Ruch po przekątnej realizujemy równoczesnymi poleceniami osi poziomej i pionowej.
         private void SendDahuaPtzDiagonal(string? direction, bool stop)
         {
-            DahuaNetSdk.EM_PTZ_COMMAND vertical;
-            DahuaNetSdk.EM_PTZ_COMMAND horizontal;
+            if (_dahuaLoginId == IntPtr.Zero) return;
 
+            DahuaNetSdk.EM_PTZ_COMMAND command;
             switch (direction?.ToUpperInvariant())
             {
                 case "UP_LEFT":
-                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.UP;
-                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.LEFT;
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.LEFTTOP;
                     break;
                 case "UP_RIGHT":
-                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.UP;
-                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.RIGHT;
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.RIGHTTOP;
                     break;
                 case "DOWN_LEFT":
-                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.DOWN;
-                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.LEFT;
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.LEFTDOWN;
                     break;
                 case "DOWN_RIGHT":
-                    vertical = DahuaNetSdk.EM_PTZ_COMMAND.DOWN;
-                    horizontal = DahuaNetSdk.EM_PTZ_COMMAND.RIGHT;
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.RIGHTDOWN;
                     break;
                 default:
                     return;
             }
 
-            // Uruchom oba kierunki i zatrzymaj oba po zwolnieniu przycisku.
-            SendDahuaPtz(vertical, stop);
-            SendDahuaPtz(horizontal, stop);
+            try
+            {
+                // Dla komend diagonalnych Dahua param1 oznacza prędkość pionową,
+                // a param2 poziomą. Jedno wywołanie steruje obiema osiami.
+                int channelIndex = Math.Max(0, _dahuaCurrentChannel - 1);
+                bool success = DahuaNetSdk.CLIENT_DHPTZControlEx2(
+                    _dahuaLoginId,
+                    channelIndex,
+                    (uint)command,
+                    4,
+                    4,
+                    0,
+                    stop,
+                    IntPtr.Zero);
+
+                if (!success)
+                    DahuaStatusLabel.Text = $"Błąd sterowania PTZ po przekątnej (kod: 0x{DahuaNetSdk.CLIENT_GetLastError():X}).";
+            }
+            catch (Exception ex)
+            {
+                DahuaStatusLabel.Text = $"Błąd sterowania PTZ po przekątnej: {ex.Message}";
+            }
         }
 
         private void DahuaPtzDiagonal_Down(object sender, MouseButtonEventArgs e)
