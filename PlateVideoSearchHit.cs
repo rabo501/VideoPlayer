@@ -20,7 +20,7 @@ namespace VideoPlayer
             TimeSpan time = TimeSpan.FromSeconds(Math.Max(0, seconds));
             return time.TotalDays >= 1
                 ? $"{(int)time.TotalDays}.{time:hh\\:mm\\:ss}"
-                : time.ToString(@"hh\\:mm\\:ss");
+                : time.ToString(@"hh\:mm\:ss");
         }
     }
 }
