@@ -51,6 +51,20 @@ Prace są prowadzone na gałęzi `wersja-1.7`. Wersja aplikacji pozostaje `1.6.0
 - Nie zmieniać numeru wersji przed zakończeniem testów.
 - Każdy podetap wdrażać oddzielnie i przekazywać do kompilacji/testów.
 
+## Implementacja 6A — wykonane
+
+Dodano `CaseRepository.cs` oraz tabele `Cases` i `CaseSources` w istniejącej bazie `VideoPlayer.db`.
+
+W zakładce Zdarzenia dodano sekcję „Archiwum spraw”:
+- lista spraw zapisanych lokalnie;
+- przycisk „Zapisz / aktualizuj sprawę”;
+- przycisk „Wczytaj dane sprawy”;
+- status informujący o liczbie powiązanych nagrań.
+
+Zapis sprawy wymaga numeru sprawy i otwartego, istniejącego nagrania. Ponowny zapis z tym samym numerem aktualizuje metadane i dopisuje bieżącą ścieżkę nagrania do powiązań. Nie kopiuje pliku źródłowego. Wczytanie sprawy przywraca metadane do formularza raportu; aby dołączyć bieżące nagranie, należy ponownie zapisać sprawę.
+
+Nie wykonano kompilacji ani testów runtime. Etap 6A wymaga testów użytkownika przed rozpoczęciem 6B.
+
 ## Implementacja 6B — wykonane
 
 Rozbudowano raport CSV i PDF, zachowując lokalne przetwarzanie.
@@ -91,20 +105,6 @@ Czasy są jednoznacznie opisane jako względne względem początku pliku. Nie s�
 7. Sprawdź, czy historia eksportów odpowiada bieżącemu nagraniu.
 8. Sprawdź, czy PDF zachowuje czytelność na wielu stronach, a miniatury nie nachodzą na tekst i stopkę.
 9. Sprawdź, że brak historii eksportów lub brak danych technicznych nie przerywa generowania raportu.
-
-## Implementacja 6A — wykonane
-
-Dodano `CaseRepository.cs` oraz tabele `Cases` i `CaseSources` w istniejącej bazie `VideoPlayer.db`.
-
-W zakładce Zdarzenia dodano sekcję „Archiwum spraw”:
-- lista spraw zapisanych lokalnie;
-- przycisk „Zapisz / aktualizuj sprawę”;
-- przycisk „Wczytaj dane sprawy”;
-- status informujący o liczbie powiązanych nagrań.
-
-Zapis sprawy wymaga numeru sprawy i otwartego, istniejącego nagrania. Ponowny zapis z tym samym numerem aktualizuje metadane i dopisuje bieżącą ścieżkę nagrania do powiązań. Nie kopiuje pliku źródłowego. Wczytanie sprawy przywraca metadane do formularza raportu; aby dołączyć bieżące nagranie, należy ponownie zapisać sprawę.
-
-Nie wykonano kompilacji ani testów runtime. Etap 6A wymaga testów użytkownika przed rozpoczęciem 6B.
 
 ## Testy akceptacyjne 6A
 
