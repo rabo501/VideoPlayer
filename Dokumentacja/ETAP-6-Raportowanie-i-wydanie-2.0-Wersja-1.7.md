@@ -105,15 +105,17 @@ Czasy są jednoznacznie opisane jako względne względem początku pliku. Nie s�
 
 ### Testy akceptacyjne 6B
 
-1. Wybierz sprawę w archiwum i wczytaj jej dane.
-2. Wygeneruj CSV oraz PDF z miniaturami i bez miniatur.
-3. Sprawdź polskie znaki, znaki średnika i cudzysłowy w opisach oraz uwagach.
-4. Sprawdź, czy CSV otwiera się prawidłowo w Excelu i ma jednakową liczbę kolumn w wierszach zdarzeń i eksportów.
-5. Sprawdź, czy zdarzenie ruchu z zakresem ma oba czasy, a znacznik punktowy ma pusty czas końca.
-6. Sprawdź klasyfikację tablic, ruchu i zdarzeń ręcznych.
-7. Sprawdź, czy historia eksportów odpowiada bieżącemu nagraniu.
-8. Sprawdź, czy PDF zachowuje czytelność na wielu stronach, a miniatury nie nachodzą na tekst i stopkę.
-9. Sprawdź, że brak historii eksportów lub brak danych technicznych nie przerywa generowania raportu.
+1. Wybierz sprawę zawierającą co najmniej dwa nagrania; nie otwieraj żadnego z nich.
+2. Wygeneruj CSV i sprawdź, czy raport zawiera wiersz identyfikujący każde nagranie oraz zdarzenia z obu źródeł.
+3. Wygeneruj PDF z miniaturami i bez miniatur; sprawdź, czy zdarzenia i miniatury są przypisane do właściwych plików.
+4. Powtórz generowanie po otwarciu innego nagrania, aby potwierdzić, że zakres raportu nadal wynika z wybranej sprawy.
+5. Sprawdź polskie znaki, znaki średnika i cudzysłowy w opisach oraz uwagach.
+6. Sprawdź, czy CSV otwiera się prawidłowo w Excelu i ma jednakową liczbę kolumn we wszystkich rodzajach wierszy.
+7. Sprawdź, czy zdarzenie ruchu z zakresem ma oba czasy, a znacznik punktowy ma pusty czas końca.
+8. Sprawdź klasyfikację tablic, ruchu i zdarzeń ręcznych.
+9. Sprawdź, czy historia eksportów jest przypisana do właściwego nagrania.
+10. Sprawdź, czy PDF zachowuje czytelność na wielu stronach, a miniatury nie nachodzą na tekst i stopkę.
+11. Sprawdź, że brak historii eksportów, niedostępny plik źródłowy lub brak danych technicznych nie przerywa generowania raportu.
 
 ## Testy akceptacyjne 6A
 
@@ -125,7 +127,9 @@ Czasy są jednoznacznie opisane jako względne względem początku pliku. Nie s�
 6. Wyczyść pola formularza, wybierz sprawę z listy i wczytaj dane.
 7. Zamknij i ponownie uruchom program; sprawdź, czy archiwum nadal zawiera zapisane sprawy.
 8. Sprawdź, że pliki źródłowe pozostały w swoich pierwotnych lokalizacjach i nie zostały zmodyfikowane.
-9. Wykonaj kopię `VideoPlayer.db` przed testami na danych roboczych.
+9. Usuń sprawę z listy i potwierdź operację; sprawdź, że zniknęła z archiwum, ale nagrania, znaczniki i historia eksportów nadal istnieją.
+10. Anuluj usuwanie innej sprawy i sprawdź, że pozostaje w archiwum.
+11. Wykonaj kopię `VideoPlayer.db` przed testami na danych roboczych.
 
 ## Kryterium zakończenia
 
