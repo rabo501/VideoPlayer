@@ -3,7 +3,7 @@
 **Stan przeglądu:** 20.11.2026  
 **Gałąź:** `wersja-1.7`
 
-Celem indeksu jest wskazanie dokumentów, z których należy korzystać, materiałów historycznych oraz plików rekomendowanych do usunięcia. Na tym etapie nie usunięto żadnych plików — najpierw zachowano istotne informacje w chronologii zmian.
+Celem indeksu jest wskazanie dokumentów, z których należy korzystać, materiałów historycznych oraz plików usuniętych z bieżącego zestawu dokumentacji. Istotne informacje historyczne zachowano w chronologii zmian.
 
 ## 1. Dokumenty aktualne — pozostawić
 
@@ -18,23 +18,23 @@ Celem indeksu jest wskazanie dokumentów, z których należy korzystać, materia
 | `Dahua-NetSDK-Instrukcja.md` | **AKTUALNY SKRÓT** | Wskazuje aktualne zasady i odsyła do szczegółowego opisu archiwum Dahua. |
 | `HISTORIA-ZMIAN-VideoPlayer-do-1.7.0.md` | **ARCHIWUM — ZACHOWAĆ** | Skonsolidowana chronologia zmian i decyzji technicznych. |
 
-## 2. Pliki historyczne — oznaczyć do usunięcia po akceptacji chronologii
+## 2. Pliki historyczne — usunięte
 
-Poniższe dokumenty etapowe zawierają wartościowe informacje, ale ich statusy testów, numery wersji, opisy interfejsu lub planowane zakresy mogą być nieaktualne. Najważniejsze informacje przeniesiono do chronologii. Nie używać ich jako bieżących instrukcji.
+Poniższe dokumenty etapowe zostały usunięte z gałęzi `wersja-1.7` po akceptacji indeksu i chronologii. Zawierały wartościowe informacje, ale ich statusy testów, numery wersji, opisy interfejsu lub planowane zakresy były nieaktualne. Najważniejsze informacje przeniesiono do chronologii.
 
 | Plik | Decyzja | Powód |
 |---|---|---|
-| `ETAP-1-Stabilizacja-Wersja-1.7.md` | **DO USUNIĘCIA** | Etap zaakceptowany; historyczna checklista i status testów sprzed finalnej akceptacji. |
-| `ETAP-2-Wykrywanie-ruchu-Wersja-1.7.md` | **DO USUNIĘCIA** | Etap zaakceptowany; chronologia zachowuje parametry algorytmu. |
-| `ETAP-3A-OCR-Wieloklatkowy-Wersja-1.7.md` | **DO USUNIĘCIA** | Historyczny status 1.6.0 i stare checklisty; ważne ograniczenia i korekty OCR przeniesiono do chronologii. |
-| `ETAP-3B-Wyszukiwanie-tablic-Wersja-1.7.md` | **DO USUNIĘCIA** | Etap opisany jako roboczy; aktualny zakres i ograniczenia zachowano w chronologii i instrukcji. |
-| `ETAP-4-Centrum-zdarzen-Wersja-1.7.md` | **DO USUNIĘCIA** | Opis wdrożenia i testów etapowych; kluczowe zasady klasyfikacji i powiązań zachowano w chronologii. |
-| `ETAP-5-Analiza-wielokanalowa-Dahua-Wersja-1.7.md` | **DO USUNIĘCIA** | Zawiera nieaktualne etapy planowane jako niewykonane oraz starsze warianty wyboru kanałów. Chronologia zachowuje końcowy przepływ i zastrzeżenia. |
-| `Przebudowa-Interfejsu-Dahua.md` | **DO USUNIĘCIA** | Dokument wersji 1.5.0; opisuje starszy układ okna i sterowania archiwum. Ważne tło historyczne przeniesiono do chronologii. |
-| `HISTORIA-README_Etap6_7.md` | **DO USUNIĘCIA** | Duplikat `README_Etap6_7.md`; opisuje wcześniejszą architekturę JSON i dawne kroki wdrożenia. Istotna ewolucja bazy danych jest w chronologii. |
-| `README_Etap6_7.md` | **DO USUNIĘCIA** | Identyczna zawartość i ten sam blob Git co plik HISTORIA; zbędny duplikat. |
+| `ETAP-1-Stabilizacja-Wersja-1.7.md` | **USUNIĘTY** | Etap zaakceptowany; historyczna checklista i status testów sprzed finalnej akceptacji. |
+| `ETAP-2-Wykrywanie-ruchu-Wersja-1.7.md` | **USUNIĘTY** | Etap zaakceptowany; chronologia zachowuje parametry algorytmu. |
+| `ETAP-3A-OCR-Wieloklatkowy-Wersja-1.7.md` | **USUNIĘTY** | Historyczny status 1.6.0 i stare checklisty; ważne ograniczenia i korekty OCR przeniesiono do chronologii. |
+| `ETAP-3B-Wyszukiwanie-tablic-Wersja-1.7.md` | **USUNIĘTY** | Etap opisany jako roboczy; aktualny zakres i ograniczenia zachowano w chronologii i instrukcji. |
+| `ETAP-4-Centrum-zdarzen-Wersja-1.7.md` | **USUNIĘTY** | Opis wdrożenia i testów etapowych; kluczowe zasady klasyfikacji i powiązań zachowano w chronologii. |
+| `ETAP-5-Analiza-wielokanalowa-Dahua-Wersja-1.7.md` | **USUNIĘTY** | Zawiera nieaktualne etapy planowane jako niewykonane oraz starsze warianty wyboru kanałów. Chronologia zachowuje końcowy przepływ i zastrzeżenia. |
+| `Przebudowa-Interfejsu-Dahua.md` | **USUNIĘTY** | Dokument wersji 1.5.0; opisuje starszy układ okna i sterowania archiwum. Ważne tło historyczne przeniesiono do chronologii. |
+| `HISTORIA-README_Etap6_7.md` | **USUNIĘTY** | Duplikat `README_Etap6_7.md`; opisuje wcześniejszą architekturę JSON i dawne kroki wdrożenia. Istotna ewolucja bazy danych jest w chronologii. |
+| `README_Etap6_7.md` | **USUNIĘTY** | Identyczna zawartość i ten sam blob Git co plik HISTORIA; zbędny duplikat. |
 
-## 3. Starsze archiwum 1.3.2 — do usunięcia z bieżącego repozytorium
+## 3. Starsze archiwum 1.3.2 — usunięte z bieżącego repozytorium
 
 | Plik | Decyzja | Powód |
 |---|---|---|
@@ -47,11 +47,11 @@ Poniższe dokumenty etapowe zawierają wartościowe informacje, ale ich statusy 
 
 W dokumencie pozostają jednak stare instrukcje pobrania gałęzi `dahua-archive-rebuild` i dawne kroki interfejsu. Nie są instrukcją dla aktualnej gałęzi `wersja-1.7`. Należy je zaktualizować przed kolejnym wydaniem lub zastąpić odrębnym dokumentem technicznym.
 
-## 5. Kolejność porządkowania
+## 5. Stan porządkowania
 
 1. Zatwierdzić chronologię `HISTORIA-ZMIAN-VideoPlayer-do-1.7.0.md`.
 2. Zachować wyłącznie dokumenty z sekcji 1 jako aktywny zestaw dokumentacji.
-3. Usunąć pliki oznaczone **DO USUNIĘCIA** w sekcjach 2–3.
+3. Usunąć pliki oznaczone **USUNIĘTY** w sekcjach 2–3.
 4. Przed usunięciem archiwum 1.3.2 upewnić się, że nie jest wymagane do celów formalnych lub audytowych.
 5. Zaktualizować `Przebudowa-Archiwum-Dahua.md` i pozostawić go jako dokument techniczny.
 
