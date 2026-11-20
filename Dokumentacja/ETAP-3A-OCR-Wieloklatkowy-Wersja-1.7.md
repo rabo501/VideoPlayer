@@ -50,3 +50,13 @@ Ta część nie realizuje jeszcze automatycznego wykrywania położenia tablic w
 Zmiany zapisano na gałęzi `wersja-1.7`. Nie wykonano kompilacji w Visual Studio ani testów na rzeczywistych nagraniach. Jest to pierwsza część etapu 3. Po weryfikacji wieloklatkowego OCR kolejnym zadaniem w tym etapie będzie automatyczne wyszukiwanie kolejnych wystąpień potwierdzonego numeru w nagraniu, z uwzględnieniem ograniczeń wynikających z lokalizacji tablicy w obrazie.
 
 Numer wydania aplikacji pozostaje 1.6.0 do zakończenia cyklu rozwojowego i testów.
+
+
+## Korekta po testach – krótkie fragmenty tablic
+
+Po testach dodano korektę rankingu wyników OCR:
+- odrzucane są odczyty krótsze niż 4 znaki, aby fragmenty 2–3 znakowe nie trafiały na listę kandydatów;
+- ranking ponownie stawia średnią pewność OCR przed liczbą klatek z takim samym odczytem;
+- liczba zgodnych klatek i długość tekstu rozstrzygają dopiero przy podobnej pewności.
+
+Celem jest zachowanie jakości pojedynczego odczytu i wykorzystanie wieloklatkowości jako dodatkowego potwierdzenia, a nie jako mechanizmu premiującego powtarzające się fragmenty.
