@@ -277,6 +277,9 @@ namespace VideoPlayer
 
         private void ApplySelectedDahuaDevice(DahuaDeviceItem dev)
         {
+            if (_currentDahuaDevice != null && !string.Equals(_currentDahuaDevice.Id, dev.Id, StringComparison.Ordinal))
+                _dahuaArchiveSelectedChannels.Clear();
+
             if (_dahuaLoginId != IntPtr.Zero && !string.Equals(_connectedDahuaDeviceId, dev.Id, StringComparison.Ordinal))
                 DahuaDisconnect();
 
@@ -299,6 +302,7 @@ namespace VideoPlayer
             _dahuaCurrentChannel = dev.Channel;
             RefreshDahuaChannelLists();
             RefreshDahuaPresetsList();
+            RefreshDahuaArchiveSelectedChannelsSummary();
 
             DahuaChannelNameEditBox.Text = dev.GetChannelName(_dahuaCurrentChannel);
             DahuaStreamTypeBox.SelectedIndex = dev.StreamType == DahuaNetSdk.EM_RealPlayType.Realplay ? 0 : 1;
@@ -1516,6 +1520,28 @@ namespace VideoPlayer
             DahuaPlaybackPositionSlider.Value = Math.Clamp(currentOffset, minOffset, maxOffset);
         }
 
+        private void RefreshDahuaArchiveSelectedChannelsSummary()
+        {
+            if (_currentDahuaDevice == null)
+            {
+                DahuaArchiveSelectedChannelsText.Text = "Nie wybrano urządzenia Dahua.";
+                return;
+            }
+
+            var channels = _dahuaArchiveSelectedChannels.OrderBy(channel => channel).ToList();
+            if (channels.Count == 0)
+            {
+                int defaultChannel = GetSelectedDahuaArchiveChannel();
+                DahuaArchiveSelectedChannelsText.Text =
+                    $"Domyślnie: CH {defaultChannel} — kanał wybrany w panelu Archiwum NVR.";
+                return;
+            }
+
+            string summary = string.Join(", ", channels.Select(channel =>
+                $"{_currentDahuaDevice.GetChannelName(channel)} (CH {channel})"));
+            DahuaArchiveSelectedChannelsText.Text = summary;
+        }
+
         private void DahuaSelectArchiveChannels_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null)
@@ -1635,7 +1661,8 @@ namespace VideoPlayer
                 foreach (var check in checks.Where(check => check.IsChecked == true))
                     if (check.Tag is int channelNumber) _dahuaArchiveSelectedChannels.Add(channelNumber);
 
-                DahuaPlaybackSyncStatusText.Text = $"Wybrane kanały archiwum: {string.Join(", ", _dahuaArchiveSelectedChannels.OrderBy(number => number).Select(number => $"CH {number}"))}";
+                RefreshDahuaArchiveSelectedChannelsSummary();
+                DahuaPlaybackSyncStatusText.Text = "Wybór kanałów archiwum został zastosowany.";
             }
         }
 
@@ -1662,6 +1689,7 @@ namespace VideoPlayer
                 channels.Add(defaultChannel);
                 _dahuaArchiveSelectedChannels.Add(defaultChannel);
             }
+            RefreshDahuaArchiveSelectedChannelsSummary();
             int capacity = GetDahuaMultiViewCapacity();
             if (channels.Count > capacity)
             {
@@ -2125,6 +2153,7 @@ namespace VideoPlayer
             foreach (var entry in _dahuaRecorderAvailabilityCache.Where(pair => pair.Key.StartsWith(cachePrefix, StringComparison.Ordinal)))
                 _dahuaRecorderAvailableDays.UnionWith(entry.Value);
             RefreshOpenDahuaArchiveCalendars();
+            RefreshDahuaArchiveSelectedChannelsSummary();
             foreach (DatePicker picker in new[] { DahuaStartDatePicker, DahuaEndDatePicker })
                 LoadDahuaRecorderAvailabilityForVisibleMonth(picker);
         }
