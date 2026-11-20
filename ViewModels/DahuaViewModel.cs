@@ -227,11 +227,19 @@ namespace VideoPlayer.ViewModels
                 return false;
             }
 
-            bool success = Session.GotoPreset(channel, presetNumber, out uint error);
-            StatusText = success
-                ? $"Kamera PTZ: przechodzenie do presetu {presetNumber}…"
-                : $"Błąd przejścia do presetu {presetNumber}: {DahuaNetSdk.GetErrorDescription(error)}";
-            return success;
+            try
+            {
+                bool success = Session.GotoPreset(channel, presetNumber, out uint error);
+                StatusText = success
+                    ? $"Kamera PTZ: przechodzenie do presetu {presetNumber}…"
+                    : $"Błąd przejścia do presetu {presetNumber}: {DahuaNetSdk.GetErrorDescription(error)}";
+                return success;
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Wyjątek PTZ Preset: {ex.Message}";
+                return false;
+            }
         }
 
         public async Task<List<DahuaRecordItem>> SearchArchiveRecordsAsync(int channel, DateTime start, DateTime end, CancellationToken ct = default)
