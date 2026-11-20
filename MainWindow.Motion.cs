@@ -115,8 +115,6 @@ namespace VideoPlayer
             }
         }
 
-        }
-
         private async void MotionPreview_Click(object sender, RoutedEventArgs e)
         {
             if (ViewModel.EventCenter.SelectedMarker is not TimelineMarker marker)
