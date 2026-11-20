@@ -133,3 +133,22 @@ Dodano przycisk **Wybierz kanały** bezpośrednio przy sterowaniu archiwum w gł
 4. Zmień układ na mniejszy niż liczba wybranych kanałów i sprawdź komunikat po naciśnięciu **Start**.
 5. Otwórz okno ponownie i sprawdź, czy poprzedni wybór został zachowany.
 6. Anuluj zmianę i sprawdź, czy poprzedni wybór nadal obowiązuje.
+
+## Doprecyzowanie wyboru kanału — interfejs
+
+Rozdzielono dwa niezależne zastosowania wyboru kanału:
+
+- **Pojedynczy kanał — wyszukiwanie / pobieranie** w zakładce „Archiwum NVR” służy do wyszukiwania nagrań na liście oraz pobrania jednego nagrania do głównego odtwarzacza.
+- **Kanały do odtwarzania równoczesnego** w głównym oknie określają zestaw kamer, których archiwum jest odtwarzane jednocześnie.
+
+Pod przyciskami sterowania odtwarzaniem znajduje się teraz osobny panel z aktualną listą kanałów wielokanałowych. Przycisk otwierający wybór ma nazwę **Wybór kanałów archiwum…**. Przy pojedynczej liście kanałów dodano wyjaśnienie, że nie zmienia ona zestawu odtwarzanego równocześnie.
+
+Przy zmianie urządzenia poprzedni wybór wielokanałowy jest czyszczony, aby numery kanałów z jednego rejestratora nie zostały omyłkowo użyte dla innego.
+
+### Testy czytelności i działania
+
+1. W zakładce „Archiwum NVR” wybierz pojedynczy kanał i wyszukaj nagrania.
+2. W głównym oknie wybierz kilka kanałów przez **Wybór kanałów archiwum…**.
+3. Potwierdź, że panel „Kanały do odtwarzania równoczesnego” pokazuje nazwy i numery wybranych kamer.
+4. Zmień pojedynczy kanał wyszukiwania/pobierania i sprawdź, że lista wielokanałowa się nie zmienia.
+5. Zmień urządzenie i sprawdź, że poprzedni wybór wielokanałowy nie przechodzi na nowe urządzenie.
