@@ -11,8 +11,8 @@ namespace VideoPlayer
     public partial class MainWindow
     {
         private bool CanOperate(bool requireSource = true) =>
-            !_exporting && !_motionDetectionRunning && !_opening && !_shutdownRequested && _exports != null &&
-            (!requireSource || (_sourceFilePath != null && File.Exists(_sourceFilePath)));
+            !_exporting && !_motionDetectionRunning && !_opening && !_shutdownRequested &&
+            (!requireSource || (_exports != null && _sourceFilePath != null && File.Exists(_sourceFilePath)));
         private bool ValidRange() => _clipStart.HasValue && _clipEnd.HasValue && _clipEnd.Value > _clipStart.Value;
         private string SelectedProfile => (ExportProfileBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "standard";
         private bool ConfirmCopy(bool copy) => !copy || MessageBox.Show(this, "Kopiowanie strumieni może przesunąć granice cięcia. Kodeki muszą być zgodne z MP4. Kontynuować?", "Eksport", MessageBoxButton.YesNo) == MessageBoxResult.Yes;
