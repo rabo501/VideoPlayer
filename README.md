@@ -11,6 +11,10 @@ Windows desktop application (WPF, .NET 8, x64) for reviewing and analyzing video
 - Motion detection with a selectable region of interest (ROI), configurable sensitivity and event duration, saved time ranges and motion-area preview.
 - Dahua recorder live view and archive features available in the project.
 
+## Ongoing development
+
+- [Stage 6 — reporting, local case archive and release 2.0 plan](Dokumentacja/ETAP-6-Raportowanie-i-wydanie-2.0-Wersja-1.7.md)
+
 ## Documentation
 
 - [User and deployment manual — 1.6.0](Dokumentacja/VideoPlayer-1.6.0-Dokumentacja.md)
