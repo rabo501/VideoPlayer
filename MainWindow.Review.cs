@@ -374,20 +374,24 @@ namespace VideoPlayer
 
             await RunOperationAsync("Raport PDF", async ct =>
             {
+                // Create Progress on the WPF UI thread before any ConfigureAwait(false).
+                // Its callback then posts UI updates to the Dispatcher instead of touching
+                // WPF controls from a worker thread.
+                IProgress<ExportProgress> progress = OperationProgress(ct);
                 if (selectedCase != null)
                 {
                     CaseRecord record = _cases.Load(selectedCase.Id)
                         ?? throw new InvalidOperationException("Wybrana sprawa nie istnieje już w archiwum.");
                     List<CaseReportSource> sources = await BuildCaseReportSourcesAsync(record, ct).ConfigureAwait(false);
                     await _reports.PdfCaseAsync(sources, output, images, ToReportMetadata(record),
-                        OperationProgress(ct), ct).ConfigureAwait(false);
+                        progress, ct).ConfigureAwait(false);
                     int eventCount = sources.Sum(s => s.Markers.Count);
                     return $"Zapisano raport sprawy {record.CaseNumber}: {sources.Count} nagrania, {eventCount} zdarzeń.";
                 }
 
                 string source = _sourceFilePath!;
                 await _reports.PdfAsync(source, MarkerSnapshot(), output, images, CurrentReportMetadata(),
-                    _currentMediaInfo, _historyService.LoadExports(source), OperationProgress(ct), ct).ConfigureAwait(false);
+                    _currentMediaInfo, _historyService.LoadExports(source), progress, ct).ConfigureAwait(false);
                 return "Zapisano raport PDF: " + output;
             }, requireSource: selectedCase == null);
         }
