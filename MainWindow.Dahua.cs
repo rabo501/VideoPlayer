@@ -667,19 +667,10 @@ namespace VideoPlayer
                 return;
             }
 
-            try
-            {
-                bool ok = DahuaSession.GotoPreset(_dahuaCurrentChannel, presetNumber, out uint err);
-                var match = _currentDahuaDevice?.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
-                string pName = match != null ? match.Name : $"Preset {presetNumber}";
-                ViewModel.Dahua.StatusText = ok
-                    ? $"Kamera PTZ: Przechodzenie do '{pName}' (Preset {presetNumber})…"
-                    : $"Błąd przejścia do presetu {presetNumber}: {DahuaNetSdk.GetErrorDescription(err)}";
-            }
-            catch (Exception ex)
-            {
-                ViewModel.Dahua.StatusText = $"Wyjątek PTZ Preset: {ex.Message}";
-            }
+            var match = _currentDahuaDevice?.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
+            ViewModel.Dahua.GotoPreset(_dahuaCurrentChannel, presetNumber);
+            if (match != null && ViewModel.Dahua.StatusText.StartsWith("Kamera PTZ:", StringComparison.Ordinal))
+                ViewModel.Dahua.StatusText = $"Kamera PTZ: Przechodzenie do '{match.Name}' (Preset {presetNumber})…";
         }
 
         private void DahuaGotoPreset_Click(object sender, RoutedEventArgs e)
@@ -829,15 +820,7 @@ namespace VideoPlayer
 
         private void SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND command, bool stop)
         {
-            if (DahuaSession.LoginId == IntPtr.Zero) return;
-            try
-            {
-                DahuaSession.SendPtz(_dahuaCurrentChannel, command, stop, out _);
-            }
-            catch (Exception ex)
-            {
-                ViewModel.Dahua.StatusText = $"Błąd sterowania PTZ: {ex.Message}";
-            }
+            ViewModel.Dahua.SendPtz(_dahuaCurrentChannel, command, stop);
         }
 
         private void DahuaPtzUp_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.UP, false);
@@ -847,18 +830,7 @@ namespace VideoPlayer
 
         private void SendDahuaPtzDiagonal(string? direction, bool stop)
         {
-            if (DahuaSession.LoginId == IntPtr.Zero) return;
-            if (DahuaSessionService.ParseDiagonalDirection(direction) is not DahuaNetSdk.EM_PTZ_COMMAND command) return;
-
-            try
-            {
-                if (!DahuaSession.SendPtz(_dahuaCurrentChannel, command, stop, out uint err))
-                    ViewModel.Dahua.StatusText = $"Błąd sterowania PTZ po przekątnej (kod: 0x{err:X}).";
-            }
-            catch (Exception ex)
-            {
-                ViewModel.Dahua.StatusText = $"Błąd sterowania PTZ po przekątnej: {ex.Message}";
-            }
+            ViewModel.Dahua.SendPtzDiagonal(_dahuaCurrentChannel, direction, stop);
         }
 
         private void DahuaPtzDiagonal_Down(object sender, MouseButtonEventArgs e)
@@ -1366,7 +1338,7 @@ namespace VideoPlayer
             _dahuaPtzAreaZoomRunning = true;
             try
             {
-                await DahuaSession.RunPtzPulseAsync(
+                await ViewModel.Dahua.RunPtzPulseAsync(
                     _dahuaCurrentChannel,
                     zoomIn ? DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN : DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_OUT,
                     180);
@@ -1465,7 +1437,7 @@ namespace VideoPlayer
                 int viewHeight = Math.Max(1, slot.Viewport.ClientSize.Height);
                 ViewModel.Dahua.StatusText = "PTZ: ustawianie kierunku na zaznaczony obszar…";
 
-                await DahuaSession.ApplyAreaZoomAsync(
+                await ViewModel.Dahua.ApplyAreaZoomAsync(
                     slot.Channel, viewWidth, viewHeight, area.Left, area.Top, area.Width, area.Height);
 
                 ViewModel.Dahua.StatusText = "PTZ: zakończono przybliżanie zaznaczonego obszaru. W razie potrzeby skoryguj ręcznie kierunek lub zoom.";
