@@ -42,7 +42,10 @@ namespace VideoPlayer
 
             try
             {
-                CaseRecord saved = _cases.Save(CurrentReportMetadata(), _sourceFilePath);
+                ReportMetadata metadata = CurrentReportMetadata();
+                if (string.IsNullOrWhiteSpace(metadata.CaseNumber) && ReportCasesBox.SelectedItem is CaseRecord selected)
+                    metadata = ToReportMetadata(selected);
+                CaseRecord saved = _cases.Save(metadata, _sourceFilePath);
                 RefreshCaseArchiveList(saved.Id);
                 CaseArchiveStatusText.Text = $"Zapisano sprawę {saved.CaseNumber}. Powiązane nagrania: {saved.SourceCount}.";
                 StatusText.Text = "Dane sprawy zapisano w lokalnym archiwum.";
@@ -88,7 +91,7 @@ namespace VideoPlayer
             }
 
             MessageBoxResult answer = MessageBox.Show(this,
-                $"Czy na pewno usunąć sprawę {selected.CaseNumber} wraz z jej powiązaniami do nagrań?\\n\\nPliki nagrań, znaczniki zdarzeń i pliki eksportów nie zostaną usunięte.",
+                $"Czy na pewno usunąć sprawę {selected.CaseNumber} wraz z jej powiązaniami do nagrań?\n\nPliki nagrań, znaczniki zdarzeń i pliki eksportów nie zostaną usunięte.",
                 "Usuwanie sprawy", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
             if (answer != MessageBoxResult.Yes) return;
 
