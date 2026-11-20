@@ -26,7 +26,7 @@ namespace VideoPlayer
             if(trimmed.Length>0&&"=+-@".Contains(trimmed[0]))text="'"+text;
             return "\""+text.Replace("\"","\"\"")+"\"";
         }
-        public async Task CsvAsync(string source,List<TimelineMarker> markers,string output,CancellationToken ct)
+        public async Task CsvAsync(string source,List<TimelineMarker> markers,string output,ReportMetadata metadata,MediaInfoData? mediaInfo,List<ExportHistoryItem> exports,CancellationToken ct)
         {
             string temp=ExportService.Temporary(output);
             try
@@ -34,11 +34,50 @@ namespace VideoPlayer
                 await using(var stream=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,true))
                 await using(var writer=new StreamWriter(stream,new UTF8Encoding(true)))
                 {
-                    await writer.WriteLineAsync("Plik;Czas;Sekundy;Opis;Marka pojazdu".AsMemory(),ct);
-                    foreach(var m in markers)
+                    await writer.WriteLineAsync("Rodzaj;Numer sprawy;Tytuł sprawy;Miejsce;Uwagi;Plik źródłowy;Czas;Koniec;Sekundy;Sekundy końca;Typ zdarzenia;Opis;Marka pojazdu;Powiązane zdarzenia ruchu;Data eksportu;Operacja;Plik wynikowy;Szczegóły;Kodek wideo;Rozdzielczość;FPS;Kodek audio;Czas trwania nagrania;Rozmiar źródła (B)".AsMemory(),ct);
+                    string caseNumber=CsvCell(metadata.CaseNumber);
+                    string caseTitle=CsvCell(metadata.CaseTitle);
+                    string location=CsvCell(metadata.Location);
+                    string notes=CsvCell(metadata.Notes);
+                    string sourceCell=CsvCell(source);
+                    string videoCodec=CsvCell(mediaInfo?.VideoCodec ?? "");
+                    string resolution=CsvCell(mediaInfo?.Resolution ?? "");
+                    string fps=CsvCell(mediaInfo?.Fps ?? "");
+                    string audioCodec=CsvCell(mediaInfo?.AudioCodec ?? "");
+                    string duration=CsvCell(mediaInfo == null ? "" : Timestamp(mediaInfo.Duration));
+                    string fileSize=CsvCell(mediaInfo == null ? "" : mediaInfo.FileSize.ToString(CultureInfo.InvariantCulture));
+                    string[] mediaFields={videoCodec,resolution,fps,audioCodec,duration,fileSize};
+
+                    foreach(var marker in markers.OrderBy(m=>m.Seconds))
                     {
                         ct.ThrowIfCancellationRequested();
-                        string line=string.Join(";",CsvCell(source),CsvCell(Timestamp(m.Seconds)),CsvCell(m.Seconds.ToString("0.###",CultureInfo.InvariantCulture)),CsvCell(m.Description),CsvCell(m.VehicleMake));
+                        string endText=marker.EndSeconds.HasValue?Timestamp(marker.EndSeconds.Value):"";
+                        string endSeconds=marker.EndSeconds?.ToString("0.###",CultureInfo.InvariantCulture)??"";
+                        string line=string.Join(";",new[]{
+                            CsvCell("Zdarzenie"),caseNumber,caseTitle,location,notes,sourceCell,
+                            CsvCell(Timestamp(marker.Seconds)),CsvCell(endText),
+                            CsvCell(marker.Seconds.ToString("0.###",CultureInfo.InvariantCulture)),
+                            CsvCell(endSeconds),CsvCell(marker.EventType),CsvCell(marker.Description),
+                            CsvCell(marker.VehicleMake),CsvCell(marker.RelatedMotionCount.ToString(CultureInfo.InvariantCulture)),
+                            CsvCell(""),CsvCell(""),CsvCell(""),CsvCell("")
+                        }.Concat(mediaFields));
+                        await writer.WriteLineAsync(line.AsMemory(),ct);
+                    }
+
+                    foreach(var export in exports.OrderBy(e=>e.CreatedLocal))
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        string rangeStart=export.StartSeconds.HasValue?Timestamp(export.StartSeconds.Value):"";
+                        string rangeEnd=export.EndSeconds.HasValue?Timestamp(export.EndSeconds.Value):"";
+                        string line=string.Join(";",new[]{
+                            CsvCell("Eksport"),caseNumber,caseTitle,location,notes,sourceCell,
+                            CsvCell(rangeStart),CsvCell(rangeEnd),
+                            CsvCell(export.StartSeconds?.ToString("0.###",CultureInfo.InvariantCulture)??""),
+                            CsvCell(export.EndSeconds?.ToString("0.###",CultureInfo.InvariantCulture)??""),
+                            CsvCell(""),CsvCell(""),CsvCell(""),CsvCell(""),
+                            CsvCell(export.CreatedLocal.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)),
+                            CsvCell(export.Operation),CsvCell(export.OutputPath),CsvCell(export.Details)
+                        }.Concat(mediaFields));
                         await writer.WriteLineAsync(line.AsMemory(),ct);
                     }
                 }
@@ -69,6 +108,131 @@ namespace VideoPlayer
             }
             finally{ExportService.Cleanup(temp);try{Directory.Delete(scratch,true);}catch{}}
         }
+
+        public async Task CsvCaseAsync(List<CaseReportSource> sources, string output, ReportMetadata metadata, CancellationToken ct)
+        {
+            string temp = ExportService.Temporary(output);
+            try
+            {
+                await using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+                await using (var writer = new StreamWriter(stream, new UTF8Encoding(true)))
+                {
+                    await writer.WriteLineAsync("Rodzaj;Numer sprawy;Tytuł sprawy;Miejsce;Uwagi;Plik źródłowy;Czas;Koniec;Sekundy;Sekundy końca;Typ zdarzenia;Opis;Marka pojazdu;Powiązane zdarzenia ruchu;Data eksportu;Operacja;Plik wynikowy;Szczegóły;Kodek wideo;Rozdzielczość;FPS;Kodek audio;Czas trwania nagrania;Rozmiar źródła (B)".AsMemory(), ct);
+                    string caseNumber = CsvCell(metadata.CaseNumber);
+                    string caseTitle = CsvCell(metadata.CaseTitle);
+                    string location = CsvCell(metadata.Location);
+                    string notes = CsvCell(metadata.Notes);
+                    foreach (CaseReportSource source in sources)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        MediaInfoData? info = source.MediaInfo;
+                        string[] mediaFields =
+                        {
+                            CsvCell(info?.VideoCodec ?? ""), CsvCell(info?.Resolution ?? ""),
+                            CsvCell(info?.Fps ?? ""), CsvCell(info?.AudioCodec ?? ""),
+                            CsvCell(info == null ? "" : Timestamp(info.Duration)),
+                            CsvCell(info == null ? "" : info.FileSize.ToString(CultureInfo.InvariantCulture))
+                        };
+                        string sourceCell = CsvCell(source.Path);
+                        string sourceStatus = File.Exists(source.Path) ? "Nagranie" : "Brak pliku źródłowego";
+                        string sourceLine = string.Join(";", new[]
+                        {
+                            CsvCell(sourceStatus), caseNumber, caseTitle, location, notes, sourceCell,
+                            CsvCell(""), CsvCell(""), CsvCell(""), CsvCell(""), CsvCell(""),
+                            CsvCell(""), CsvCell(""), CsvCell(""), CsvCell(""), CsvCell(""),
+                            CsvCell(""), CsvCell("")
+                        }.Concat(mediaFields));
+                        await writer.WriteLineAsync(sourceLine.AsMemory(), ct);
+
+                        foreach (TimelineMarker marker in source.Markers.OrderBy(m => m.Seconds))
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            string line = string.Join(";", new[]
+                            {
+                                CsvCell("Zdarzenie"), caseNumber, caseTitle, location, notes, sourceCell,
+                                CsvCell(Timestamp(marker.Seconds)),
+                                CsvCell(marker.EndSeconds.HasValue ? Timestamp(marker.EndSeconds.Value) : ""),
+                                CsvCell(marker.Seconds.ToString("0.###", CultureInfo.InvariantCulture)),
+                                CsvCell(marker.EndSeconds?.ToString("0.###", CultureInfo.InvariantCulture) ?? ""),
+                                CsvCell(marker.EventType), CsvCell(marker.Description), CsvCell(marker.VehicleMake),
+                                CsvCell(marker.RelatedMotionCount.ToString(CultureInfo.InvariantCulture)),
+                                CsvCell(""), CsvCell(""), CsvCell(""), CsvCell("")
+                            }.Concat(mediaFields));
+                            await writer.WriteLineAsync(line.AsMemory(), ct);
+                        }
+
+                        foreach (ExportHistoryItem export in source.Exports.OrderBy(e => e.CreatedLocal))
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            string line = string.Join(";", new[]
+                            {
+                                CsvCell("Eksport"), caseNumber, caseTitle, location, notes, sourceCell,
+                                CsvCell(export.StartSeconds.HasValue ? Timestamp(export.StartSeconds.Value) : ""),
+                                CsvCell(export.EndSeconds.HasValue ? Timestamp(export.EndSeconds.Value) : ""),
+                                CsvCell(export.StartSeconds?.ToString("0.###", CultureInfo.InvariantCulture) ?? ""),
+                                CsvCell(export.EndSeconds?.ToString("0.###", CultureInfo.InvariantCulture) ?? ""),
+                                CsvCell(""), CsvCell(""), CsvCell(""), CsvCell(""),
+                                CsvCell(export.CreatedLocal.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
+                                CsvCell(export.Operation), CsvCell(export.OutputPath), CsvCell(export.Details)
+                            }.Concat(mediaFields));
+                            await writer.WriteLineAsync(line.AsMemory(), ct);
+                        }
+                    }
+                }
+                ExportService.Commit(temp, output, ct);
+            }
+            finally { ExportService.Cleanup(temp); }
+        }
+
+        public async Task PdfCaseAsync(List<CaseReportSource> sources, string output, bool thumbnails,
+            ReportMetadata metadata, IProgress<ExportProgress> progress, CancellationToken ct)
+        {
+            string generatedBy = GetReportUser();
+            string scratch = Path.Combine(Path.GetTempPath(), "VideoPlayerCaseReport_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(scratch);
+            string temp = ExportService.Temporary(output);
+            var images = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                int total = sources.Sum(s => s.Markers.Count);
+                int completed = 0;
+                if (thumbnails && total > 0)
+                {
+                    foreach (CaseReportSource source in sources)
+                    {
+                        foreach (TimelineMarker marker in source.Markers)
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            if (File.Exists(source.Path))
+                            {
+                                string jpg = Path.Combine(scratch, completed.ToString(CultureInfo.InvariantCulture) + ".jpg");
+                                try
+                                {
+                                    await _ffmpeg.ThumbnailAsync(source.Path, marker.Seconds, jpg, ct).ConfigureAwait(false);
+                                    images[ImageKey(source.Path, marker.Id)] = jpg;
+                                }
+                                catch (OperationCanceledException) { throw; }
+                                catch { /* A missing or damaged frame must not prevent the case report. */ }
+                            }
+                            completed++;
+                            progress.Report(new(total == 0 ? 85 : completed * 85.0 / total,
+                                $"Miniatury {completed}/{total}"));
+                        }
+                    }
+                }
+                await RunStaAsync(() => WriteCasePdf(sources, temp, images, generatedBy, metadata, ct)).ConfigureAwait(false);
+                ExportService.Commit(temp, output, ct);
+                progress.Report(new(100, "Raport sprawy gotowy"));
+            }
+            finally
+            {
+                ExportService.Cleanup(temp);
+                try { Directory.Delete(scratch, true); } catch { }
+            }
+        }
+
+        private static string ImageKey(string source, Guid markerId) => source + "|" + markerId.ToString("D");
+
         private static string GetReportUser()
         {
             // Account identifiers are used internally for matching only.
@@ -206,7 +370,11 @@ namespace VideoPlayer
                 }
                 var sourceInfo=new FileInfo(source);
                 Text("Rozmiar pliku źródłowego: "+sourceInfo.Length.ToString("N0",CultureInfo.GetCultureInfo("pl-PL"))+" B",font);
-                Text("Liczba zdarzeń: "+markers.Count+". Czasy liczone od początku pliku, nie zegar kamery.",font);
+                int plateCount=markers.Count(m=>string.Equals(m.EventType,"Tablica",StringComparison.OrdinalIgnoreCase));
+                int motionCount=markers.Count(m=>string.Equals(m.EventType,"Ruch",StringComparison.OrdinalIgnoreCase));
+                int manualCount=markers.Count(m=>string.Equals(m.EventType,"Ręczne",StringComparison.OrdinalIgnoreCase));
+                Text("Liczba zdarzeń: "+markers.Count+" | Tablice: "+plateCount+" | Ruch: "+motionCount+" | Ręczne: "+manualCount+".",font);
+                Text("Czasy zdarzeń są względne względem początku pliku, nie są czasem zegara kamery.",font);
                 y+=10;
                 if(!string.IsNullOrWhiteSpace(metadata.Notes))y+=4;
                 if(exports.Count>0)
@@ -226,9 +394,14 @@ namespace VideoPlayer
                 foreach(var m in markers)
                 {
                     ct.ThrowIfCancellationRequested();if(y+60>bottom)Page();
-                    Text("Czas od początku nagrania: "+Timestamp(m.Seconds),bold);
+                    string eventRange=m.EndSeconds.HasValue&&m.EndSeconds.Value>m.Seconds
+                        ? Timestamp(m.Seconds)+" – "+Timestamp(m.EndSeconds.Value)
+                        : Timestamp(m.Seconds);
+                    Text("["+m.EventType+"] Czas od początku nagrania: "+eventRange,bold);
                     if(!string.IsNullOrWhiteSpace(m.VehicleMake))
-                        Text("Marka pojazdu (wpisana ręcznie): "+m.VehicleMake,font);
+                        Text("Marka pojazdu: "+m.VehicleMake,font);
+                    if(m.RelatedMotionCount>0)
+                        Text("Powiązane zdarzenia ruchu: "+m.RelatedMotionCount,font);
                     Text("Opis: "+m.Description,font);
                     if(images.TryGetValue(m.Id,out string? image))
                     {
@@ -241,5 +414,147 @@ namespace VideoPlayer
             }
             finally{gfx?.Dispose();}
         }
+
+        private static void WriteCasePdf(List<CaseReportSource> sources, string temp,
+            Dictionary<string, string> images, string generatedBy, ReportMetadata metadata, CancellationToken ct)
+        {
+            using var doc = new PdfDocument();
+            doc.Info.Title = "VideoPlayer — raport sprawy";
+            doc.Info.Author = generatedBy;
+            var options = new XPdfFontOptions(PdfFontEncoding.Unicode);
+            var font = new XFont("Arial", 9, XFontStyleEx.Regular, options);
+            var small = new XFont("Arial", 8, XFontStyleEx.Regular, options);
+            var bold = new XFont("Arial", 10, XFontStyleEx.Bold, options);
+            var title = new XFont("Arial", 16, XFontStyleEx.Bold, options);
+            XGraphics? gfx = null;
+            double y = 0, width = 0, bottom = 0;
+            int pageNumber = 0;
+            void Page()
+            {
+                gfx?.Dispose();
+                var page = doc.AddPage();
+                page.Size = PageSize.A4;
+                width = page.Width.Point - 84;
+                gfx = XGraphics.FromPdfPage(page);
+                y = 42;
+                bottom = page.Height.Point - 58;
+                pageNumber++;
+                gfx.DrawString("VideoPlayer — raport sprawy", title, XBrushes.Black, new XPoint(42, y + 17));
+                gfx.DrawString("Wygenerował: " + generatedBy, small, XBrushes.Gray, new XPoint(42, page.Height.Point - 38));
+                gfx.DrawString("Strona " + pageNumber, small, XBrushes.Gray, new XPoint(42, page.Height.Point - 22));
+                y += 34;
+            }
+            void Line(string value, XFont f)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (y + 16 > bottom) Page();
+                gfx!.DrawString(value, f, XBrushes.Black, new XPoint(42, y + 11));
+                y += 15;
+            }
+            void Text(string value, XFont f)
+            {
+                foreach (string paragraph in (value ?? "").Replace("\r", "").Split('\n'))
+                {
+                    string line = "";
+                    foreach (char ch in paragraph)
+                    {
+                        if (char.IsControl(ch) && ch != '\t') continue;
+                        string next = line + (ch == '\t' ? ' ' : ch);
+                        if (gfx!.MeasureString(next, f).Width > width && line.Length > 0)
+                        { Line(line, f); line = ch.ToString(); }
+                        else line = next;
+                    }
+                    Line(line, f);
+                }
+            }
+            try
+            {
+                Page();
+                Text("RAPORT ZBIORCZY SPRAWY", bold);
+                if (!string.IsNullOrWhiteSpace(metadata.CaseNumber)) Text("Numer sprawy: " + metadata.CaseNumber, font);
+                if (!string.IsNullOrWhiteSpace(metadata.CaseTitle)) Text("Tytuł: " + metadata.CaseTitle, font);
+                if (!string.IsNullOrWhiteSpace(metadata.Location)) Text("Miejsce: " + metadata.Location, font);
+                if (!string.IsNullOrWhiteSpace(metadata.Notes)) Text("Uwagi: " + metadata.Notes, font);
+                Text("Utworzono: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), font);
+                int markerCount = sources.Sum(s => s.Markers.Count);
+                int exportCount = sources.Sum(s => s.Exports.Count);
+                Text($"Liczba nagrań: {sources.Count} | Zdarzenia: {markerCount} | Eksporty: {exportCount}", font);
+                Text("Czasy zdarzeń są względne względem początku danego pliku, a nie czasem zegara kamery.", small);
+                y += 8;
+
+                Text("WYKAZ NAGRAŃ", bold);
+                foreach (CaseReportSource source in sources)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    Text(Path.GetFileName(source.Path) + (File.Exists(source.Path) ? "" : " [PLIK NIEDOSTĘPNY]"), font);
+                    Text("Ścieżka: " + source.Path, small);
+                    if (source.MediaInfo != null)
+                    {
+                        MediaInfoData info = source.MediaInfo;
+                        Text($"Parametry: {info.VideoCodec}, {info.Resolution}, {info.Fps} FPS, audio: {info.AudioCodec}", small);
+                        Text($"Czas trwania: {Timestamp(info.Duration)} | Rozmiar: {info.FileSize.ToString("N0", CultureInfo.GetCultureInfo("pl-PL"))} B", small);
+                    }
+                    else if (File.Exists(source.Path))
+                        Text("Nie udało się odczytać parametrów technicznych nagrania.", small);
+                    Text($"Zdarzenia: {source.Markers.Count} | Eksporty: {source.Exports.Count}", small);
+                    y += 5;
+                }
+
+                Text("ZESTAWIENIE ZDARZEŃ", bold);
+                foreach (CaseReportSource source in sources)
+                {
+                    foreach (TimelineMarker marker in source.Markers.OrderBy(m => m.Seconds))
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        Text(Path.GetFileName(source.Path) + " — " + source.Path, small);
+                        string range = marker.EndSeconds.HasValue && marker.EndSeconds.Value > marker.Seconds
+                            ? Timestamp(marker.Seconds) + " – " + Timestamp(marker.EndSeconds.Value)
+                            : Timestamp(marker.Seconds);
+                        Text("[" + marker.EventType + "] " + range, bold);
+                        if (!string.IsNullOrWhiteSpace(marker.VehicleMake)) Text("Marka pojazdu: " + marker.VehicleMake, small);
+                        Text("Opis: " + marker.Description, font);
+                        if (images.TryGetValue(ImageKey(source.Path, marker.Id), out string? image))
+                        {
+                            using var pic = XImage.FromFile(image);
+                            double h = Math.Min(150, 240 * pic.PixelHeight / (double)pic.PixelWidth);
+                            if (y + h + 10 > bottom) Page();
+                            gfx!.DrawImage(pic, 42, y, 240, h);
+                            y += h + 8;
+                        }
+                        y += 7;
+                    }
+                }
+
+                Text("HISTORIA EKSPORTÓW", bold);
+                foreach (CaseReportSource source in sources)
+                {
+                    foreach (ExportHistoryItem export in source.Exports.OrderBy(e => e.CreatedLocal))
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        Text(Path.GetFileName(source.Path) + " | " +
+                            export.CreatedLocal.ToString("yyyy-MM-dd HH:mm:ss") + " | " + export.Operation, font);
+                        string range = export.StartSeconds.HasValue && export.EndSeconds.HasValue
+                            ? Timestamp(export.StartSeconds.Value) + " – " + Timestamp(export.EndSeconds.Value)
+                            : "cały materiał / zakres nieokreślony";
+                        Text("Zakres: " + range + " | Plik wynikowy: " + export.OutputPath, small);
+                        if (!string.IsNullOrWhiteSpace(export.Details)) Text("Szczegóły: " + export.Details, small);
+                    }
+                }
+                ct.ThrowIfCancellationRequested();
+                gfx?.Dispose();
+                gfx = null;
+                doc.Save(temp);
+            }
+            finally { gfx?.Dispose(); }
+        }
+
+    }
+
+    internal sealed class CaseReportSource
+    {
+        public string Path { get; set; } = "";
+        public List<TimelineMarker> Markers { get; set; } = new();
+        public List<ExportHistoryItem> Exports { get; set; } = new();
+        public MediaInfoData? MediaInfo { get; set; }
     }
 }

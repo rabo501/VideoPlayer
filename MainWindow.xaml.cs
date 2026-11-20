@@ -28,6 +28,7 @@ namespace VideoPlayer
         private ReviewRepository _reviews = null!;
         private ExportService _exports = null!;
         private ReportService _reports = null!;
+        private CaseRepository _cases = null!;
         private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(3) };
         private readonly List<string> _recentFiles = new(), _recentScreenshots = new();
         private readonly List<TimelineMarker> _timelineMarkers = new();
@@ -51,7 +52,7 @@ namespace VideoPlayer
             InitializeComponent();
             Assembly assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
             Version? appVersion = assembly.GetName().Version;
-            string displayVersion = appVersion == null ? "1.6.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
+            string displayVersion = appVersion == null ? "1.7.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
             AssemblyInformationalVersionAttribute? informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
             string productVersion = !string.IsNullOrWhiteSpace(informational?.InformationalVersion) ? informational!.InformationalVersion : displayVersion;
 
@@ -75,6 +76,8 @@ namespace VideoPlayer
             try
             {
                 _historyService = new HistoryService();
+                _cases = new CaseRepository();
+                RefreshCaseArchiveList();
                 _reviews = new ReviewRepository();
                 _exports = new ExportService(_ffmpegService);
                 _reports = new ReportService(_exports);

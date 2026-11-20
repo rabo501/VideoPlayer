@@ -52,7 +52,7 @@ namespace VideoPlayer
             buttons.Children.Add(full); buttons.Children.Add(cancel); buttons.Children.Add(ok);
             settings.Children.Add(buttons);
             DockPanel.SetDock(buttons, Dock.Bottom);
-            var hint = new TextBlock { Text = "Przeciągnij myszą po obrazie, aby zaznaczyć obszar detekcji. Bez zaznaczenia analizowany jest cały obraz.", Foreground = Brushes.LightGray, Margin = new Thickness(0, 0, 0, 8) };
+            var hint = new TextBlock { Text = "Przeciągnij myszą po obrazie, aby zaznaczyć obszar detekcji. Bez zaznaczenia analizowany jest cały obraz. Analiza odrzuca pojedyncze zakłócenia i potwierdza ruch na co najmniej dwóch kolejnych próbkach.", Foreground = Brushes.LightGray, Margin = new Thickness(0, 0, 0, 8) };
             DockPanel.SetDock(hint, Dock.Top);
             root.Children.Add(settings);
             root.Children.Add(hint);

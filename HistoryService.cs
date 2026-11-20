@@ -30,6 +30,8 @@ namespace VideoPlayer
             }.ToString();
 
             bool databaseAlreadyExisted = File.Exists(_databasePath);
+            if (databaseAlreadyExisted)
+                BackupBeforeSchemaMigrationIfNeeded();
             InitializeDatabase();
             if (!databaseAlreadyExisted)
                 ImportLegacyJson();
@@ -186,6 +188,48 @@ namespace VideoPlayer
             var connection = new SqliteConnection(_connectionString);
             connection.Open();
             return connection;
+        }
+
+        /// <summary>
+        /// Creates a consistent SQLite backup before changing an existing database schema.
+        /// SQLite's backup API includes committed WAL data, unlike copying the .db file directly.
+        /// </summary>
+        private void BackupBeforeSchemaMigrationIfNeeded()
+        {
+            using var source = OpenConnection();
+            var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var table = source.CreateCommand())
+            {
+                table.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='TimelineMarkers' LIMIT 1;";
+                if (table.ExecuteScalar() == null)
+                    return;
+            }
+
+            using (var columns = source.CreateCommand())
+            {
+                columns.CommandText = "PRAGMA table_info(TimelineMarkers);";
+                using var reader = columns.ExecuteReader();
+                while (reader.Read())
+                    existingColumns.Add(reader.GetString(1));
+            }
+
+            string[] requiredColumns = { "VehicleMake", "EndSeconds", "MotionX", "MotionY", "MotionWidth", "MotionHeight" };
+            if (requiredColumns.All(existingColumns.Contains))
+                return;
+
+            string backupDirectory = Path.Combine(_directory, "backups");
+            Directory.CreateDirectory(backupDirectory);
+            string backupPath = Path.Combine(
+                backupDirectory,
+                $"VideoPlayer_pre-migration_{DateTime.Now:yyyyMMdd_HHmmss_fff}.db");
+
+            using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = backupPath,
+                Mode = SqliteOpenMode.ReadWriteCreate
+            }.ToString());
+            destination.Open();
+            source.BackupDatabase(destination);
         }
 
         private void InitializeDatabase()
@@ -438,6 +482,18 @@ namespace VideoPlayer
         public double? MotionY { get; set; }
         public double? MotionWidth { get; set; }
         public double? MotionHeight { get; set; }
+
+        // Event type is derived from existing marker data; no database migration is required.
+        public string EventType =>
+            Description.StartsWith("Tablica rejestracyjna:", StringComparison.OrdinalIgnoreCase)
+                ? "Tablica"
+                : EndSeconds.HasValue && Description.StartsWith("Ruch", StringComparison.OrdinalIgnoreCase)
+                    ? "Ruch"
+                    : "Ręczne";
+
+        // Runtime-only relation calculated by the event center from nearby motion intervals.
+        public int RelatedMotionCount { get; set; }
+
         public override string ToString()
         {
             TimeSpan time = TimeSpan.FromSeconds(Math.Max(0, Seconds));
@@ -448,7 +504,8 @@ namespace VideoPlayer
                 TimeSpan endTime = TimeSpan.FromSeconds(end);
                 range = $" – {(int)endTime.TotalHours:00}:{endTime.Minutes:00}:{endTime.Seconds:00}";
             }
-            return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}{range} — {Description}{make}";
+            string related = RelatedMotionCount > 0 ? $" | Powiązany ruch: {RelatedMotionCount}" : "";
+            return $"[{EventType}] {(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}{range} — {Description}{make}{related}";
         }
     }
 

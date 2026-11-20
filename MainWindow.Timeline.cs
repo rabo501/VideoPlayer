@@ -275,8 +275,59 @@ namespace VideoPlayer
         private void RefreshTimelineMarkerList()
         {
             if (TimelineMarkersListBox == null) return;
+
+            // Relate a confirmed plate event to motion intervals occurring at the same time.
+            // The source markers remain independent; this is an informational association only.
+            var motionEvents = _timelineMarkers
+                .Where(m => m.EventType == "Ruch" && m.EndSeconds.HasValue)
+                .ToList();
+
+            foreach (TimelineMarker marker in _timelineMarkers)
+            {
+                marker.RelatedMotionCount = marker.EventType == "Tablica"
+                    ? motionEvents.Count(m =>
+                        marker.Seconds >= m.Seconds - 3.0 &&
+                        marker.Seconds <= m.EndSeconds!.Value + 3.0)
+                    : 0;
+            }
+
+            string filter = EventCenterFilterBox?.Text?.Trim() ?? "";
+            string category = (EventCenterCategoryBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+
+            var visible = _timelineMarkers
+                .Where(m => category == "all" ||
+                    (category == "related" ? m.RelatedMotionCount > 0 : m.EventType == category))
+                .Where(m => filter.Length == 0 ||
+                    m.Description.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
+                    m.VehicleMake.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
+                    m.EventType.Contains(filter, StringComparison.CurrentCultureIgnoreCase))
+                .OrderBy(m => m.Seconds)
+                .ToList();
+
             TimelineMarkersListBox.ItemsSource = null;
-            TimelineMarkersListBox.ItemsSource = _timelineMarkers.OrderBy(m => m.Seconds).ToList();
+            TimelineMarkersListBox.ItemsSource = visible;
+
+            if (EventCenterCountText != null)
+            {
+                int motionCount = _timelineMarkers.Count(m => m.EventType == "Ruch");
+                int plateCount = _timelineMarkers.Count(m => m.EventType == "Tablica");
+                int manualCount = _timelineMarkers.Count(m => m.EventType == "Ręczne");
+                int relatedCount = _timelineMarkers.Count(m => m.EventType == "Tablica" && m.RelatedMotionCount > 0);
+                EventCenterCountText.Text =
+                    $"Widoczne: {visible.Count}/{_timelineMarkers.Count}  •  Ruch: {motionCount}  •  Tablice: {plateCount}  •  Ręczne: {manualCount}  •  Tablice powiązane z ruchem: {relatedCount}";
+            }
+        }
+
+        private void EventCenterFilter_Changed(object sender, RoutedEventArgs e)
+        {
+            RefreshTimelineMarkerList();
+        }
+
+        private void EventCenterClearFilter_Click(object sender, RoutedEventArgs e)
+        {
+            if (EventCenterFilterBox != null) EventCenterFilterBox.Clear();
+            if (EventCenterCategoryBox != null) EventCenterCategoryBox.SelectedIndex = 0;
+            RefreshTimelineMarkerList();
         }
 
         private void AddMarker_Click(object sender, RoutedEventArgs e)

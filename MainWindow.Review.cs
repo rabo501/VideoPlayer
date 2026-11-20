@@ -2,13 +2,180 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using Forms = System.Windows.Forms;
 
 namespace VideoPlayer
 {
     public partial class MainWindow
     {
+        private ReportMetadata CurrentReportMetadata() => new ReportMetadata
+        {
+            CaseNumber = ReportCaseNumberBox.Text.Trim(),
+            CaseTitle = ReportCaseTitleBox.Text.Trim(),
+            Location = ReportLocationBox.Text.Trim(),
+            Notes = ReportNotesBox.Text.Trim()
+        };
+
+        private void RefreshCaseArchiveList(Guid? selectId = null)
+        {
+            if (_cases == null || ReportCasesBox == null) return;
+            List<CaseRecord> cases = _cases.LoadAll();
+            ReportCasesBox.ItemsSource = cases;
+            ReportCasesBox.SelectedItem = selectId.HasValue
+                ? cases.FirstOrDefault(item => item.Id == selectId.Value)
+                : null;
+        }
+
+        private void SaveCase_Click(object sender, RoutedEventArgs e)
+        {
+            if (_cases == null) return;
+            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
+            {
+                CaseArchiveStatusText.Text = "Najpierw otwórz nagranie, które ma zostać powiązane ze sprawą.";
+                StatusText.Text = CaseArchiveStatusText.Text;
+                return;
+            }
+
+            try
+            {
+                ReportMetadata metadata = CurrentReportMetadata();
+                if (string.IsNullOrWhiteSpace(metadata.CaseNumber) && ReportCasesBox.SelectedItem is CaseRecord selected)
+                    metadata = ToReportMetadata(selected);
+                CaseRecord saved = _cases.Save(metadata, _sourceFilePath);
+                RefreshCaseArchiveList(saved.Id);
+                CaseArchiveStatusText.Text = $"Zapisano sprawę {saved.CaseNumber}. Powiązane nagrania: {saved.SourceCount}.";
+                StatusText.Text = "Dane sprawy zapisano w lokalnym archiwum.";
+            }
+            catch (Exception ex)
+            {
+                CaseArchiveStatusText.Text = "Nie udało się zapisać sprawy: " + ex.Message;
+                StatusText.Text = CaseArchiveStatusText.Text;
+                MessageBox.Show(this, ex.Message, "Archiwum spraw", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void LoadCase_Click(object sender, RoutedEventArgs e)
+        {
+            if (ReportCasesBox.SelectedItem is not CaseRecord selected)
+            {
+                CaseArchiveStatusText.Text = "Wybierz sprawę z listy.";
+                return;
+            }
+
+            CaseRecord? record = _cases.Load(selected.Id);
+            if (record == null)
+            {
+                RefreshCaseArchiveList();
+                CaseArchiveStatusText.Text = "Wybrana sprawa nie istnieje już w bazie. Odświeżono listę.";
+                return;
+            }
+
+            ApplyCaseMetadata(record);
+            CaseArchiveStatusText.Text = $"Wczytano sprawę {record.CaseNumber}. Powiązane nagrania: {record.SourceCount}. Zapisz ponownie, aby dołączyć bieżące nagranie.";
+            StatusText.Text = "Wczytano dane sprawy z lokalnego archiwum.";
+        }
+
+        private void ReportCasesBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ReportCasesBox.SelectedItem is CaseRecord selected)
+            {
+                ApplyCaseMetadata(selected);
+                CaseArchiveStatusText.Text = $"Wybrano sprawę {selected.CaseNumber}. Powiązane nagrania: {selected.SourceCount}. Otwarcie kolejnego pliku i zapis dołączy go do tej sprawy.";
+            }
+        }
+
+        private void ClearCaseSelection_Click(object sender, RoutedEventArgs e)
+        {
+            ReportCasesBox.SelectedItem = null;
+            ReportCaseNumberBox.Clear();
+            ReportCaseTitleBox.Clear();
+            ReportLocationBox.Clear();
+            ReportNotesBox.Clear();
+            CaseArchiveStatusText.Text = "Wybór sprawy wyczyszczono. Raport będzie dotyczył bieżącego nagrania.";
+        }
+
+        private void ApplyCaseMetadata(CaseRecord record)
+        {
+            ReportCaseNumberBox.Text = record.CaseNumber;
+            ReportCaseTitleBox.Text = record.Title;
+            ReportLocationBox.Text = record.Location;
+            ReportNotesBox.Text = record.Notes;
+        }
+
+        private void DeleteCase_Click(object sender, RoutedEventArgs e)
+        {
+            if (ReportCasesBox.SelectedItem is not CaseRecord selected)
+            {
+                CaseArchiveStatusText.Text = "Wybierz sprawę, którą chcesz usunąć.";
+                return;
+            }
+
+            MessageBoxResult answer = MessageBox.Show(this,
+                $"Czy na pewno usunąć sprawę {selected.CaseNumber} wraz z jej powiązaniami do nagrań?\n\nPliki nagrań, znaczniki zdarzeń i pliki eksportów nie zostaną usunięte.",
+                "Usuwanie sprawy", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (answer != MessageBoxResult.Yes) return;
+
+            try
+            {
+                bool deleted = _cases.Delete(selected.Id);
+                ReportCaseNumberBox.Clear();
+                ReportCaseTitleBox.Clear();
+                ReportLocationBox.Clear();
+                ReportNotesBox.Clear();
+                RefreshCaseArchiveList();
+                CaseArchiveStatusText.Text = deleted
+                    ? $"Usunięto sprawę {selected.CaseNumber}. Nagrania i ich dane pozostały bez zmian."
+                    : "Sprawa nie istnieje już w archiwum.";
+                StatusText.Text = CaseArchiveStatusText.Text;
+            }
+            catch (Exception ex)
+            {
+                CaseArchiveStatusText.Text = "Nie udało się usunąć sprawy: " + ex.Message;
+                MessageBox.Show(this, ex.Message, "Archiwum spraw", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task<List<CaseReportSource>> BuildCaseReportSourcesAsync(CaseRecord record, CancellationToken ct)
+        {
+            List<string> paths = _cases.LoadSources(record.Id);
+            if (paths.Count == 0)
+                throw new InvalidOperationException("Wybrana sprawa nie ma przypisanych nagrań. Otwórz nagranie i użyj opcji „Zapisz / aktualizuj sprawę”.");
+
+            var result = new List<CaseReportSource>();
+            for (int i = 0; i < paths.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                string path = paths[i];
+                MediaInfoData? info = null;
+                if (File.Exists(path))
+                {
+                    try { info = await _mediaInfoService.ReadAsync(path).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { throw; }
+                    catch { /* A technical-info error for one source must not block the case report. */ }
+                }
+                result.Add(new CaseReportSource
+                {
+                    Path = path,
+                    Markers = _historyService.LoadMarkers(path),
+                    Exports = _historyService.LoadExports(path),
+                    MediaInfo = info
+                });
+            }
+            return result;
+        }
+
+        private static ReportMetadata ToReportMetadata(CaseRecord record) => new ReportMetadata
+        {
+            CaseNumber = record.CaseNumber,
+            CaseTitle = record.Title,
+            Location = record.Location,
+            Notes = record.Notes
+        };
+
         private void RefreshRanges()
         {
             if (!ReferenceEquals(ClipRangesListBox.ItemsSource, _clips)) ClipRangesListBox.ItemsSource = _clips;
@@ -143,40 +310,90 @@ namespace VideoPlayer
             }
         }
 
-        private List<TimelineMarker> MarkerSnapshot() => _timelineMarkers.OrderBy(m => m.Seconds).Select(m => new TimelineMarker { Id = m.Id, Seconds = m.Seconds, Description = m.Description, VehicleMake = m.VehicleMake }).ToList();
+        private List<TimelineMarker> MarkerSnapshot() => _timelineMarkers.OrderBy(m => m.Seconds).Select(m => new TimelineMarker { Id = m.Id, Seconds = m.Seconds, Description = m.Description, VehicleMake = m.VehicleMake, EndSeconds = m.EndSeconds, MotionX = m.MotionX, MotionY = m.MotionY, MotionWidth = m.MotionWidth, MotionHeight = m.MotionHeight, RelatedMotionCount = m.RelatedMotionCount }).ToList();
 
         private async void CsvReport_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanOperate() || _timelineMarkers.Count == 0) { StatusText.Text = "Dodaj znaczniki zdarzeń do filmu."; return; }
-            string source = _sourceFilePath!;
-            var markers = MarkerSnapshot();
-            string? output = ChooseOutput("Raport CSV", Path.GetFileNameWithoutExtension(source) + "_zdarzenia.csv", "csv");
+            CaseRecord? selectedCase = ReportCasesBox.SelectedItem as CaseRecord;
+            if (selectedCase == null && (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath)))
+            {
+                StatusText.Text = "Wybierz zapisaną sprawę albo otwórz nagranie.";
+                return;
+            }
+            if (selectedCase == null && _timelineMarkers.Count == 0)
+            {
+                StatusText.Text = "Dodaj znaczniki zdarzeń do filmu.";
+                return;
+            }
+
+            string defaultName = selectedCase != null
+                ? "Sprawa_" + SafeName(selectedCase.CaseNumber) + "_raport.csv"
+                : Path.GetFileNameWithoutExtension(_sourceFilePath) + "_zdarzenia.csv";
+            string? output = ChooseOutput("Raport CSV", defaultName, "csv");
             if (output == null) return;
-            await RunOperationAsync("Raport CSV", async ct => { await _reports.CsvAsync(source, markers, output, ct); return "Zapisano raport: " + output; });
+
+            await RunOperationAsync("Raport CSV", async ct =>
+            {
+                if (selectedCase != null)
+                {
+                    CaseRecord record = _cases.Load(selectedCase.Id)
+                        ?? throw new InvalidOperationException("Wybrana sprawa nie istnieje już w archiwum.");
+                    List<CaseReportSource> sources = await BuildCaseReportSourcesAsync(record, ct).ConfigureAwait(false);
+                    await _reports.CsvCaseAsync(sources, output, ToReportMetadata(record), ct).ConfigureAwait(false);
+                    int eventCount = sources.Sum(s => s.Markers.Count);
+                    return $"Zapisano raport sprawy {record.CaseNumber}: {sources.Count} nagrania, {eventCount} zdarzeń.";
+                }
+
+                string source = _sourceFilePath!;
+                await _reports.CsvAsync(source, MarkerSnapshot(), output, CurrentReportMetadata(),
+                    _currentMediaInfo, _historyService.LoadExports(source), ct).ConfigureAwait(false);
+                return "Zapisano raport CSV: " + output;
+            }, requireSource: selectedCase == null);
         }
 
         private async void PdfReport_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanOperate() || _timelineMarkers.Count == 0) { StatusText.Text = "Dodaj znaczniki zdarzeń do filmu."; return; }
-            string source = _sourceFilePath!;
-            var markers = MarkerSnapshot();
-            bool images = ReportThumbnailsCheckBox.IsChecked == true;
-            var metadata = new ReportMetadata
+            CaseRecord? selectedCase = ReportCasesBox.SelectedItem as CaseRecord;
+            if (selectedCase == null && (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath)))
             {
-                CaseNumber = ReportCaseNumberBox.Text.Trim(),
-                CaseTitle = ReportCaseTitleBox.Text.Trim(),
-                Location = ReportLocationBox.Text.Trim(),
-                Notes = ReportNotesBox.Text.Trim()
-            };
-            MediaInfoData? mediaInfo = _currentMediaInfo;
-            List<ExportHistoryItem> exports = _historyService.LoadExports(source);
-            string? output = ChooseOutput("Raport PDF", Path.GetFileNameWithoutExtension(source) + "_raport.pdf", "pdf");
+                StatusText.Text = "Wybierz zapisaną sprawę albo otwórz nagranie.";
+                return;
+            }
+            if (selectedCase == null && _timelineMarkers.Count == 0)
+            {
+                StatusText.Text = "Dodaj znaczniki zdarzeń do filmu.";
+                return;
+            }
+
+            bool images = ReportThumbnailsCheckBox.IsChecked == true;
+            string defaultName = selectedCase != null
+                ? "Sprawa_" + SafeName(selectedCase.CaseNumber) + "_raport.pdf"
+                : Path.GetFileNameWithoutExtension(_sourceFilePath) + "_raport.pdf";
+            string? output = ChooseOutput("Raport PDF", defaultName, "pdf");
             if (output == null) return;
+
             await RunOperationAsync("Raport PDF", async ct =>
             {
-                await _reports.PdfAsync(source, markers, output, images, metadata, mediaInfo, exports, OperationProgress(ct), ct);
+                // Create Progress on the WPF UI thread before any ConfigureAwait(false).
+                // Its callback then posts UI updates to the Dispatcher instead of touching
+                // WPF controls from a worker thread.
+                IProgress<ExportProgress> progress = OperationProgress(ct);
+                if (selectedCase != null)
+                {
+                    CaseRecord record = _cases.Load(selectedCase.Id)
+                        ?? throw new InvalidOperationException("Wybrana sprawa nie istnieje już w archiwum.");
+                    List<CaseReportSource> sources = await BuildCaseReportSourcesAsync(record, ct).ConfigureAwait(false);
+                    await _reports.PdfCaseAsync(sources, output, images, ToReportMetadata(record),
+                        progress, ct).ConfigureAwait(false);
+                    int eventCount = sources.Sum(s => s.Markers.Count);
+                    return $"Zapisano raport sprawy {record.CaseNumber}: {sources.Count} nagrania, {eventCount} zdarzeń.";
+                }
+
+                string source = _sourceFilePath!;
+                await _reports.PdfAsync(source, MarkerSnapshot(), output, images, CurrentReportMetadata(),
+                    _currentMediaInfo, _historyService.LoadExports(source), progress, ct).ConfigureAwait(false);
                 return "Zapisano raport PDF: " + output;
-            });
+            }, requireSource: selectedCase == null);
         }
     }
 }

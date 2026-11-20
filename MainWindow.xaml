@@ -2,7 +2,7 @@
         xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="VideoPlayer.MainWindow"
-        Title="VideoPlayer 1.6.0 — analiza nagrań"
+        Title="VideoPlayer 1.7.0 — analiza nagrań"
         Width="1360" Height="820" MinWidth="960" MinHeight="620"
         Background="#111318" Foreground="#F1F3F5"
         FontFamily="Segoe UI" FontSize="13"
@@ -790,8 +790,7 @@
                                 </Border>
                                 <DockPanel>
                                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                                        <Button Content="▶ Start" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" Padding="10,4" Margin="0,0,5,0" />
-                                        <Button Content="Ⅱ / ▶" Click="DahuaToggleSynchronizedPlayback_Click" Padding="10,4" Margin="0,0,5,0" />
+                                        <Button Content="Ⅱ Pauza / Wznów" Click="DahuaToggleSynchronizedPlayback_Click" Padding="10,4" Margin="0,0,5,0" />
                                         <Button Content="■ Stop" Click="DahuaStopSynchronizedPlayback_Click" Style="{StaticResource DahuaRedButton}" Padding="10,4" Margin="0,0,8,0" />
                                         <TextBlock Text="Tempo" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="#CBD5E1" FontSize="11" />
                                         <ComboBox x:Name="DahuaArchiveSpeedBox" Width="76" Height="28" Margin="0,0,8,0" SelectedIndex="2" SelectionChanged="DahuaArchiveSpeedBox_SelectionChanged">
@@ -863,8 +862,30 @@
                                             </StackPanel>
                                         </Border>
                                         <TextBlock x:Name="OcrSelectionInfo" Text="Zaznacz tablicę na obrazie po lewej." FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,6" />
-                                        <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj zaznaczoną tablicę" Click="OcrRecognize_Click" Style="{StaticResource PrimaryButton}" IsEnabled="False" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
+                                        <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj tablicę (wieloklatkowo)" Click="OcrRecognize_Click" ToolTip="Nagranie lokalne: porównanie do 5 klatek w pobliżu bieżącej pozycji. Podgląd Dahua: rozpoznanie bieżącej klatki." Style="{StaticResource PrimaryButton}" IsEnabled="False" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
                                         <TextBlock x:Name="OcrStatusText" Text="Silnik OCR działa lokalnie. Wynik wymaga sprawdzenia." FontSize="11" Foreground="#F5C970" TextWrapping="Wrap" Margin="0,0,0,6" />
+
+                                        <Border Background="#101722" BorderBrush="#34445B" BorderThickness="1" CornerRadius="4" Padding="7" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <TextBlock Text="WYSZUKIWANIE NUMERU W CAŁYM NAGRANIU" FontSize="10" FontWeight="Bold" Foreground="#75A5FF" Margin="0,0,0,4" />
+                                                <TextBlock Text="Analiza obejmuje zaznaczony obszar obrazu w kolejnych klatkach. Dla kamery nieruchomej zaznacz miejsce, przez które przejeżdżają pojazdy. Obiekty poza tym obszarem nie zostaną wykryte." FontSize="10" Foreground="#AEB9CA" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <TextBlock Text="Odstęp próbkowania:" FontSize="10" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <ComboBox x:Name="OcrSearchIntervalBox" Width="76" Height="27" SelectedIndex="2" HorizontalAlignment="Left">
+                                                        <ComboBoxItem Content="1 s" Tag="1" />
+                                                        <ComboBoxItem Content="2 s" Tag="2" />
+                                                        <ComboBoxItem Content="5 s" Tag="5" />
+                                                        <ComboBoxItem Content="10 s" Tag="10" />
+                                                    </ComboBox>
+                                                </DockPanel>
+                                                <WrapPanel>
+                                                    <Button x:Name="OcrSearchButton" Content="Szukaj w nagraniu" Click="OcrSearchStart_Click" IsEnabled="False" Style="{StaticResource PrimaryButton}" />
+                                                    <Button x:Name="OcrSearchCancelButton" Content="Anuluj wyszukiwanie" Click="OcrSearchCancel_Click" IsEnabled="False" Visibility="Collapsed" />
+                                                </WrapPanel>
+                                                <TextBlock x:Name="OcrSearchProgressText" Text="Wpisz numer tablicy, potwierdź go i rozpocznij wyszukiwanie." FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,6,0,4" />
+                                                <ListBox x:Name="OcrSearchResultsList" Height="86" Background="#0B0F15" Foreground="#E6EAF0" BorderBrush="#34445B" DisplayMemberPath="DisplayText" MouseDoubleClick="OcrSearchResultsList_MouseDoubleClick" ToolTip="Dwuklik na wyniku przenosi odtwarzacz do wskazanego czasu" />
+                                            </StackPanel>
+                                        </Border>
 
                                         <TextBlock Text="Numer tablicy:" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,3" />
                                         <TextBox x:Name="OcrPlateBox" FontSize="18" FontWeight="Bold" MaxLength="24" Padding="6,4" CharacterCasing="Upper" TextChanged="OcrPlate_Changed" Margin="0,0,0,6" />
@@ -889,6 +910,27 @@
                                     <Button Content="Dodaj zdarzenie" Click="AddMarker_Click" Style="{StaticResource PrimaryButton}" />
                                     <Button Content="Zmień opis" Click="UpdateMarker_Click" />
                                 </WrapPanel>
+                                <Border Background="#121923" BorderBrush="#344155" BorderThickness="1" CornerRadius="5" Padding="7" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="CENTRUM ZDARZEŃ — BIEŻĄCE NAGRANIE" FontSize="10" FontWeight="Bold" Foreground="#75A5FF" Margin="0,0,0,5" />
+                                        <TextBox x:Name="EventCenterFilterBox" Padding="6,4" Margin="0,0,0,5"
+                                                 ToolTip="Szukaj w opisie, numerze tablicy, marce lub typie zdarzenia"
+                                                 TextChanged="EventCenterFilter_Changed" />
+                                        <DockPanel>
+                                            <ComboBox x:Name="EventCenterCategoryBox" Width="150" Height="27" SelectedIndex="0"
+                                                      SelectionChanged="EventCenterFilter_Changed" Margin="0,0,6,5">
+                                                <ComboBoxItem Content="Wszystkie zdarzenia" Tag="all" />
+                                                <ComboBoxItem Content="Wykryty ruch" Tag="Ruch" />
+                                                <ComboBoxItem Content="Tablice rejestracyjne" Tag="Tablica" />
+                                                <ComboBoxItem Content="Zdarzenia ręczne" Tag="Ręczne" />
+                                                <ComboBoxItem Content="Tablice powiązane z ruchem" Tag="related" />
+                                            </ComboBox>
+                                            <Button Content="Wyczyść" Click="EventCenterClearFilter_Click" Padding="8,3" Margin="0,0,0,5" />
+                                        </DockPanel>
+                                        <TextBlock x:Name="EventCenterCountText" Text="Brak zdarzeń dla bieżącego nagrania." FontSize="10"
+                                                   Foreground="#AEB9CA" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
                                 <ListBox x:Name="TimelineMarkersListBox" Height="165" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" SelectionChanged="TimelineMarkersListBox_SelectionChanged" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
@@ -957,7 +999,23 @@
                                     </Border>
                                 </Expander>
 
-                                <TextBlock Text="Raport zdarzeń" FontWeight="SemiBold" Margin="0,4,0,6" />
+                                <Expander x:Name="CaseArchiveExpander" Header="Archiwum spraw" Margin="0,2,0,8" Foreground="#D8DCE4" IsExpanded="True">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Zapisane sprawy" FontSize="11" Margin="0,0,0,4" />
+                                            <ComboBox x:Name="ReportCasesBox" Margin="0,0,0,8" MinWidth="180" SelectionChanged="ReportCasesBox_SelectionChanged" ToolTip="Wybierz sprawę; jej dane zostaną wczytane automatycznie" />
+                                            <WrapPanel>
+                                                <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
+                                                <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
+                                                <Button x:Name="ClearCaseSelectionButton" Content="Bieżące nagranie" Click="ClearCaseSelection_Click" ToolTip="Wyczyść wybór sprawy i raportuj aktualnie otwarty plik" />
+                                                <Button x:Name="DeleteCaseButton" Content="Usuń sprawę" Click="DeleteCase_Click" />
+                                            </WrapPanel>
+                                            <TextBlock x:Name="CaseArchiveStatusText" Text="Sprawa może zawierać wiele nagrań. Zapis nie kopiuje ani nie modyfikuje plików źródłowych." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+
+                                <TextBlock Text="Raport wybranej sprawy lub bieżącego nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <WrapPanel>
                                     <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" />
@@ -1165,8 +1223,9 @@
                                                 <TextBlock Text="Pobierz nagranie wg kanału i czasu, aby wczytać je bezpośrednio do głównego odtwarzacza (klatkowanie, OCR, cięcie i eksport MP4/PDF)." Foreground="#DCFCE7" FontSize="11" TextWrapping="Wrap" />
                                             </Border>
 
-                                            <TextBlock Text="KANAŁ KAMERY" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,8" SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
+                                            <TextBlock Text="POJEDYNCZY KANAŁ — WYSZUKIWANIE / POBIERANIE" Style="{StaticResource DahuaFieldLabel}" />
+                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,3" SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
+                                            <TextBlock Text="Ten wybór dotyczy wyszukiwania i pobierania jednego nagrania. Nie zmienia listy kanałów odtwarzanych równocześnie w głównym oknie." Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,9" />
 
                                             <TextBlock Text="POCZĄTEK (OD)" Style="{StaticResource DahuaFieldLabel}" />
                                             <Grid Margin="0,0,0,8">
@@ -1187,6 +1246,27 @@
                                                 <DatePicker x:Name="DahuaEndDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
                                                 <TextBox x:Name="DahuaEndTimeBox" Grid.Column="1" Text="12:15:00" FontWeight="Bold" />
                                             </Grid>
+
+                                            <Border Background="#14243A" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,2,0,8">
+                                                <StackPanel>
+                                                    <TextBlock Text="ODTWARZANIE ARCHIWUM — WIELE KANAŁÓW" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" Margin="0,0,0,6" />
+                                                    <TextBlock Text="1. Wybierz układ:" Foreground="#E2E8F0" FontSize="11" />
+                                                    <ComboBox x:Name="DahuaArchiveGridModeBox" SelectedIndex="1" Margin="0,3,0,7" SelectionChanged="DahuaArchiveGridModeBox_SelectionChanged">
+                                                        <ComboBoxItem Content="1 kanał" />
+                                                        <ComboBoxItem Content="4 kanały" />
+                                                        <ComboBoxItem Content="9 kanałów" />
+                                                        <ComboBoxItem Content="16 kanałów" />
+                                                    </ComboBox>
+                                                    <TextBlock Text="2. Zaznacz kanały do równoczesnego odtwarzania:" Foreground="#E2E8F0" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5" />
+                                                    <Border Background="#0F1724" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="6">
+                                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                                            <StackPanel x:Name="DahuaArchiveChannelChecksPanel" />
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                    <TextBlock x:Name="DahuaArchiveSelectedChannelsText" Text="Wybierz kanały powyżej." Foreground="#BFDBFE" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                                    <Button Content="▶ Odtwarzaj wybrane kanały od wskazanego czasu" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+                                                </StackPanel>
+                                            </Border>
 
                                             <WrapPanel Margin="0,0,0,4" VerticalAlignment="Center">
                                                 <Border Width="10" Height="10" Background="#14532D" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />

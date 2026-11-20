@@ -12,9 +12,36 @@ using Tesseract;
 namespace VideoPlayer
 {
     internal sealed record PlateOcrCandidate(string Text,float Confidence);
+    internal sealed record PlateOcrConsensusCandidate(string Text,int VoteCount,int FrameCount,float AverageConfidence);
     internal static class PlateOcrService
     {
         internal static string Normalize(string text)=>PlateOcrRules.Normalize(text);
+        internal static IReadOnlyList<PlateOcrConsensusCandidate> RecognizeConsensus(IReadOnlyList<byte[]> crops,CancellationToken ct)
+        {
+            if(crops == null || crops.Count == 0) return Array.Empty<PlateOcrConsensusCandidate>();
+            var readings = new List<(string Text,float Confidence,int Frame)>();
+            for(int i=0;i<crops.Count;i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                foreach(var candidate in Recognize(crops[i],ct))
+                    readings.Add((candidate.Text,candidate.Confidence,i));
+            }
+            return readings
+                .GroupBy(x=>x.Text,StringComparer.Ordinal)
+                .Select(g=>new PlateOcrConsensusCandidate(
+                    g.Key,
+                    g.Select(x=>x.Frame).Distinct().Count(),
+                    crops.Count,
+                    (float)g.Average(x=>x.Confidence)))
+                // Najpierw jakość odczytu, dopiero potem powtarzalność między klatkami.
+                // Krótkie fragmenty nie powinny wygrywać tylko dlatego, że OCR powtarza je częściej.
+                .OrderByDescending(x=>x.AverageConfidence)
+                .ThenByDescending(x=>x.VoteCount)
+                .ThenByDescending(x=>x.Text.Length)
+                .ThenBy(x=>x.Text,StringComparer.Ordinal)
+                .Take(5)
+                .ToArray();
+        }
         internal static IReadOnlyList<PlateOcrCandidate> Recognize(byte[] crop,CancellationToken ct)
         {
             string data=Path.Combine(AppContext.BaseDirectory,"tessdata");
@@ -70,7 +97,10 @@ namespace VideoPlayer
                     ct.ThrowIfCancellationRequested();
                     using var page=engine.Process(pix,segmentation);
                     string text=Normalize(page.GetText());
-                    if(text.Length>=2&&text.Length<=12)candidates.Add(new(text,page.GetMeanConfidence()));
+                    // Odrzucamy krótkie fragmenty obrazu (np. pierwsze 2–3 znaki),
+                    // które Tesseract potrafi zwrócić jako osobne "numery".
+                    // Cztery znaki to dolna granica dopuszczonego wyniku.
+                    if(text.Length>=4&&text.Length<=12)candidates.Add(new(text,page.GetMeanConfidence()));
                 }
             }
             ct.ThrowIfCancellationRequested();

@@ -1,7 +1,7 @@
-# VideoPlayer 1.6.0
+# VideoPlayer 1.7.0
 ## Dokumentacja użytkownika i uruchomienia
 
-Stan dokumentacji: 19.11.2026. Wydanie: 1.6.0. Dokument opisuje aktualny zakres aplikacji, lokalny OCR, wykrywanie ruchu, integrację Dahua, eksport, raporty oraz przechowywanie danych.
+Stan dokumentacji: 20.11.2026. Wydanie: 1.7.0. Dokument opisuje aktualny zakres aplikacji, lokalny OCR, wykrywanie ruchu, integrację Dahua, eksport, raporty oraz przechowywanie danych.
 
 ## 1. Przeznaczenie i najważniejsze ograniczenia
 
@@ -21,7 +21,7 @@ Paczka zawiera projekt źródłowy, nie instalator. Do budowania potrzebny jest 
 6. Przy problemie uruchomienia OCR sprawdź Microsoft Visual C++ Redistributable 2015–2022 x64, biblioteki x64\\tesseract50.dll i x64\\leptonica-1.82.0.dll oraz model tessdata\\eng.traineddata. Wszystkie muszą znaleźć się w katalogu wynikowym. W paczce pozostaw pliki licencji.
 7. Uruchom program z katalogu, w którym masz prawo zapisu: baza SQLite powstaje obok uruchomionej aplikacji.
 
-Wersja 1.6.0 zawiera lokalny OCR oraz narzędzia analizy nagrań. Nie wymaga przesyłania klatki do internetowego serwisu rozpoznawania. Pierwsze budowanie projektu może wymagać pobrania zależności.
+Wersja 1.7.0 zawiera lokalny OCR oraz narzędzia analizy nagrań. Nie wymaga przesyłania klatki do internetowego serwisu rozpoznawania. Pierwsze budowanie projektu może wymagać pobrania zależności.
 
 Numer wydania jest ustawiany centralnie w pliku VideoPlayer.csproj. Tytuł okna i okno Informacje pokazują wersję zestawu aplikacji.
 
@@ -182,15 +182,27 @@ Obserwuj opis operacji, pasek postępu i komunikat końcowy. Anuluj przerywa bie
 
 ### 11.1. CSV
 
-W zakładce Zdarzenia wybierz Raport CSV i wskaż plik wynikowy. Raport zawiera kolumny Plik, Czas, Sekundy i Opis, rozdzielane średnikiem. Obejmuje także zapisane i potwierdzone odczyty tablic, ponieważ są zdarzeniami. CSV nie zawiera miniatur; jego eksport nie został zmieniony przez poprawkę autora PDF.
+W zakładce Zdarzenia wybierz Raport CSV i wskaż plik wynikowy. Raport jest zapisywany jako UTF-8 z BOM, z separatorem średnika. Zawiera dane sprawy, ścieżkę źródłową, zdarzenia i ich zakresy czasowe, typ, opis, markę pojazdu, powiązane zdarzenia ruchu, parametry nagrania oraz historię eksportów danego źródła. W kolumnie Rodzaj rozróżniane są wiersze „Zdarzenie” i „Eksport”. Dane sprawy są pobierane z aktualnych pól formularza.
 
 ### 11.2. PDF
 
-Wybierz Raport PDF. Opcja Miniatury w PDF pozwala dołączyć obrazy dla czasów zdarzeń; ich generowanie wymaga FFmpeg i może wydłużyć operację. Raport przedstawia opisane punkty nagrania w kolejności czasu.
+Wybierz Raport PDF. Opcja Miniatury w PDF pozwala dołączyć obrazy dla czasów zdarzeń; ich generowanie wymaga FFmpeg i może wydłużyć operację. Raport przedstawia dane sprawy, źródło i parametry nagrania, podsumowanie kategorii zdarzeń, czasy początku i końca, opisy, informacje o pojeździe, powiązane zdarzenia ruchu oraz historię eksportów. Zakresy czasu są liczone od początku pliku, a nie według zegara kamery.
 
 Stopka i metadane autora PDF korzystają z pełnej nazwy użytkownika Windows. Gdy nie uda się ustalić imienia i nazwiska, wpisywane jest dokładnie: „Nie ustalono imienia i nazwiska”. Cała stopka ma czcionkę Arial 8, krój zwykły i kolor szary. Odczyt danych konta wymaga sprawdzenia w docelowym środowisku Windows; nie należy zakładać, że każde konto udostępnia pełną nazwę.
 
 Raport nie stanowi niezależnego potwierdzenia prawdziwości opisu albo poprawności OCR: zapisuje wynik pracy użytkownika z materiałem.
+
+### 12.3. Lokalne archiwum spraw
+
+W zakładce Zdarzenia znajduje się sekcja Archiwum spraw. Wpisz numer sprawy, tytuł, miejsce i uwagi w sekcji danych sprawy, a następnie wybierz Zapisz / aktualizuj sprawę. Numer sprawy jest wymagany. Zapis powiązuje sprawę z aktualnie otwartym nagraniem. Kolejne nagrania można dołączać do tej samej sprawy, otwierając następne pliki i zapisując je z tym samym numerem. Jeśli na liście jest zaznaczona sprawa, a pole numeru pozostaje puste, zapis wykorzysta tę sprawę automatycznie.
+
+Po wybraniu sprawy na liście jej metadane są automatycznie wczytywane do formularza; przycisk Wczytaj dane sprawy pozostaje dostępny do ponownego wczytania. Wczytanie nie otwiera automatycznie nagrań. Lista spraw pokazuje liczbę powiązanych plików.
+
+**Raport zbiorczy sprawy:** wybierz sprawę na liście i użyj Raport CSV albo Raport PDF. Raport obejmuje wszystkie przypisane nagrania, ich zdarzenia, historię eksportów i parametry techniczne. Nie trzeba wcześniej otwierać żadnego nagrania. W PDF każde zdarzenie jest opisane nazwą i ścieżką źródła; opcjonalne miniatury są pobierane z właściwego nagrania. CSV zawiera osobny wiersz „Nagranie” dla każdego źródła, dzięki czemu widoczne są także pliki bez zapisanych zdarzeń. Jeśli plik został przeniesiony lub usunięty, raport oznaczy niedostępne źródło, ale nadal uwzględni zachowane w bazie zdarzenia i eksporty.
+
+Przycisk Bieżące nagranie czyści wybór sprawy, aby raport dotyczył aktualnie otwartego pliku. Przycisk Usuń sprawę wymaga potwierdzenia. Usuwa tylko dane sprawy i jej powiązania z nagraniami. Nie usuwa plików źródłowych, znaczników, historii eksportów ani plików wynikowych.
+
+Archiwum przechowuje metadane spraw i ścieżki do nagrań w lokalnej bazie VideoPlayer.db. Nie kopiuje, nie przenosi ani nie modyfikuje plików źródłowych. Przeniesienie nagrania może spowodować, że zapisana ścieżka przestanie wskazywać na istniejący plik. Kopię bazy wykonuj przed aktualizacją programu i przed testami migracji.
 
 ## 13. Sesje, historia i baza danych
 
@@ -240,11 +252,11 @@ Skróty analizy nie powinny przejmować liter podczas wpisywania tekstu w polach
 
 Menu Pomoc udostępnia pomoc podstawową, ponowne uruchomienie mpv i informacje o programie. Niniejsza dokumentacja jest pełniejsza niż starsze teksty pomocy wbudowanej.
 
-## 16. Weryfikacja i zakres wydania 1.6.0
+## 16. Weryfikacja i zakres wydania 1.7.0
 
-Wydanie 1.6.0 obejmuje lokalny OCR, wykrywanie ruchu z obszarem ROI, zapis przedziałów czasowych zdarzeń i podgląd obszaru ruchu oraz istniejące funkcje odtwarzania, eksportu, raportowania i integracji Dahua. Kompilację x64 oraz testy na docelowym komputerze Windows należy wykonać przed opublikowaniem paczki.
+Wydanie 1.7.0 obejmuje lokalny OCR, wykrywanie ruchu z obszarem ROI, zapis przedziałów czasowych zdarzeń i podgląd obszaru ruchu oraz istniejące funkcje odtwarzania, eksportu, raportowania i integracji Dahua. Kompilację x64 oraz testy na docelowym komputerze Windows należy wykonać przed opublikowaniem paczki.
 
-Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.6.0. Starsze instrukcje cząstkowe oraz dokument DOCX/ZIP oznaczone 1.3.2 mają charakter archiwalny; w razie różnic korzystaj z dokumentacji 1.6.0.
+Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.7.0. Starsze instrukcje cząstkowe oraz dokument DOCX/ZIP oznaczone 1.3.2 mają charakter archiwalny; w razie różnic korzystaj z dokumentacji 1.7.0.
 
 ### Lista kontroli po instalacji
 
@@ -256,7 +268,7 @@ Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.
 - Wygeneruj CSV oraz PDF z miniaturami i bez nich. Sprawdź autora, stopkę, czasy i opisy.
 - Potwierdź, że oryginalny film pozostał bez zmian i że znasz lokalizację właściwej bazy.
 
-## 17. Przygotowanie publikacji 1.6.0
+## 17. Przygotowanie publikacji 1.7.0
 
 - [ ] Ustawiono konfigurację Release i platformę x64.
 - [ ] Wykonano czystą kompilację oraz publikację na docelowym Windows z .NET 8 Desktop Runtime.
@@ -267,6 +279,6 @@ Ten dokument jest główną instrukcją użytkownika i wdrożenia dla wydania 1.
 - [ ] Sprawdzono OCR, detekcję ruchu na zaznaczonym obszarze i całym obrazie, anulowanie, zapis zakresów i podgląd obszaru.
 - [ ] Sprawdzono eksport MP4, JPG, CSV i PDF oraz integrację Dahua, jeśli jest używana.
 - [ ] Wykonano kopię bazy danych i przetestowano aktualizację istniejącej bazy.
-- [ ] Wydanie zawiera numer 1.6.0 w nazwie paczki i informacjach o programie.
+- [ ] Wydanie zawiera numer 1.7.0 w nazwie paczki i informacjach o programie.
 
 **Ważne:** pliki natywne OCR muszą być dołączone do paczki wydania, nawet jeśli na komputerze deweloperskim OCR działa dzięki bibliotekom już zainstalowanym w systemie. Instalacja Visual C++ Redistributable nie zastępuje bibliotek Tesseract i Leptonica.
