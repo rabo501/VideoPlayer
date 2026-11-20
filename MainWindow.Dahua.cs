@@ -51,6 +51,7 @@ namespace VideoPlayer
         private readonly SemaphoreSlim _dahuaArchiveAvailabilitySemaphore = new(1, 1);
         private readonly List<DahuaMultiViewSlot> _dahuaMultiViewSlots = new();
         private readonly List<IntPtr> _dahuaMultiPlaybackHandles = new();
+        private readonly HashSet<int> _dahuaArchiveSelectedChannels = new();
         private readonly DispatcherTimer _dahuaPlaybackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
         private DateTime _dahuaPlaybackRangeStart;
         private DateTime _dahuaPlaybackRangeEnd;
@@ -1515,6 +1516,129 @@ namespace VideoPlayer
             DahuaPlaybackPositionSlider.Value = Math.Clamp(currentOffset, minOffset, maxOffset);
         }
 
+        private void DahuaSelectArchiveChannels_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDahuaDevice == null)
+            {
+                MessageBox.Show(this, "Najpierw wybierz urządzenie Dahua.", "Brak urządzenia", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var availableChannels = _currentDahuaDevice.Channels.OrderBy(channel => channel.Number).ToList();
+            if (availableChannels.Count == 0)
+            {
+                MessageBox.Show(this, "Wybrane urządzenie nie udostępnia listy kanałów.", "Brak kanałów", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            int capacity = GetDahuaMultiViewCapacity();
+            if (_dahuaArchiveSelectedChannels.Count == 0)
+                _dahuaArchiveSelectedChannels.Add(availableChannels[0].Number);
+
+            var dialog = new Window
+            {
+                Title = "Wybór kanałów do odtwarzania archiwum",
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Width = 430,
+                Height = 560,
+                MinWidth = 360,
+                MinHeight = 400,
+                ResizeMode = ResizeMode.CanResize,
+                Background = new SolidColorBrush(Color.FromRgb(23, 29, 41)),
+                Foreground = Brushes.White,
+                ShowInTaskbar = false
+            };
+
+            var root = new DockPanel { Margin = new Thickness(16) };
+            var footer = new StackPanel { Orientation = Orientation.Vertical };
+            var countText = new TextBlock
+            {
+                Foreground = new SolidColorBrush(Color.FromRgb(147, 197, 253)),
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 8, 0, 12)
+            };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancelButton = new Button { Content = "Anuluj", MinWidth = 90, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0) };
+            var okButton = new Button { Content = "Zastosuj", MinWidth = 100, Padding = new Thickness(12, 6, 12, 6), IsDefault = true };
+            buttons.Children.Add(cancelButton);
+            buttons.Children.Add(okButton);
+            footer.Children.Add(countText);
+            footer.Children.Add(buttons);
+            DockPanel.SetDock(footer, Dock.Bottom);
+            root.Children.Add(footer);
+
+            var header = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+            header.Children.Add(new TextBlock
+            {
+                Text = "Zaznacz kamery, których archiwum chcesz odtwarzać równocześnie.",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.White,
+                FontSize = 13
+            });
+            header.Children.Add(new TextBlock
+            {
+                Text = $"Limit wynika z wybranego układu podglądu: maksymalnie {capacity} kanał(y).",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = new SolidColorBrush(Color.FromRgb(174, 185, 202)),
+                FontSize = 11,
+                Margin = new Thickness(0, 5, 0, 0)
+            });
+            DockPanel.SetDock(header, Dock.Top);
+            root.Children.Add(header);
+
+            var list = new StackPanel();
+            var checks = new List<CheckBox>();
+            void UpdateCount()
+            {
+                int selectedCount = checks.Count(check => check.IsChecked == true);
+                countText.Text = $"Wybrano: {selectedCount} / {capacity}";
+                foreach (var check in checks)
+                    check.IsEnabled = check.IsChecked == true || selectedCount < capacity;
+                okButton.IsEnabled = selectedCount > 0;
+            }
+
+            foreach (var channel in availableChannels)
+            {
+                var check = new CheckBox
+                {
+                    Content = $"{channel.Name}  (CH {channel.Number})",
+                    Tag = channel.Number,
+                    IsChecked = _dahuaArchiveSelectedChannels.Contains(channel.Number),
+                    Foreground = Brushes.White,
+                    FontSize = 12,
+                    Margin = new Thickness(4, 7, 4, 7),
+                    ToolTip = channel.Name
+                };
+                check.Checked += (_, _) => UpdateCount();
+                check.Unchecked += (_, _) => UpdateCount();
+                checks.Add(check);
+                list.Children.Add(check);
+            }
+
+            var scroll = new ScrollViewer
+            {
+                Content = list,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            };
+            root.Children.Add(scroll);
+            UpdateCount();
+
+            cancelButton.Click += (_, _) => dialog.DialogResult = false;
+            okButton.Click += (_, _) => dialog.DialogResult = true;
+            dialog.Content = root;
+
+            if (dialog.ShowDialog() == true)
+            {
+                _dahuaArchiveSelectedChannels.Clear();
+                foreach (var check in checks.Where(check => check.IsChecked == true))
+                    if (check.Tag is int channelNumber) _dahuaArchiveSelectedChannels.Add(channelNumber);
+
+                DahuaPlaybackSyncStatusText.Text = $"Wybrane kanały archiwum: {string.Join(", ", _dahuaArchiveSelectedChannels.OrderBy(number => number).Select(number => $"CH {number}"))}";
+            }
+        }
+
         private void DahuaStartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
@@ -1531,9 +1655,19 @@ namespace VideoPlayer
                 if (_dahuaLoginId == IntPtr.Zero) return;
             }
 
-            var channels = GetSelectedDahuaModernChannels();
-            if (channels.Count == 0) channels.Add(GetSelectedDahuaArchiveChannel());
-            channels = channels.Take(GetDahuaMultiViewCapacity()).ToList();
+            var channels = _dahuaArchiveSelectedChannels.OrderBy(channel => channel).ToList();
+            if (channels.Count == 0)
+            {
+                int defaultChannel = GetSelectedDahuaArchiveChannel();
+                channels.Add(defaultChannel);
+                _dahuaArchiveSelectedChannels.Add(defaultChannel);
+            }
+            int capacity = GetDahuaMultiViewCapacity();
+            if (channels.Count > capacity)
+            {
+                MessageBox.Show(this, $"Wybrano {channels.Count} kanałów, ale aktualny układ obsługuje maksymalnie {capacity}. Zmień układ lub wybierz mniej kanałów.", "Za dużo kanałów", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             _dahuaCurrentChannel = channels[0];
             HighlightActiveDahuaChannelButton(_dahuaCurrentChannel);
             DahuaStopMultiLiveStreams();
