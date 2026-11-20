@@ -38,7 +38,7 @@ namespace VideoPlayer
         private readonly HashSet<DateTime> _dahuaRecorderAvailableDays = new();
         private readonly HashSet<Calendar> _dahuaHookedArchiveCalendars = new();
         private readonly List<DahuaMultiViewSlot> _dahuaMultiViewSlots = new();
-        private readonly List<IntPtr> _dahuaMultiPlaybackHandles = new();
+        private IReadOnlyList<IntPtr> DahuaMultiPlaybackHandles => ViewModel.Dahua.GetArchivePlaybackHandles();
         private readonly HashSet<int> _dahuaArchiveSelectedChannels = new();
         private bool _dahuaUpdatingArchiveChannelChecks;
         private readonly DispatcherTimer _dahuaPlaybackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -1508,7 +1508,7 @@ namespace VideoPlayer
 
         private void UpdateDahuaPlaybackSliderRange(bool keepPlayheadVisible)
         {
-            if (DahuaPlaybackPositionSlider == null || _dahuaMultiPlaybackHandles.Count == 0) return;
+            if (DahuaPlaybackPositionSlider == null || DahuaMultiPlaybackHandles.Count == 0) return;
 
             double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
             double viewStartHour = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
@@ -1634,7 +1634,6 @@ namespace VideoPlayer
                     slot.PlaybackHandle = ViewModel.Dahua.StartArchivePlayback(slot.Channel, start.Value, end.Value, slot.PictureBox.Handle);
                     if (slot.PlaybackHandle != IntPtr.Zero)
                     {
-                        _dahuaMultiPlaybackHandles.Add(slot.PlaybackHandle);
                         started++;
                     }
                     else
@@ -1791,7 +1790,7 @@ namespace VideoPlayer
             DateTime selectedTime = (DahuaStartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(hour * 3600);
             DahuaStartTimeBox.Text = selectedTime.ToString("HH:mm:ss");
 
-            if (_dahuaMultiPlaybackHandles.Count > 0 && selectedTime >= _dahuaPlaybackRangeStart && selectedTime <= _dahuaPlaybackRangeEnd)
+            if (DahuaMultiPlaybackHandles.Count > 0 && selectedTime >= _dahuaPlaybackRangeStart && selectedTime <= _dahuaPlaybackRangeEnd)
             {
                 int offset = DahuaSessionService.ComputeArchiveSeekOffsetSeconds(selectedTime, _dahuaPlaybackRangeStart, _dahuaPlaybackRangeEnd);
                 SeekDahuaSynchronizedPlayback(offset);
@@ -1799,7 +1798,7 @@ namespace VideoPlayer
             }
             else
             {
-                ViewModel.Dahua.PlaybackSyncStatusText = _dahuaMultiPlaybackHandles.Count == 0
+                ViewModel.Dahua.PlaybackSyncStatusText = DahuaMultiPlaybackHandles.Count == 0
                     ? $"Wybrano {selectedTime:HH:mm:ss}. Uruchom odtwarzanie archiwum."
                     : $"Godzina {selectedTime:HH:mm:ss} jest poza zakresem odtwarzania.";
             }
@@ -1808,7 +1807,7 @@ namespace VideoPlayer
 
         private void DahuaArchiveSpeedBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_dahuaUpdatingArchiveSpeed || !IsLoaded || _dahuaMultiPlaybackHandles.Count == 0 ||
+            if (_dahuaUpdatingArchiveSpeed || !IsLoaded || DahuaMultiPlaybackHandles.Count == 0 ||
                 DahuaArchiveSpeedBox.SelectedItem is not ComboBoxItem item ||
                 !double.TryParse(item.Tag?.ToString(), NumberStyles.Float,
                     CultureInfo.InvariantCulture, out double requestedSpeed))
@@ -1820,7 +1819,7 @@ namespace VideoPlayer
 
             int succeeded = ViewModel.Dahua.SetArchivePlaybackSpeed(requestedSpeed);
 
-            if (succeeded != _dahuaMultiPlaybackHandles.Count)
+            if (succeeded != DahuaMultiPlaybackHandles.Count)
             {
                 _dahuaArchivePlaybackSpeed = 1.0;
                 _dahuaUpdatingArchiveSpeed = true;
@@ -1840,9 +1839,9 @@ namespace VideoPlayer
         {
             offsetSeconds = (int)Math.Clamp(offsetSeconds, 0, GetDahuaPlaybackDurationSeconds());
             int succeeded = ViewModel.Dahua.SeekArchivePlayback(offsetSeconds);
-            if (succeeded != _dahuaMultiPlaybackHandles.Count)
+            if (succeeded != DahuaMultiPlaybackHandles.Count)
             {
-                ViewModel.Dahua.PlaybackSyncStatusText = $"Przewijanie nie powiodło się ({succeeded}/{_dahuaMultiPlaybackHandles.Count}).";
+                ViewModel.Dahua.PlaybackSyncStatusText = $"Przewijanie nie powiodło się ({succeeded}/{DahuaMultiPlaybackHandles.Count}).";
                 return;
             }
             _dahuaPlaybackElapsedBeforePause = offsetSeconds;
@@ -1850,17 +1849,17 @@ namespace VideoPlayer
             UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: true);
             DahuaPlaybackPositionSlider.Value = Math.Clamp(offsetSeconds, DahuaPlaybackPositionSlider.Minimum, DahuaPlaybackPositionSlider.Maximum);
             ViewModel.Dahua.PlaybackPositionText = $"{_dahuaPlaybackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
-            ViewModel.Dahua.PlaybackSyncStatusText = $"Przewinięto kanały: {succeeded}/{_dahuaMultiPlaybackHandles.Count}";
+            ViewModel.Dahua.PlaybackSyncStatusText = $"Przewinięto kanały: {succeeded}/{DahuaMultiPlaybackHandles.Count}";
         }
 
         private void DahuaPlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_dahuaMultiPlaybackHandles.Count > 0) _dahuaIsSeekingPlayback = true;
+            if (DahuaMultiPlaybackHandles.Count > 0) _dahuaIsSeekingPlayback = true;
         }
 
         private void DahuaPlaybackSlider_LostMouseCapture(object sender, MouseEventArgs e)
         {
-            if (_dahuaIsSeekingPlayback && _dahuaMultiPlaybackHandles.Count > 0) CommitDahuaPlaybackSliderSeek();
+            if (_dahuaIsSeekingPlayback && DahuaMultiPlaybackHandles.Count > 0) CommitDahuaPlaybackSliderSeek();
         }
 
         private void DahuaPlaybackSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => CommitDahuaPlaybackSliderSeek();
@@ -1869,14 +1868,14 @@ namespace VideoPlayer
         {
             if (!_dahuaIsSeekingPlayback) return;
             _dahuaIsSeekingPlayback = false;
-            if (_dahuaMultiPlaybackHandles.Count == 0) return;
+            if (DahuaMultiPlaybackHandles.Count == 0) return;
             int offsetSeconds = (int)Math.Clamp(Math.Round(DahuaPlaybackPositionSlider.Value), 0, GetDahuaPlaybackDurationSeconds());
             SeekDahuaSynchronizedPlayback(offsetSeconds);
         }
 
         private void DahuaPlaybackUiTimer_Tick(object? sender, EventArgs e)
         {
-            if (_dahuaIsSeekingPlayback || _dahuaSynchronizedPlaybackPaused || _dahuaMultiPlaybackHandles.Count == 0) return;
+            if (_dahuaIsSeekingPlayback || _dahuaSynchronizedPlaybackPaused || DahuaMultiPlaybackHandles.Count == 0) return;
             double elapsed = _dahuaPlaybackElapsedBeforePause + (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
             elapsed = Math.Clamp(elapsed, 0, GetDahuaPlaybackDurationSeconds());
             double playheadHour = (_dahuaPlaybackRangeStart.AddSeconds(elapsed) - _dahuaPlaybackRangeStart.Date).TotalHours;
@@ -1899,7 +1898,7 @@ namespace VideoPlayer
 
         private void DahuaToggleSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
         {
-            if (_dahuaMultiPlaybackHandles.Count == 0) return;
+            if (DahuaMultiPlaybackHandles.Count == 0) return;
             bool pause = !_dahuaSynchronizedPlaybackPaused;
             bool synchronized = ViewModel.Dahua.SetArchivePlaybackPaused(pause);
 
@@ -1925,9 +1924,8 @@ namespace VideoPlayer
 
         private void DahuaStopPlaybackHandlesOnly()
         {
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
+            foreach (IntPtr handle in DahuaMultiPlaybackHandles)
                 ViewModel.Dahua.StopArchivePlayback(handle);
-            _dahuaMultiPlaybackHandles.Clear();
             foreach (var slot in _dahuaMultiViewSlots) slot.PlaybackHandle = IntPtr.Zero;
         }
 
