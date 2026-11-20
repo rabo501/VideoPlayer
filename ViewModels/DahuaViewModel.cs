@@ -162,6 +162,78 @@ namespace VideoPlayer.ViewModels
             StatusText = "Rozłączono ze strumieniem.";
         }
 
+        public bool SendPtz(int channel, DahuaNetSdk.EM_PTZ_COMMAND command, bool stop)
+        {
+            if (Session.LoginId == IntPtr.Zero)
+                return false;
+
+            try
+            {
+                bool success = Session.SendPtz(channel, command, stop, out uint error);
+                if (!success)
+                    StatusText = $"Sterowanie PTZ nie powiodło się (kod: 0x{error:X}).";
+                return success;
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Błąd sterowania PTZ: {ex.Message}";
+                return false;
+            }
+        }
+
+        public bool SendPtzDiagonal(int channel, string? direction, bool stop)
+        {
+            DahuaNetSdk.EM_PTZ_COMMAND? command = DahuaSessionService.ParseDiagonalDirection(direction);
+            return command.HasValue && SendPtz(channel, command.Value, stop);
+        }
+
+        public async Task RunPtzPulseAsync(int channel, DahuaNetSdk.EM_PTZ_COMMAND command, int durationMs)
+        {
+            if (Session.LoginId == IntPtr.Zero)
+                throw new InvalidOperationException("Brak aktywnego połączenia z kamerą Dahua.");
+
+            try
+            {
+                await Session.RunPtzPulseAsync(channel, command, durationMs);
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Błąd sterowania PTZ: {ex.Message}";
+                throw;
+            }
+        }
+
+        public async Task ApplyAreaZoomAsync(int channel, int viewWidth, int viewHeight, int left, int top, int width, int height)
+        {
+            if (Session.LoginId == IntPtr.Zero)
+                throw new InvalidOperationException("Brak aktywnego połączenia z kamerą Dahua.");
+
+            try
+            {
+                await Session.ApplyAreaZoomAsync(channel, viewWidth, viewHeight, left, top, width, height);
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Błąd przybliżania obszaru PTZ: {ex.Message}";
+                throw;
+            }
+        }
+
+        public bool GotoPreset(int channel, int presetNumber)
+        {
+            if (Session.LoginId == IntPtr.Zero)
+            {
+                StatusText = "Brak aktywnego połączenia z kamerą Dahua.";
+                return false;
+            }
+
+            bool success = Session.GotoPreset(channel, presetNumber, out uint error);
+            StatusText = success
+                ? $"Kamera PTZ: przechodzenie do presetu {presetNumber}…"
+                : $"Błąd przejścia do presetu {presetNumber}: {DahuaNetSdk.GetErrorDescription(error)}";
+            return success;
+        }
+
         public async Task<List<DahuaRecordItem>> SearchArchiveRecordsAsync(int channel, DateTime start, DateTime end, CancellationToken ct = default)
         {
             IsArchiveSearching = true;
