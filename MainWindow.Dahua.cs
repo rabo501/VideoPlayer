@@ -1279,6 +1279,9 @@ namespace VideoPlayer
             var channels = _currentDahuaDevice.Channels.OrderBy(channel => channel.Number).ToList();
             if (channels.Count == 0) return;
 
+            var availableNumbers = channels.Select(channel => channel.Number).ToHashSet();
+            _dahuaArchiveSelectedChannels.RemoveWhere(number => !availableNumbers.Contains(number));
+
             if (_dahuaArchiveSelectedChannels.Count == 0)
             {
                 int initial = GetSelectedDahuaArchiveChannel();
