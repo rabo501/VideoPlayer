@@ -42,6 +42,7 @@ namespace VideoPlayer
         private string? _sourceFilePath;
         private double _zoom, _panX, _panY, _panscan;
         private Task? _operationTask;
+        private Task? _motionTask;
         private CancellationTokenSource? _mediaInfoCts;
         private TaskCompletionSource<bool>? _fileLoaded;
 
@@ -66,63 +67,6 @@ namespace VideoPlayer
             SizeChanged += (_, __) => ConstrainToolsWidth();
             _saveTimer.Tick += (_, __) => SaveSession();
             Closed += (_, __) => { ViewModel.Motion.Cancel(); _mouseSendTimer.Stop(); _videoMouse?.Dispose(); };
-        }
-
-        private async void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                _historyService = new HistoryService();
-                ViewModel.PlateSearch.AttachSearchProvider((plate, make, source) => _historyService.SearchMarkers(plate, make, source));
-                _cases = new CaseRepository();
-                ViewModel.Cases.AttachRepository(_cases);
-                _reviews = new ReviewRepository();
-                _exports = new ExportService(_ffmpegService);
-                _reports = new ReportService(_exports);
-                ViewModel.History.AttachService(_historyService);
-                LoadDahuaDeviceList();
-                await StartPlayerAsync();
-                InitializeVideoMouseInput();
-                _saveTimer.Start();
-            }
-            catch (Exception ex)
-            {
-                ViewModel.StatusMessage = "Błąd inicjalizacji: " + ex.Message;
-                MessageBox.Show(this, ex.Message + "\nSprawdź uprawnienia do katalogu programu i pliki mpv/FFmpeg.", "Błąd uruchamiania");
-            }
-        }
-
-        private async Task StartPlayerAsync()
-        {
-            _mpvService.MessageReceived += OnMpvMessageReceived;
-            _mpvService.Disconnected += OnDisconnected;
-            await _mpvService.StartAsync(Path.Combine(AppContext.BaseDirectory, "mpv", "mpv.exe"), _videoPanel.Handle);
-            _ready = true;
-            string[] props = { "time-pos", "duration", "eof-reached", "pause", "video-zoom", "video-pan-x", "video-pan-y", "panscan" };
-            for (int i = 0; i < props.Length; i++) await _mpvService.SendAsync("observe_property", i + 1, props[i]);
-            ViewModel.StatusMessage = "Gotowy. Otwórz film. Kółko: zoom; przeciąganie: przesuwanie; R: reset widoku.";
-        }
-
-        private void OnDisconnected(string reason)
-        {
-            if (_closing) return;
-            _fileLoaded?.TrySetException(new IOException(reason));
-            _ = Dispatcher.InvokeAsync(() =>
-            {
-                if (_closing) return;
-                _ready = false;
-                _screenshotBusy = false;
-                ScreenshotButton.IsEnabled = true;
-                ViewModel.StatusMessage = "Utracono mpv: " + reason + " Użyj Uruchom ponownie mpv.";
-            });
-        }
-
-        private void OnMpvMessageReceived(JsonElement message)
-        {
-            if (message.TryGetProperty("event", out var ev) && ev.GetString() == "file-loaded") _fileLoaded?.TrySetResult(true);
-            if (message.TryGetProperty("event", out ev) && ev.GetString() == "end-file" && message.TryGetProperty("reason", out var reason) && reason.GetString() == "error")
-                _fileLoaded?.TrySetException(new IOException("mpv nie otworzył nagrania."));
-            if (!_closing) _ = Dispatcher.InvokeAsync(() => HandleMessage(message));
         }
 
         private async void RestartMpv_Click(object sender, RoutedEventArgs e)

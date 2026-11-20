@@ -12,6 +12,22 @@ namespace VideoPlayer
     {
         private async void MotionDetect_Click(object sender, RoutedEventArgs e)
         {
+            if (_motionTask != null) return;
+
+            _motionTask = RunMotionDetectionAsync();
+            try
+            {
+                await _motionTask;
+            }
+            finally
+            {
+                _motionTask = null;
+            }
+        }
+
+        private async Task RunMotionDetectionAsync()
+        {
+
             if (ViewModel.Motion.IsRunning || !CanOperate() || !PositionSlider.IsEnabled || string.IsNullOrWhiteSpace(_sourceFilePath))
             {
                 ViewModel.StatusMessage = "Najpierw otwórz nagranie i zakończ bieżącą operację.";
@@ -97,6 +113,8 @@ namespace VideoPlayer
             {
                 ViewModel.Motion.CompleteRun();
             }
+        }
+
         }
 
         private async void MotionPreview_Click(object sender, RoutedEventArgs e)

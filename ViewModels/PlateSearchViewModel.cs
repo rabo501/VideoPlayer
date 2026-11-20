@@ -94,6 +94,12 @@ namespace VideoPlayer.ViewModels
             }
             finally
             {
+                if (ReferenceEquals(_searchCts, cts))
+                {
+                    _searchCts.Dispose();
+                    _searchCts = null;
+                }
+
                 if (seq == Interlocked.Read(ref _searchSequence))
                     IsSearching = false;
             }
@@ -104,11 +110,19 @@ namespace VideoPlayer.ViewModels
                 ? "Znaleziono co najmniej 1000 wyników (limit listy: 1000). Zawęź kryteria."
                 : $"Znaleziono: {count} zdarzeń.";
 
+        public void CancelSearch()
+        {
+            Interlocked.Increment(ref _searchSequence);
+            _searchCts?.Cancel();
+            IsSearching = false;
+            ResultCountText = "Anulowano wyszukiwanie.";
+        }
+
         public void Dispose()
         {
-            _searchCts?.Cancel();
-            _searchCts?.Dispose();
-            _searchCts = null;
+            CancelSearch();
+            _searchProvider = null;
+            // Aktywne zadanie zwalnia własny CancellationTokenSource w bloku finally.
         }
     }
 }

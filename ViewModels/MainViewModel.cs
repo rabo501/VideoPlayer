@@ -1,10 +1,13 @@
 using System;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace VideoPlayer.ViewModels
 {
     internal sealed partial class MainViewModel : ObservableObject, IDisposable
     {
+        private bool _disposed;
+
         public MainViewModel(
             PlateOcrViewModel? plateOcr = null,
             DahuaViewModel? dahua = null,
@@ -25,11 +28,7 @@ namespace VideoPlayer.ViewModels
             History = history ?? new HistoryViewModel();
 
             Export.IsMotionRunning = Motion.IsRunning;
-            Motion.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(MotionDetectionViewModel.IsRunning))
-                    Export.IsMotionRunning = Motion.IsRunning;
-            };
+            Motion.PropertyChanged += OnMotionPropertyChanged;
         }
 
         public PlateOcrViewModel PlateOcr { get; }
@@ -44,8 +43,33 @@ namespace VideoPlayer.ViewModels
         [ObservableProperty]
         private string _statusMessage = "Uruchamianie odtwarzacza…";
 
+        private void OnMotionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(MotionDetectionViewModel.IsRunning))
+                Export.IsMotionRunning = Motion.IsRunning;
+        }
+
+        /// <summary>
+        /// Rozpoczyna anulowanie wszystkich operacji należących do ViewModeli.
+        /// Wywoływane na początku zamykania okna, zanim zostaną zwolnione zasoby.
+        /// </summary>
+        public void CancelPendingOperations()
+        {
+            Motion.Cancel();
+            PlateOcr.CancelRecognition();
+            PlateOcr.CancelSearch();
+            Export.RequestCancel();
+            PlateSearch.CancelSearch();
+        }
+
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
+
+            CancelPendingOperations();
+            Motion.PropertyChanged -= OnMotionPropertyChanged;
+
             PlateOcr.Dispose();
             Dahua.Dispose();
             Motion.Dispose();

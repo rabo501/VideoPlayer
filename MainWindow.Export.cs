@@ -117,30 +117,5 @@ namespace VideoPlayer
             });
         }
 
-        private async void Window_Closing(object? sender, CancelEventArgs e)
-        {
-            if (_allowClose) return;
-            e.Cancel = true;
-            if (_shutdownRequested) return;
-            if (_opening) { ViewModel.StatusMessage = "Poczekaj na zakończenie otwierania pliku, a następnie zamknij okno."; return; }
-            if (ViewModel.Export.IsBusy && MessageBox.Show(this, "Przerwać operację i zamknąć program? Ukończone pliki seryjne pozostaną zapisane.", "Zamykanie", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-
-            _shutdownRequested = true;
-            _saveTimer.Stop();
-            SaveSession();
-            ViewModel.PlateOcr.CancelRecognition();
-            ViewModel.PlateOcr.CancelSearch();
-            ViewModel.Export.RequestCancel();
-            _mediaInfoCts?.Cancel();
-            _mediaInfoCts?.Dispose();
-            _mediaInfoCts = null;
-            try { if (_operationTask != null) await _operationTask; } catch { }
-            try { await _mpvService.DisposeAsync(); } catch { }
-            CleanupDahuaOnClosing();
-            ViewModel.Dispose();
-            _closing = true;
-            _allowClose = true;
-            Close();
-        }
     }
 }

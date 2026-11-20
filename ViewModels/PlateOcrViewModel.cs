@@ -334,10 +334,10 @@ namespace VideoPlayer.ViewModels
 
         public void Dispose()
         {
+            // Operacje zwalniają własne źródła tokenów w blokach finally.
+            // Tutaj tylko żądamy anulowania, aby nie ścigać się z ich zakończeniem.
             _workCts?.Cancel();
-            _workCts?.Dispose();
             _searchCts?.Cancel();
-            _searchCts?.Dispose();
         }
     }
 }
