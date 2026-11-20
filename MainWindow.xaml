@@ -999,6 +999,20 @@
                                     </Border>
                                 </Expander>
 
+                                <Expander x:Name="CaseArchiveExpander" Header="Archiwum spraw" Margin="0,2,0,8" Foreground="#D8DCE4" IsExpanded="True">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Zapisane sprawy" FontSize="11" Margin="0,0,0,4" />
+                                            <ComboBox x:Name="ReportCasesBox" DisplayMemberPath="ToString" Margin="0,0,0,8" MinWidth="180" ToolTip="Wybierz sprawę zapisaną lokalnie w bazie VideoPlayer.db" />
+                                            <WrapPanel>
+                                                <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
+                                                <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
+                                            </WrapPanel>
+                                            <TextBlock x:Name="CaseArchiveStatusText" Text="Sprawy są przechowywane lokalnie. Zapis nie kopiuje ani nie modyfikuje nagrań." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+
                                 <TextBlock Text="Raport zdarzeń" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <WrapPanel>
