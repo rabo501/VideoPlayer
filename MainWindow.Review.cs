@@ -211,16 +211,23 @@ namespace VideoPlayer
             }
         }
 
-        private List<TimelineMarker> MarkerSnapshot() => _timelineMarkers.OrderBy(m => m.Seconds).Select(m => new TimelineMarker { Id = m.Id, Seconds = m.Seconds, Description = m.Description, VehicleMake = m.VehicleMake }).ToList();
+        private List<TimelineMarker> MarkerSnapshot() => _timelineMarkers.OrderBy(m => m.Seconds).Select(m => new TimelineMarker { Id = m.Id, Seconds = m.Seconds, Description = m.Description, VehicleMake = m.VehicleMake, EndSeconds = m.EndSeconds, MotionX = m.MotionX, MotionY = m.MotionY, MotionWidth = m.MotionWidth, MotionHeight = m.MotionHeight, RelatedMotionCount = m.RelatedMotionCount }).ToList();
 
         private async void CsvReport_Click(object sender, RoutedEventArgs e)
         {
             if (!CanOperate() || _timelineMarkers.Count == 0) { StatusText.Text = "Dodaj znaczniki zdarzeń do filmu."; return; }
             string source = _sourceFilePath!;
             var markers = MarkerSnapshot();
+            var metadata = CurrentReportMetadata();
+            MediaInfoData? mediaInfo = _currentMediaInfo;
+            List<ExportHistoryItem> exports = _historyService.LoadExports(source);
             string? output = ChooseOutput("Raport CSV", Path.GetFileNameWithoutExtension(source) + "_zdarzenia.csv", "csv");
             if (output == null) return;
-            await RunOperationAsync("Raport CSV", async ct => { await _reports.CsvAsync(source, markers, output, ct); return "Zapisano raport: " + output; });
+            await RunOperationAsync("Raport CSV", async ct =>
+            {
+                await _reports.CsvAsync(source, markers, output, metadata, mediaInfo, exports, ct);
+                return "Zapisano raport CSV: " + output;
+            });
         }
 
         private async void PdfReport_Click(object sender, RoutedEventArgs e)
@@ -229,13 +236,7 @@ namespace VideoPlayer
             string source = _sourceFilePath!;
             var markers = MarkerSnapshot();
             bool images = ReportThumbnailsCheckBox.IsChecked == true;
-            var metadata = new ReportMetadata
-            {
-                CaseNumber = ReportCaseNumberBox.Text.Trim(),
-                CaseTitle = ReportCaseTitleBox.Text.Trim(),
-                Location = ReportLocationBox.Text.Trim(),
-                Notes = ReportNotesBox.Text.Trim()
-            };
+            var metadata = CurrentReportMetadata();
             MediaInfoData? mediaInfo = _currentMediaInfo;
             List<ExportHistoryItem> exports = _historyService.LoadExports(source);
             string? output = ChooseOutput("Raport PDF", Path.GetFileNameWithoutExtension(source) + "_raport.pdf", "pdf");
