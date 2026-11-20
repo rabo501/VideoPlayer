@@ -21,52 +21,34 @@ namespace VideoPlayer
     {
         private async Task UpdateMediaInfoAsync(string sourcePath)
         {
+            _mediaInfoCts?.Cancel();
+            _mediaInfoCts?.Dispose();
+            var cts = new CancellationTokenSource();
+            _mediaInfoCts = cts;
+            CancellationToken token = cts.Token;
+
             try
             {
-                MediaInfoData info = await _mediaInfoService.ReadAsync(sourcePath);
+                MediaInfoData info = await _mediaInfoService.ReadAsync(sourcePath, token);
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    if (_closing || !string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase))
+                    if (_closing || token.IsCancellationRequested || !string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase))
                         return;
-                    _currentMediaInfo = info;
-                    UpdateEstimatedSizeText();
+                    ViewModel.Export.SetMediaInfo(info, sourcePath);
                 });
+            }
+            catch (OperationCanceledException)
+            {
+                // Replaced by a newer file open or shutdown.
             }
             catch (Exception ex)
             {
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    if (!_closing && string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase))
-                        MediaInfoText.Text = "Nie udało się odczytać parametrów: " + ex.Message;
+                    if (!_closing && !token.IsCancellationRequested && string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase))
+                        ViewModel.Export.SetMediaInfoError(ex.Message);
                 });
             }
-        }
-
-        private void UpdateEstimatedSizeText()
-        {
-            if (_currentMediaInfo == null || string.IsNullOrWhiteSpace(_sourceFilePath)) return;
-            double fullDuration = _currentMediaInfo.Duration;
-            bool hasRange = _clipStart.HasValue && _clipEnd.HasValue && _clipEnd.Value > _clipStart.Value;
-            double selectedDuration = hasRange ? _clipEnd!.Value - _clipStart!.Value : fullDuration;
-            string estimate = fullDuration > 0
-                ? FormatFileSize((long)(_currentMediaInfo.FileSize * Math.Clamp(selectedDuration / fullDuration, 0, 1)))
-                : "nie można oszacować";
-            string rangeLabel = hasRange ? $"zaznaczenie ({FormatTime(selectedDuration)})" : "całe nagranie";
-            MediaInfoText.Text =
-                $"Źródło: {_currentMediaInfo.VideoCodec}, {_currentMediaInfo.Resolution}, {_currentMediaInfo.Fps} FPS, bitrate {_currentMediaInfo.Bitrate}, audio: {_currentMediaInfo.AudioCodec}; " +
-                $"czas {FormatTime(fullDuration)}, rozmiar {FormatFileSize(_currentMediaInfo.FileSize)}.\n" +
-                $"Szacowany rozmiar {rangeLabel} przy podobnym bitrate: około {estimate}. To przybliżenie; rozmiar MP4 po ponownym kodowaniu może się różnić." +
-                (string.IsNullOrWhiteSpace(_lastExportSummary) ? "" : "\n" + _lastExportSummary);
-        }
-
-        private static string FormatFileSize(long bytes)
-        {
-            if (bytes < 0) bytes = 0;
-            string[] units = { "B", "KB", "MB", "GB", "TB" };
-            double size = bytes;
-            int unit = 0;
-            while (size >= 1024 && unit < units.Length - 1) { size /= 1024; unit++; }
-            return $"{size:0.##} {units[unit]}";
         }
 
         private void LoadHistory()

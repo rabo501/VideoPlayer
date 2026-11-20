@@ -15,11 +15,14 @@ using System.Windows.Input;
 using System.Windows.Navigation;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
+using VideoPlayer.Services;
+using VideoPlayer.ViewModels;
 
 namespace VideoPlayer
 {
     public partial class MainWindow : Window
     {
+        internal MainViewModel ViewModel { get; } = new();
         private readonly Forms.Panel _videoPanel = new() { BackColor = System.Drawing.Color.Black, Dock = Forms.DockStyle.Fill };
         private MpvService _mpvService = new();
         private readonly FfmpegService _ffmpegService = new();
@@ -31,44 +34,39 @@ namespace VideoPlayer
         private CaseRepository _cases = null!;
         private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(3) };
         private readonly List<string> _recentFiles = new(), _recentScreenshots = new();
-        private readonly List<TimelineMarker> _timelineMarkers = new();
         private readonly List<Button> _markerButtons = new();
         private readonly List<Border> _motionRangeBands = new();
-        private readonly ObservableCollection<ClipRange> _clips = new();
+        private readonly string _displayVersion = "1.7.0";
         private bool _ready, _closing, _dragging, _updatingSlider, _eofReached, _paused = true, _opening, _restoring, _shutdownRequested, _allowClose;
-        private bool _exporting, _screenshotBusy, _changingScale;
+        private bool _screenshotBusy, _changingScale;
         private string _fileName = "";
         private string? _sourceFilePath;
-        private double? _clipStart, _clipEnd;
         private double _zoom, _panX, _panY, _panscan;
-        private MediaInfoData? _currentMediaInfo;
-        private string? _lastExportSummary;
         private Task? _operationTask;
-        private CancellationTokenSource? _operationCts;
+        private CancellationTokenSource? _mediaInfoCts;
         private TaskCompletionSource<bool>? _fileLoaded;
 
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = ViewModel;
             Assembly assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
             Version? appVersion = assembly.GetName().Version;
-            string displayVersion = appVersion == null ? "1.7.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
+            _displayVersion = appVersion == null ? "1.7.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
             AssemblyInformationalVersionAttribute? informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
-            string productVersion = !string.IsNullOrWhiteSpace(informational?.InformationalVersion) ? informational!.InformationalVersion : displayVersion;
+            string productVersion = !string.IsNullOrWhiteSpace(informational?.InformationalVersion) ? informational!.InformationalVersion : _displayVersion;
 
-            Title = $"VideoPlayer {displayVersion} — analiza nagrań";
-            AboutVersionText.Text = $"VideoPlayer — wersja {displayVersion}";
+            Title = $"VideoPlayer {_displayVersion} — analiza nagrań";
+            AboutVersionText.Text = $"VideoPlayer — wersja {_displayVersion}";
             AboutAuthorVersionText.Text = $"Autor: Rafał Bonna  •  Wydanie: {productVersion}  •  Architektura: {RuntimeInformation.ProcessArchitecture}  •  © {DateTime.Now.Year}";
 
             VideoHost.Child = _videoPanel;
             InitializeDahuaHost();
             InitializeOcrOverlayHandles();
-            ClipRangesListBox.ItemsSource = _clips;
-            UpdateRangeHint();
             PreviewKeyDown += OnPreviewKeyDown;
             SizeChanged += (_, __) => ConstrainToolsWidth();
             _saveTimer.Tick += (_, __) => SaveSession();
-            Closed += (_, __) => { _motionDetectionCts?.Cancel(); _mouseSendTimer.Stop(); _videoMouse?.Dispose(); };
+            Closed += (_, __) => { ViewModel.Motion.Cancel(); _mouseSendTimer.Stop(); _videoMouse?.Dispose(); };
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -76,6 +74,7 @@ namespace VideoPlayer
             try
             {
                 _historyService = new HistoryService();
+                ViewModel.PlateSearch.AttachSearchProvider((plate, make, source) => _historyService.SearchMarkers(plate, make, source));
                 _cases = new CaseRepository();
                 RefreshCaseArchiveList();
                 _reviews = new ReviewRepository();
@@ -130,7 +129,7 @@ namespace VideoPlayer
 
         private async void RestartMpv_Click(object sender, RoutedEventArgs e)
         {
-            if (_exporting || _opening || _shutdownRequested) return;
+            if (ViewModel.Export.IsBusy || _opening || _shutdownRequested) return;
             SaveSession();
             _ready = false;
             _opening = true;
@@ -209,9 +208,9 @@ namespace VideoPlayer
                     PanX = _panX,
                     PanY = _panY,
                     Panscan = _panscan,
-                    ClipStart = _clipStart,
-                    ClipEnd = _clipEnd,
-                    Clips = new List<ClipRange>(_clips)
+                    ClipStart = ViewModel.Export.ClipStart,
+                    ClipEnd = ViewModel.Export.ClipEnd,
+                    Clips = new List<ClipRange>(ViewModel.Export.Clips)
                 });
                 if (show) StatusText.Text = "Sesja została zapisana.";
             }

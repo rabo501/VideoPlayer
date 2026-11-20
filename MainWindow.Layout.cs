@@ -60,7 +60,7 @@ namespace VideoPlayer
             _switchingWorkspace = true;
             try
             {
-                if (mode != WorkspaceMode.PlateOcr && _ocrActive)
+                if (mode != WorkspaceMode.PlateOcr && ViewModel.PlateOcr.IsActive)
                 {
                     ResetOcrWorkspaceState(silent: true);
                 }
@@ -116,10 +116,10 @@ namespace VideoPlayer
 
         private void SwitchToPlayerMode_Click(object sender, RoutedEventArgs e)
         {
-            if (_ocrBusy)
+            if (ViewModel.PlateOcr.IsBusy)
             {
                 StatusText.Text = "Poczekaj na zatrzymanie bieżącego rozpoznawania OCR.";
-                _ocrWorkCts?.Cancel();
+                ViewModel.PlateOcr.CancelRecognition();
                 return;
             }
             int? targetTab = ToolsTabs.SelectedIndex == 3 ? 0 : null;

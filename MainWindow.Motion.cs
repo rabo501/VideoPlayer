@@ -1,24 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace VideoPlayer
 {
     public partial class MainWindow
     {
-        private readonly MotionDetectionService _motionDetectionService = new();
-        private CancellationTokenSource? _motionDetectionCts;
-        private bool _motionDetectionRunning;
-
         private async void MotionDetect_Click(object sender, RoutedEventArgs e)
         {
-            if (_motionDetectionRunning || !CanOperate() || !PositionSlider.IsEnabled || string.IsNullOrWhiteSpace(_sourceFilePath))
+            if (ViewModel.Motion.IsRunning || !CanOperate() || !PositionSlider.IsEnabled || string.IsNullOrWhiteSpace(_sourceFilePath))
             {
                 StatusText.Text = "Najpierw otwórz nagranie i zakończ bieżącą operację.";
                 return;
@@ -42,52 +36,57 @@ namespace VideoPlayer
             }
             finally { try { if (File.Exists(preview)) File.Delete(preview); } catch { } }
 
-            _motionDetectionRunning = true;
-            _motionDetectionCts = new CancellationTokenSource();
-            MotionDetectButton.IsEnabled = false;
-            MotionCancelButton.Visibility = Visibility.Visible;
-            MotionCancelButton.IsEnabled = true;
-            ExportProgressBar.Visibility = Visibility.Visible;
-            ExportProgressBar.Value = 0;
-            ExportProgressText.Visibility = Visibility.Visible;
-            ExportProgressText.Text = "Przygotowanie analizy…";
+            CancellationToken token = ViewModel.Motion.BeginRun();
+            ViewModel.Export.SetExternalProgress("Wykrywanie ruchu", 0, ViewModel.Motion.ProgressText);
+
             var progress = new Progress<double>(value =>
             {
-                if (_closing || !_motionDetectionRunning) return;
-                ExportProgressBar.Value = value;
-                ExportProgressText.Text = $"Analiza ruchu: {value:0}%";
+                if (_closing || !ViewModel.Motion.IsRunning || !ViewModel.Motion.IsCurrentToken(token)) return;
+                ViewModel.Motion.ProgressPercent = value;
+                ViewModel.Motion.ProgressText = $"Analiza ruchu: {value:0}%";
+                ViewModel.Export.SetExternalProgress("Wykrywanie ruchu", value, ViewModel.Motion.ProgressText);
             });
 
             try
             {
-                List<MotionDetectionService.MotionEvent> found = await _motionDetectionService.AnalyzeAsync(
-                    Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"), source, duration,
-                    settings!.PixelThreshold, settings.ChangedAreaPercent, settings.MinimumDuration, settings.Region,
-                    progress, _motionDetectionCts.Token);
+                List<MotionDetectionService.MotionEvent> found = await ViewModel.Motion.Service.AnalyzeAsync(
+                    Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"),
+                    source,
+                    duration,
+                    settings!.PixelThreshold,
+                    settings.ChangedAreaPercent,
+                    settings.MinimumDuration,
+                    settings.Region,
+                    progress,
+                    token);
+
                 if (_closing || !string.Equals(source, _sourceFilePath, StringComparison.OrdinalIgnoreCase)) return;
-                foreach (var item in found)
-                    _timelineMarkers.Add(new TimelineMarker
-                    {
-                        Id = Guid.NewGuid(),
-                        Seconds = Math.Clamp(item.StartSeconds, 0, PositionSlider.Maximum),
-                        EndSeconds = Math.Clamp(item.EndSeconds, 0, PositionSlider.Maximum),
-                        MotionX = item.MotionX,
-                        MotionY = item.MotionY,
-                        MotionWidth = item.MotionWidth,
-                        MotionHeight = item.MotionHeight,
-                        Description = $"Ruch ({item.PeakChangedRatio:0.0}% zaznaczonego obszaru)"
-                    });
+
+                var addedMarkers = found.Select(item => new TimelineMarker
+                {
+                    Id = Guid.NewGuid(),
+                    Seconds = Math.Clamp(item.StartSeconds, 0, PositionSlider.Maximum),
+                    EndSeconds = Math.Clamp(item.EndSeconds, 0, PositionSlider.Maximum),
+                    MotionX = item.MotionX,
+                    MotionY = item.MotionY,
+                    MotionWidth = item.MotionWidth,
+                    MotionHeight = item.MotionHeight,
+                    Description = $"Ruch ({item.PeakChangedRatio:0.0}% zaznaczonego obszaru)"
+                }).ToList();
+
+                ViewModel.EventCenter.AddMarkers(addedMarkers);
                 SaveTimelineMarkers();
-                RefreshTimelineMarkerList();
                 UpdateTimelineOverlay();
-                ExportProgressBar.Value = 100;
-                ExportProgressText.Text = "Analiza zakończona";
-                StatusText.Text = found.Count == 0 ? "Analiza zakończona. Nie wykryto ruchu." : $"Wykrywanie ruchu zakończone. Znaleziono {found.Count} zdarzeń.";
+
+                ViewModel.Export.SetExternalProgress("Wykrywanie ruchu", 100, "Analiza zakończona");
+                StatusText.Text = found.Count == 0
+                    ? "Analiza zakończona. Nie wykryto ruchu."
+                    : $"Wykrywanie ruchu zakończone. Znaleziono {found.Count} zdarzeń.";
             }
             catch (OperationCanceledException)
             {
                 StatusText.Text = "Analiza ruchu została anulowana.";
-                ExportProgressText.Text = "Anulowano";
+                ViewModel.Export.SetExternalProgress("Wykrywanie ruchu", ViewModel.Motion.ProgressPercent, "Anulowano");
             }
             catch (Exception ex)
             {
@@ -96,14 +95,13 @@ namespace VideoPlayer
             }
             finally
             {
-                _motionDetectionCts?.Dispose(); _motionDetectionCts = null; _motionDetectionRunning = false;
-                if (!_closing) { MotionDetectButton.IsEnabled = true; MotionCancelButton.Visibility = Visibility.Collapsed; MotionCancelButton.IsEnabled = false; }
+                ViewModel.Motion.CompleteRun();
             }
         }
 
         private async void MotionPreview_Click(object sender, RoutedEventArgs e)
         {
-            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker marker)
+            if (ViewModel.EventCenter.SelectedMarker is not TimelineMarker marker)
             {
                 MessageBox.Show(this, "Wybierz zdarzenie z listy.", "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -114,27 +112,24 @@ namespace VideoPlayer
                 MessageBox.Show(this, "To zdarzenie nie ma zapisanego obszaru ruchu. Podgląd jest dostępny dla zdarzeń wykrytych po tej aktualizacji.", "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            string preview = Path.Combine(Path.GetTempPath(), "VideoPlayer_motion_preview_" + Guid.NewGuid().ToString("N") + ".jpg");
+            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
+            {
+                MessageBox.Show(this, "Najpierw otwórz nagranie.", "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             try
             {
                 string ffmpeg = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-                var psi = new ProcessStartInfo { FileName = ffmpeg, UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
-                foreach (string arg in new[] { "-hide_banner", "-loglevel", "error", "-ss", marker.Seconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), "-i", _sourceFilePath!, "-frames:v", "1", "-q:v", "2", "-y", preview }) psi.ArgumentList.Add(arg);
-                using var process = Process.Start(psi) ?? throw new InvalidOperationException("Nie udało się uruchomić FFmpeg.");
-                string error = await process.StandardError.ReadToEndAsync();
-                await process.WaitForExitAsync();
-                if (process.ExitCode != 0 || !File.Exists(preview)) throw new IOException("Nie udało się pobrać klatki zdarzenia. " + error.Trim());
-                new MotionEventPreviewWindow(preview, x, y, w, h) { Owner = this }.ShowDialog();
+                byte[] bmpBytes = await MotionDetectionService.ExtractPreviewBmpAsync(ffmpeg, _sourceFilePath, marker.Seconds);
+                if (_closing) return;
+                new MotionEventPreviewWindow(bmpBytes, x, y, w, h) { Owner = this }.ShowDialog();
             }
-            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Warning); }
-            finally { try { if (File.Exists(preview)) File.Delete(preview); } catch { } }
-        }
-
-        private void MotionCancel_Click(object sender, RoutedEventArgs e)
-        {
-            _motionDetectionCts?.Cancel();
-            MotionCancelButton.IsEnabled = false;
-            StatusText.Text = "Anulowanie analizy ruchu…";
+            catch (Exception ex)
+            {
+                if (!_closing)
+                    MessageBox.Show(this, ex.Message, "Podgląd ruchu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 }

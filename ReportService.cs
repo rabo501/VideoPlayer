@@ -1,5 +1,6 @@
 using System.Linq;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -90,17 +91,22 @@ namespace VideoPlayer
             string generatedBy=GetReportUser();
             string scratch=Path.Combine(Path.GetTempPath(),"VideoPlayerReport_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(scratch);
             string temp=ExportService.Temporary(output);
-            var images=new Dictionary<Guid,string>();
+            var images=new ConcurrentDictionary<Guid,string>();
             try
             {
-                if(thumbnails)
+                if(thumbnails&&markers.Count>0)
                 {
-                    for(int i=0;i<markers.Count;i++)
+                    int completed=0;
+                    int maxDegree=Math.Clamp(Environment.ProcessorCount/2,2,4);
+                    var jobs=markers.Select((marker,index)=>(Index:index,Marker:marker));
+                    await Parallel.ForEachAsync(jobs,new ParallelOptions{MaxDegreeOfParallelism=maxDegree,CancellationToken=ct},async (job,token)=>
                     {
-                        ct.ThrowIfCancellationRequested();var marker=markers[i];string jpg=Path.Combine(scratch,i+".jpg");
-                        await _ffmpeg.ThumbnailAsync(source,marker.Seconds,jpg,ct).ConfigureAwait(false);images[marker.Id]=jpg;
-                        progress.Report(new((i+1.0)/markers.Count*85,$"Miniatura {i+1}/{markers.Count}"));
-                    }
+                        string jpg=Path.Combine(scratch,job.Index.ToString(CultureInfo.InvariantCulture)+".jpg");
+                        await _ffmpeg.ThumbnailAsync(source,job.Marker.Seconds,jpg,token).ConfigureAwait(false);
+                        images[job.Marker.Id]=jpg;
+                        int done=Interlocked.Increment(ref completed);
+                        progress.Report(new(done*85.0/markers.Count,$"Miniatura {done}/{markers.Count}"));
+                    }).ConfigureAwait(false);
                 }
                 // WPF-backed PDFsharp is used on a dedicated STA thread, not the UI thread.
                 await RunStaAsync(()=>WritePdf(source,markers,temp,images,generatedBy,metadata,mediaInfo,exports,ct)).ConfigureAwait(false);
@@ -191,34 +197,38 @@ namespace VideoPlayer
             string scratch = Path.Combine(Path.GetTempPath(), "VideoPlayerCaseReport_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(scratch);
             string temp = ExportService.Temporary(output);
-            var images = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var images = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                int total = sources.Sum(s => s.Markers.Count);
+                var jobs = new List<(int Index, string SourcePath, TimelineMarker Marker)>();
+                int jobIndex = 0;
+                foreach (CaseReportSource source in sources)
+                {
+                    foreach (TimelineMarker marker in source.Markers)
+                        jobs.Add((jobIndex++, source.Path, marker));
+                }
+
+                int total = jobs.Count;
                 int completed = 0;
                 if (thumbnails && total > 0)
                 {
-                    foreach (CaseReportSource source in sources)
+                    int maxDegree = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
+                    await Parallel.ForEachAsync(jobs, new ParallelOptions { MaxDegreeOfParallelism = maxDegree, CancellationToken = ct }, async (job, token) =>
                     {
-                        foreach (TimelineMarker marker in source.Markers)
+                        if (File.Exists(job.SourcePath))
                         {
-                            ct.ThrowIfCancellationRequested();
-                            if (File.Exists(source.Path))
+                            string jpg = Path.Combine(scratch, job.Index.ToString(CultureInfo.InvariantCulture) + ".jpg");
+                            try
                             {
-                                string jpg = Path.Combine(scratch, completed.ToString(CultureInfo.InvariantCulture) + ".jpg");
-                                try
-                                {
-                                    await _ffmpeg.ThumbnailAsync(source.Path, marker.Seconds, jpg, ct).ConfigureAwait(false);
-                                    images[ImageKey(source.Path, marker.Id)] = jpg;
-                                }
-                                catch (OperationCanceledException) { throw; }
-                                catch { /* A missing or damaged frame must not prevent the case report. */ }
+                                await _ffmpeg.ThumbnailAsync(job.SourcePath, job.Marker.Seconds, jpg, token).ConfigureAwait(false);
+                                images[ImageKey(job.SourcePath, job.Marker.Id)] = jpg;
                             }
-                            completed++;
-                            progress.Report(new(total == 0 ? 85 : completed * 85.0 / total,
-                                $"Miniatury {completed}/{total}"));
+                            catch (OperationCanceledException) { throw; }
+                            catch { /* A missing or damaged frame must not prevent the case report. */ }
                         }
-                    }
+                        int done = Interlocked.Increment(ref completed);
+                        progress.Report(new(done * 85.0 / total, $"Miniatury {done}/{total}"));
+                    }).ConfigureAwait(false);
                 }
                 await RunStaAsync(() => WriteCasePdf(sources, temp, images, generatedBy, metadata, ct)).ConfigureAwait(false);
                 ExportService.Commit(temp, output, ct);
@@ -304,7 +314,7 @@ namespace VideoPlayer
             var thread=new Thread(()=>{try{work();done.TrySetResult(true);}catch(OperationCanceledException){done.TrySetCanceled();}catch(Exception e){done.TrySetException(e);}}){IsBackground=true};
             thread.SetApartmentState(ApartmentState.STA);thread.Start();return done.Task;
         }
-        private static void WritePdf(string source,List<TimelineMarker> markers,string temp,Dictionary<Guid,string> images,string generatedBy,ReportMetadata metadata,MediaInfoData? mediaInfo,List<ExportHistoryItem> exports,CancellationToken ct)
+        private static void WritePdf(string source,List<TimelineMarker> markers,string temp,IReadOnlyDictionary<Guid,string> images,string generatedBy,ReportMetadata metadata,MediaInfoData? mediaInfo,List<ExportHistoryItem> exports,CancellationToken ct)
         {
             using var doc=new PdfDocument();doc.Info.Title="VideoPlayer — raport zdarzeń";doc.Info.Author=generatedBy;
             var options=new XPdfFontOptions(PdfFontEncoding.Unicode);
@@ -416,7 +426,7 @@ namespace VideoPlayer
         }
 
         private static void WriteCasePdf(List<CaseReportSource> sources, string temp,
-            Dictionary<string, string> images, string generatedBy, ReportMetadata metadata, CancellationToken ct)
+            IReadOnlyDictionary<string, string> images, string generatedBy, ReportMetadata metadata, CancellationToken ct)
         {
             using var doc = new PdfDocument();
             doc.Info.Title = "VideoPlayer — raport sprawy";

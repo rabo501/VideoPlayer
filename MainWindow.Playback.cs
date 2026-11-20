@@ -43,13 +43,13 @@ namespace VideoPlayer
         }
         private async void Open_Click(object sender,RoutedEventArgs e)
         {
-            if(!_ready||_opening||_exporting||_motionDetectionRunning||_shutdownRequested){StatusText.Text="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
+            if(!_ready||_opening||ViewModel.Export.IsBusy||ViewModel.Motion.IsRunning||_shutdownRequested){StatusText.Text="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
             var d=new Microsoft.Win32.OpenFileDialog{Title="Wybierz film",Filter="Pliki wideo|*.mp4;*.mkv;*.avi;*.mov;*.webm;*.m4v;*.wmv;*.ts|Wszystkie pliki|*.*"};
             if(d.ShowDialog(this)==true)await OpenMediaAsync(d.FileName);
         }
         private async Task OpenMediaAsync(string path)
         {
-            if(!_ready||_opening||_exporting||_shutdownRequested)return;
+            if(!_ready||_opening||ViewModel.Export.IsBusy||_shutdownRequested)return;
             if(!File.Exists(path)){StatusText.Text="Plik nie istnieje.";return;}
             SetWorkspaceMode(WorkspaceMode.Player);
             SaveSession();_opening=true;
@@ -59,7 +59,7 @@ namespace VideoPlayer
                 try{session=_reviews.Load(path);}catch(Exception ex){MessageBox.Show(this,"Nie odczytano sesji: "+ex.Message,"Sesja");}
                 _fileLoaded=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 await _mpvService.SendAsync("set_property","pause",true);
-                _sourceFilePath=path;_fileName=Path.GetFileName(path);_clipStart=null;_clipEnd=null;_currentMediaInfo=null;_lastExportSummary=null;_clips.Clear();
+                _sourceFilePath=path;_fileName=Path.GetFileName(path);ViewModel.Export.ResetForNewMedia(path);
                 _updatingSlider=true;PositionSlider.Value=0;PositionSlider.Maximum=1;PositionSlider.IsEnabled=false;_updatingSlider=false;
                 _eofReached=false;_dragging=false;
                 await _mpvService.SendAsync("loadfile",path,"replace");
@@ -73,11 +73,13 @@ namespace VideoPlayer
                 try
                 {
                     // Named ranges belong to the media, independent of the optional playback restoration.
-                    if(session!=null)foreach(var c in session.Clips??new())if(double.IsFinite(c.Start)&&double.IsFinite(c.End)&&c.Start>=0&&c.End>c.Start&&c.End<=length)_clips.Add(c);
+                    if(session!=null)foreach(var c in session.Clips??new())if(double.IsFinite(c.Start)&&double.IsFinite(c.End)&&c.Start>=0&&c.End>c.Start&&c.End<=length)ViewModel.Export.Clips.Add(c);
                     if(restore)
                     {
-                        if(session!.ClipStart is double a&&double.IsFinite(a)&&a>=0&&a<=length)_clipStart=a;
-                        if(session.ClipEnd is double b&&double.IsFinite(b)&&_clipStart.HasValue&&b>_clipStart.Value&&b<=length)_clipEnd=b;
+                        double? restoredStart=null,restoredEnd=null;
+                        if(session!.ClipStart is double a&&double.IsFinite(a)&&a>=0&&a<=length)restoredStart=a;
+                        if(session.ClipEnd is double b&&double.IsFinite(b)&&restoredStart.HasValue&&b>restoredStart.Value&&b<=length)restoredEnd=b;
+                        ViewModel.Export.SetClipRange(restoredStart,restoredEnd);
                         foreach(ComboBoxItem item in SpeedBox.Items)if(double.TryParse(item.Tag?.ToString(),NumberStyles.Float,CultureInfo.InvariantCulture,out double speed)&&Math.Abs(speed-session.Speed)<0.001){SpeedBox.SelectedItem=item;break;}
                         await SetViewAsync(Math.Clamp(Finite(session.Zoom),0,4),Math.Clamp(Finite(session.PanX),-4,4),Math.Clamp(Finite(session.PanY),-4,4),Math.Clamp(Finite(session.Panscan),0,1));
                         await _mpvService.SendAsync("seek",Math.Clamp(Finite(session.Position),0,Math.Max(0,length-0.001)),"absolute+exact");
@@ -91,14 +93,14 @@ namespace VideoPlayer
                     PlayButton.Content=_paused?"Play":"Pauza";
                 }
                 finally{_restoring=false;}
-                RefreshRanges();UpdateClipRangeText();
-                MediaInfoText.Text="Odczytywanie parametrów…";_=UpdateMediaInfoAsync(path);
-                Title="VideoPlayer 1.5.0 — "+_fileName;
+                ViewModel.Export.RefreshClipTexts();UpdateTimelineOverlay();
+                _=UpdateMediaInfoAsync(path);
+                Title=$"VideoPlayer {_displayVersion} — "+_fileName;
                 StatusText.Text=restore?"Przywrócono sesję: "+_fileName:_fileName;
             }
             catch(Exception ex)
             {
-                _clipStart=null;_clipEnd=null;_sourceFilePath=null;_clips.Clear();RefreshRanges();
+                _sourceFilePath=null;ViewModel.Export.ResetForNewMedia(null);UpdateTimelineOverlay();
                 PositionSlider.IsEnabled=false;StatusText.Text="Nie otwarto filmu: "+ex.Message;
                 MessageBox.Show(this,ex.Message,"Otwieranie filmu");
             }

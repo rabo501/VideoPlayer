@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Forms = System.Windows.Forms;
+using VideoPlayer.Services;
 
 namespace VideoPlayer
 {
@@ -153,7 +154,7 @@ namespace VideoPlayer
                 MediaInfoData? info = null;
                 if (File.Exists(path))
                 {
-                    try { info = await _mediaInfoService.ReadAsync(path).ConfigureAwait(false); }
+                    try { info = await _mediaInfoService.ReadAsync(path, ct).ConfigureAwait(false); }
                     catch (OperationCanceledException) { throw; }
                     catch { /* A technical-info error for one source must not block the case report. */ }
                 }
@@ -176,24 +177,10 @@ namespace VideoPlayer
             Notes = record.Notes
         };
 
-        private void RefreshRanges()
-        {
-            if (!ReferenceEquals(ClipRangesListBox.ItemsSource, _clips)) ClipRangesListBox.ItemsSource = _clips;
-            UpdateRangeHint();
-        }
-
-        private void UpdateRangeHint()
-        {
-            if (RangeFeedbackText == null) return;
-            string a = _clipStart.HasValue ? TimeSpan.FromSeconds(_clipStart.Value).ToString(@"hh\:mm\:ss\.fff") : "nie ustawiono";
-            string b = _clipEnd.HasValue ? TimeSpan.FromSeconds(_clipEnd.Value).ToString(@"hh\:mm\:ss\.fff") : "nie ustawiono";
-            RangeFeedbackText.Text = $"Początek: {a} | Koniec: {b} | Fragmenty: {_clips.Count}";
-        }
-
         private ClipRange? RangeError(string text)
         {
             StatusText.Text = text;
-            RangeFeedbackText.Text = text;
+            ViewModel.Export.SetRangeErrorText(text);
             MessageBox.Show(this, text, "Lista fragmentów", MessageBoxButton.OK, MessageBoxImage.Information);
             return null;
         }
@@ -203,46 +190,48 @@ namespace VideoPlayer
             if (_shutdownRequested) return RangeError("Program jest zamykany.");
             if (_opening) return RangeError("Trwa otwieranie filmu. Poczekaj, aż zostanie wczytany.");
             if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath)) return RangeError("Najpierw otwórz film.");
-            string? error = ClipRangeValidator.Error(_clipStart, _clipEnd, PositionSlider.Maximum);
+            string? error = ClipRangeValidator.Error(ViewModel.Export.ClipStart, ViewModel.Export.ClipEnd, PositionSlider.Maximum);
             if (error != null) return RangeError(error);
-            string name = ClipNameBox.Text.Trim();
-            if (name.Length == 0) { name = $"Fragment {_clips.Count + 1}"; ClipNameBox.Text = name; }
-            return new ClipRange { Name = name, Start = _clipStart!.Value, End = _clipEnd!.Value };
+            string name = ViewModel.Export.ClipName.Trim();
+            if (name.Length == 0)
+            {
+                name = $"Fragment {ViewModel.Export.Clips.Count + 1}";
+                ViewModel.Export.ClipName = name;
+            }
+            return new ClipRange
+            {
+                Name = name,
+                Start = ViewModel.Export.ClipStart!.Value,
+                End = ViewModel.Export.ClipEnd!.Value
+            };
         }
 
         private void AddRange_Click(object sender, RoutedEventArgs e)
         {
             var range = CurrentRange();
             if (range == null) return;
-            _clips.Add(range);
-            RefreshRanges();
-            ClipRangesListBox.SelectedItem = range;
+            ViewModel.Export.AddClip(range);
             ClipRangesListBox.ScrollIntoView(range);
-            StatusText.Text = $"Dodano fragment: {range.Name}. Liczba fragmentów: {_clips.Count}.";
+            StatusText.Text = $"Dodano fragment: {range.Name}. Liczba fragmentów: {ViewModel.Export.Clips.Count}.";
             SaveSession();
         }
 
         private void UpdateRange_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipRangesListBox.SelectedItem is not ClipRange selected) { RangeError("Najpierw wybierz fragment na liście."); return; }
+            if (ViewModel.Export.SelectedClip is not ClipRange selected) { RangeError("Najpierw wybierz fragment na liście."); return; }
             var range = CurrentRange();
             if (range == null) return;
-            int i = _clips.IndexOf(selected);
-            if (i < 0) { RangeError("Wybrany fragment nie jest już na liście."); return; }
-            _clips[i] = range;
-            RefreshRanges();
-            ClipRangesListBox.SelectedItem = range;
+            if (!ViewModel.Export.ReplaceClip(selected, range)) { RangeError("Wybrany fragment nie jest już na liście."); return; }
             StatusText.Text = "Zaktualizowano fragment: " + range.Name;
             SaveSession();
         }
 
         private async void LoadRange_Click(object sender, RoutedEventArgs e)
         {
-            if (_opening || _shutdownRequested || ClipRangesListBox.SelectedItem is not ClipRange c) return;
-            _clipStart = c.Start;
-            _clipEnd = c.End;
-            ClipNameBox.Text = c.Name;
-            UpdateClipRangeText();
+            if (_opening || _shutdownRequested || ViewModel.Export.SelectedClip is not ClipRange c) return;
+            ViewModel.Export.ClipName = c.Name;
+            ViewModel.Export.SetClipRange(c.Start, c.End);
+            UpdateTimelineOverlay();
             await SendAsync("set_property", "pause", true);
             await SeekAsync(c.Start);
             SaveSession();
@@ -250,27 +239,18 @@ namespace VideoPlayer
 
         private void DeleteRange_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipRangesListBox.SelectedItem is not ClipRange c) return;
-            _clips.Remove(c);
-            RefreshRanges();
+            if (ViewModel.Export.SelectedClip is not ClipRange c) return;
+            ViewModel.Export.RemoveClip(c);
             SaveSession();
-        }
-
-        private static string SafeName(string s)
-        {
-            foreach (char c in Path.GetInvalidFileNameChars()) s = s.Replace(c, '_');
-            s = s.Trim().TrimEnd('.');
-            if (s.Length > 70) s = s.Substring(0, 70);
-            return s.Length == 0 ? "fragment" : s;
         }
 
         private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanOperate() || _clips.Count == 0) { StatusText.Text = "Dodaj fragmenty do listy."; return; }
-            string source = _sourceFilePath!, profile = SelectedProfile;
-            bool copy = StreamCopyCheckBox.IsChecked == true;
+            if (!CanOperate() || ViewModel.Export.Clips.Count == 0) { StatusText.Text = "Dodaj fragmenty do listy."; return; }
+            string source = _sourceFilePath!, profile = ViewModel.Export.SelectedProfileTag;
+            bool copy = ViewModel.Export.UseStreamCopy;
             if (!ConfirmCopy(copy)) return;
-            List<ClipRange> clips = _clips.Select(c => new ClipRange { Name = c.Name, Start = c.Start, End = c.End }).ToList();
+            List<ClipRange> clips = ViewModel.Export.Clips.Select(c => new ClipRange { Name = c.Name, Start = c.Start, End = c.End }).ToList();
             using var dialog = new Forms.FolderBrowserDialog { Description = "Wybierz folder nadrzędny eksportu", UseDescriptionForTitle = true };
             if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
             string folder = Path.Combine(dialog.SelectedPath, "VideoPlayer_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6));
@@ -281,9 +261,9 @@ namespace VideoPlayer
                 {
                     ct.ThrowIfCancellationRequested();
                     ClipRange c = clips[i];
-                    string output = Path.Combine(folder, $"{i + 1:000}_{SafeName(c.Name)}.mp4");
+                    string output = Path.Combine(folder, $"{i + 1:000}_{ExportWorkspaceService.SanitizeFileName(c.Name)}.mp4");
                     await _exports.ExportAsync(source, output, c.Start, c.End, profile, copy, OperationProgress(ct, $"Plik {i + 1}/{clips.Count}: ", i, clips.Count), ct);
-                    RecordExport(source, output, "Eksport seryjny", c.Start, c.End, $"Fragment: {c.Name}; profil: {profile}; kopiowanie strumieni: {(copy ? "tak" : "nie")}; rozmiar: {FormatFileSize(new FileInfo(output).Length)}");
+                    RecordExport(source, output, "Eksport seryjny", c.Start, c.End, $"Fragment: {c.Name}; profil: {profile}; kopiowanie strumieni: {(copy ? "tak" : "nie")}; rozmiar: {ExportWorkspaceService.FormatFileSize(new FileInfo(output).Length)}");
                 }
                 return $"Zapisano {clips.Count} fragmentów: {folder}";
             });
@@ -310,7 +290,7 @@ namespace VideoPlayer
             }
         }
 
-        private List<TimelineMarker> MarkerSnapshot() => _timelineMarkers.OrderBy(m => m.Seconds).Select(m => new TimelineMarker { Id = m.Id, Seconds = m.Seconds, Description = m.Description, VehicleMake = m.VehicleMake, EndSeconds = m.EndSeconds, MotionX = m.MotionX, MotionY = m.MotionY, MotionWidth = m.MotionWidth, MotionHeight = m.MotionHeight, RelatedMotionCount = m.RelatedMotionCount }).ToList();
+        private List<TimelineMarker> MarkerSnapshot() => ViewModel.EventCenter.BuildSortedSnapshot();
 
         private async void CsvReport_Click(object sender, RoutedEventArgs e)
         {
@@ -320,14 +300,14 @@ namespace VideoPlayer
                 StatusText.Text = "Wybierz zapisaną sprawę albo otwórz nagranie.";
                 return;
             }
-            if (selectedCase == null && _timelineMarkers.Count == 0)
+            if (selectedCase == null && ViewModel.EventCenter.AllMarkers.Count == 0)
             {
                 StatusText.Text = "Dodaj znaczniki zdarzeń do filmu.";
                 return;
             }
 
             string defaultName = selectedCase != null
-                ? "Sprawa_" + SafeName(selectedCase.CaseNumber) + "_raport.csv"
+                ? "Sprawa_" + ExportWorkspaceService.SanitizeFileName(selectedCase.CaseNumber) + "_raport.csv"
                 : Path.GetFileNameWithoutExtension(_sourceFilePath) + "_zdarzenia.csv";
             string? output = ChooseOutput("Raport CSV", defaultName, "csv");
             if (output == null) return;
@@ -346,7 +326,7 @@ namespace VideoPlayer
 
                 string source = _sourceFilePath!;
                 await _reports.CsvAsync(source, MarkerSnapshot(), output, CurrentReportMetadata(),
-                    _currentMediaInfo, _historyService.LoadExports(source), ct).ConfigureAwait(false);
+                    ViewModel.Export.CurrentMediaInfo, _historyService.LoadExports(source), ct).ConfigureAwait(false);
                 return "Zapisano raport CSV: " + output;
             }, requireSource: selectedCase == null);
         }
@@ -359,7 +339,7 @@ namespace VideoPlayer
                 StatusText.Text = "Wybierz zapisaną sprawę albo otwórz nagranie.";
                 return;
             }
-            if (selectedCase == null && _timelineMarkers.Count == 0)
+            if (selectedCase == null && ViewModel.EventCenter.AllMarkers.Count == 0)
             {
                 StatusText.Text = "Dodaj znaczniki zdarzeń do filmu.";
                 return;
@@ -367,7 +347,7 @@ namespace VideoPlayer
 
             bool images = ReportThumbnailsCheckBox.IsChecked == true;
             string defaultName = selectedCase != null
-                ? "Sprawa_" + SafeName(selectedCase.CaseNumber) + "_raport.pdf"
+                ? "Sprawa_" + ExportWorkspaceService.SanitizeFileName(selectedCase.CaseNumber) + "_raport.pdf"
                 : Path.GetFileNameWithoutExtension(_sourceFilePath) + "_raport.pdf";
             string? output = ChooseOutput("Raport PDF", defaultName, "pdf");
             if (output == null) return;
@@ -391,7 +371,7 @@ namespace VideoPlayer
 
                 string source = _sourceFilePath!;
                 await _reports.PdfAsync(source, MarkerSnapshot(), output, images, CurrentReportMetadata(),
-                    _currentMediaInfo, _historyService.LoadExports(source), progress, ct).ConfigureAwait(false);
+                    ViewModel.Export.CurrentMediaInfo, _historyService.LoadExports(source), progress, ct).ConfigureAwait(false);
                 return "Zapisano raport PDF: " + output;
             }, requireSource: selectedCase == null);
         }

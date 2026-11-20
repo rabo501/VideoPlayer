@@ -10,6 +10,7 @@
         WindowStartupLocation="CenterScreen"
         Icon="/VideoPlayer;component/VideoPlayer.ico">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style TargetType="Button">
             <Setter Property="Background" Value="#292D36" />
             <Setter Property="Foreground" Value="#F1F3F5" />
@@ -697,14 +698,14 @@
                                 <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
                                     <TextBlock Text="Powiększenie:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" Foreground="#AEB9CA" />
                                     <Button Content="−" Click="OcrZoomOut_Click" Width="32" Padding="4" Margin="0,0,4,0" ToolTip="Pomniejsz widok klatki" />
-                                    <TextBlock x:Name="OcrZoomLabel" Text="1×" Width="46" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="OcrZoomLabel" Text="{Binding PlateOcr.ZoomLabel}" Width="46" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
                                     <Button Content="+" Click="OcrZoomIn_Click" Width="32" Padding="4" Margin="4,0,6,0" ToolTip="Powiększ widok klatki" />
                                     <Button Content="Dopasuj" Click="OcrFitView_Click" Padding="9,4" Margin="0,0,6,0" ToolTip="Pokaż całą klatkę z zachowaniem narożników" />
-                                    <Button x:Name="OcrResetSelectionButton" Content="Nowe zaznaczenie" Click="OcrResetSelection_Click" Padding="9,4" Margin="0,0,6,0" />
+                                    <Button x:Name="OcrResetSelectionButton" Content="Nowe zaznaczenie" Click="OcrResetSelection_Click" IsEnabled="{Binding PlateOcr.CanResetSelection}" Padding="9,4" Margin="0,0,6,0" />
                                     <Button Content="Powrót do wideo" Click="OcrCancel_Click" Padding="10,4" Margin="0" Background="#8F3038" BorderBrush="#A63B44" Foreground="#FFFFFF" />
                                 </WrapPanel>
                                 <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
-                                    <TextBlock x:Name="OcrFrameInfo" Text="Rozpoznawanie tablicy — lokalnie" FontSize="13" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock x:Name="OcrFrameInfo" Text="{Binding PlateOcr.FrameInfoText}" FontSize="13" FontWeight="SemiBold" Foreground="#F8FAFC" />
                                     <TextBlock Text="Lewy przycisk: zaznacz obszar i przesuwaj 4 narożniki • Kółko: zoom • Prawy przycisk: przesuwanie obrazu" Foreground="#94A3B8" FontSize="11" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </DockPanel>
@@ -773,7 +774,7 @@
                             <StackPanel>
                                 <DockPanel Margin="0,0,0,4">
                                     <TextBlock Text="ODTWARZANIE ARCHIWUM DAHUA" Foreground="#F8FAFC" FontWeight="Bold" FontSize="11" />
-                                    <TextBlock x:Name="DahuaPlaybackPositionText" Text="00:00:00 / 00:00:00" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" HorizontalAlignment="Right" />
+                                    <TextBlock x:Name="DahuaPlaybackPositionText" Text="{Binding Dahua.PlaybackPositionText}" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" HorizontalAlignment="Right" />
                                 </DockPanel>
                                 <Slider x:Name="DahuaPlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
                                         Margin="24,0,8,0" IsEnabled="False" IsMoveToPointEnabled="True"
@@ -804,7 +805,7 @@
                                             <ComboBoxItem Content="32×" Tag="32" />
                                         </ComboBox>
                                     </StackPanel>
-                                    <TextBlock x:Name="DahuaPlaybackSyncStatusText" Text="Wybierz kanały i zakres czasu." Foreground="#CBD5E1" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="DahuaPlaybackSyncStatusText" Text="{Binding Dahua.PlaybackSyncStatusText}" Foreground="#CBD5E1" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
                             </StackPanel>
                         </Border>
@@ -827,14 +828,14 @@
                                     <Button Content="Początek (I)" Click="MarkStart_Click" />
                                     <Button Content="Koniec (O)" Click="MarkEnd_Click" />
                                 </WrapPanel>
-                                <TextBlock x:Name="RangeFeedbackText" TextWrapping="Wrap" Foreground="#F5C970" Margin="0,0,0,10" />
+                                <TextBlock x:Name="RangeFeedbackText" Text="{Binding Export.RangeFeedbackText}" TextWrapping="Wrap" Foreground="#F5C970" Margin="0,0,0,10" />
                                 <TextBlock Text="Nazwa fragmentu" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <TextBox x:Name="ClipNameBox" Margin="0,0,0,8" Padding="7" Text="Fragment" ToolTip="Nazwa fragmentu" HorizontalAlignment="Stretch" />
+                                <TextBox x:Name="ClipNameBox" Margin="0,0,0,8" Padding="7" Text="{Binding Export.ClipName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Nazwa fragmentu" HorizontalAlignment="Stretch" />
                                 <WrapPanel>
                                     <Button Content="Dodaj zaznaczenie" Click="AddRange_Click" Style="{StaticResource PrimaryButton}" />
                                     <Button Content="Zaktualizuj" Click="UpdateRange_Click" />
                                 </WrapPanel>
-                                <ListBox x:Name="ClipRangesListBox" Height="180" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" Margin="0,0,0,8" />
+                                <ListBox x:Name="ClipRangesListBox" Height="180" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" ItemsSource="{Binding Export.Clips}" SelectedItem="{Binding Export.SelectedClip, Mode=TwoWay}" Margin="0,0,0,8" />
                                 <WrapPanel>
                                     <Button Content="Wczytaj zakres" Click="LoadRange_Click" />
                                     <Button Content="Usuń z listy" Click="DeleteRange_Click" />
@@ -861,9 +862,9 @@
                                                 <Image x:Name="OcrRectifiedPreview" Height="64" Stretch="Uniform" />
                                             </StackPanel>
                                         </Border>
-                                        <TextBlock x:Name="OcrSelectionInfo" Text="Zaznacz tablicę na obrazie po lewej." FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,6" />
-                                        <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj tablicę (wieloklatkowo)" Click="OcrRecognize_Click" ToolTip="Nagranie lokalne: porównanie do 5 klatek w pobliżu bieżącej pozycji. Podgląd Dahua: rozpoznanie bieżącej klatki." Style="{StaticResource PrimaryButton}" IsEnabled="False" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
-                                        <TextBlock x:Name="OcrStatusText" Text="Silnik OCR działa lokalnie. Wynik wymaga sprawdzenia." FontSize="11" Foreground="#F5C970" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                        <TextBlock x:Name="OcrSelectionInfo" Text="{Binding PlateOcr.SelectionInfo}" FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                        <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj tablicę (wieloklatkowo)" Click="OcrRecognize_Click" ToolTip="Nagranie lokalne: porównanie do 5 klatek w pobliżu bieżącej pozycji. Podgląd Dahua: rozpoznanie bieżącej klatki." Style="{StaticResource PrimaryButton}" IsEnabled="{Binding PlateOcr.CanRecognize}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
+                                        <TextBlock x:Name="OcrStatusText" Text="{Binding PlateOcr.StatusText}" FontSize="11" Foreground="#F5C970" TextWrapping="Wrap" Margin="0,0,0,6" />
 
                                         <Border Background="#101722" BorderBrush="#34445B" BorderThickness="1" CornerRadius="4" Padding="7" Margin="0,0,0,8">
                                             <StackPanel>
@@ -871,7 +872,7 @@
                                                 <TextBlock Text="Analiza obejmuje zaznaczony obszar obrazu w kolejnych klatkach. Dla kamery nieruchomej zaznacz miejsce, przez które przejeżdżają pojazdy. Obiekty poza tym obszarem nie zostaną wykryte." FontSize="10" Foreground="#AEB9CA" TextWrapping="Wrap" Margin="0,0,0,6" />
                                                 <DockPanel Margin="0,0,0,6">
                                                     <TextBlock Text="Odstęp próbkowania:" FontSize="10" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                    <ComboBox x:Name="OcrSearchIntervalBox" Width="76" Height="27" SelectedIndex="2" HorizontalAlignment="Left">
+                                                    <ComboBox x:Name="OcrSearchIntervalBox" Width="76" Height="27" SelectedIndex="2" HorizontalAlignment="Left" IsEnabled="{Binding PlateOcr.CanChangeInterval}">
                                                         <ComboBoxItem Content="1 s" Tag="1" />
                                                         <ComboBoxItem Content="2 s" Tag="2" />
                                                         <ComboBoxItem Content="5 s" Tag="5" />
@@ -879,33 +880,33 @@
                                                     </ComboBox>
                                                 </DockPanel>
                                                 <WrapPanel>
-                                                    <Button x:Name="OcrSearchButton" Content="Szukaj w nagraniu" Click="OcrSearchStart_Click" IsEnabled="False" Style="{StaticResource PrimaryButton}" />
-                                                    <Button x:Name="OcrSearchCancelButton" Content="Anuluj wyszukiwanie" Click="OcrSearchCancel_Click" IsEnabled="False" Visibility="Collapsed" />
+                                                    <Button x:Name="OcrSearchButton" Content="Szukaj w nagraniu" Click="OcrSearchStart_Click" IsEnabled="{Binding PlateOcr.CanSearchInRecording}" Style="{StaticResource PrimaryButton}" />
+                                                    <Button x:Name="OcrSearchCancelButton" Content="Anuluj wyszukiwanie" Command="{Binding PlateOcr.CancelSearchCommand}" Visibility="{Binding PlateOcr.IsSearchingVideo, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                                 </WrapPanel>
-                                                <TextBlock x:Name="OcrSearchProgressText" Text="Wpisz numer tablicy, potwierdź go i rozpocznij wyszukiwanie." FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,6,0,4" />
-                                                <ListBox x:Name="OcrSearchResultsList" Height="86" Background="#0B0F15" Foreground="#E6EAF0" BorderBrush="#34445B" DisplayMemberPath="DisplayText" MouseDoubleClick="OcrSearchResultsList_MouseDoubleClick" ToolTip="Dwuklik na wyniku przenosi odtwarzacz do wskazanego czasu" />
+                                                <TextBlock x:Name="OcrSearchProgressText" Text="{Binding PlateOcr.SearchProgressText}" FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,6,0,4" />
+                                                <ListBox x:Name="OcrSearchResultsList" Height="86" Background="#0B0F15" Foreground="#E6EAF0" BorderBrush="#34445B" ItemsSource="{Binding PlateOcr.VideoSearchHits}" DisplayMemberPath="DisplayText" MouseDoubleClick="OcrSearchResultsList_MouseDoubleClick" ToolTip="Dwuklik na wyniku przenosi odtwarzacz do wskazanego czasu" />
                                             </StackPanel>
                                         </Border>
 
                                         <TextBlock Text="Numer tablicy:" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,3" />
-                                        <TextBox x:Name="OcrPlateBox" FontSize="18" FontWeight="Bold" MaxLength="24" Padding="6,4" CharacterCasing="Upper" TextChanged="OcrPlate_Changed" Margin="0,0,0,6" />
+                                        <TextBox x:Name="OcrPlateBox" FontSize="18" FontWeight="Bold" MaxLength="24" Padding="6,4" CharacterCasing="Upper" Text="{Binding PlateOcr.PlateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding PlateOcr.CanEditResult}" Margin="0,0,0,6" />
 
                                         <TextBlock Text="Marka pojazdu:" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,3" />
-                                        <TextBox x:Name="OcrVehicleMakeBox" FontSize="13" MaxLength="60" Padding="6,4" Margin="0,0,0,6" ToolTip="Wpisz ręcznie markę pojazdu, np. Toyota, Volkswagen, BMW" />
+                                        <TextBox x:Name="OcrVehicleMakeBox" FontSize="13" MaxLength="60" Padding="6,4" Text="{Binding PlateOcr.VehicleMake, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" ToolTip="Wpisz ręcznie markę pojazdu, np. Toyota, Volkswagen, BMW" />
 
                                         <TextBlock Text="Inne propozycje:" FontSize="11" Margin="0,0,0,3" />
-                                        <ComboBox x:Name="OcrCandidatesBox" Height="30" SelectionChanged="OcrCandidate_Changed" Margin="0,0,0,6" />
+                                        <ComboBox x:Name="OcrCandidatesBox" Height="30" ItemsSource="{Binding PlateOcr.Candidates}" SelectedItem="{Binding PlateOcr.SelectedCandidate, Mode=TwoWay}" IsEnabled="{Binding PlateOcr.CanEditResult}" Margin="0,0,0,6" />
 
-                                        <CheckBox x:Name="OcrConfirmedBox" Content="Potwierdzam zgodność numeru z obrazem" Foreground="#E6EAF0" Margin="0,2,0,8" Checked="OcrConfirmation_Changed" Unchecked="OcrConfirmation_Changed" />
+                                        <CheckBox x:Name="OcrConfirmedBox" Content="Potwierdzam zgodność numeru z obrazem" Foreground="#E6EAF0" Margin="0,2,0,8" IsChecked="{Binding PlateOcr.IsResultConfirmed, Mode=TwoWay}" IsEnabled="{Binding PlateOcr.CanEditResult}" />
 
                                         <WrapPanel>
-                                            <Button x:Name="OcrSaveEventButton" Content="Zapisz jako zdarzenie" Click="OcrSave_Click" Style="{StaticResource DahuaGreenButton}" IsEnabled="False" />
+                                            <Button x:Name="OcrSaveEventButton" Content="Zapisz jako zdarzenie" Click="OcrSave_Click" Style="{StaticResource DahuaGreenButton}" IsEnabled="{Binding PlateOcr.CanSaveEvent}" />
                                             <Button Content="Anuluj OCR" Click="OcrCancel_Click" />
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
 
-                                <TextBox x:Name="MarkerDescriptionBox" Margin="0,0,0,8" Padding="7,5" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#454C59" ToolTip="Opis zdarzenia, np. Wejście osoby lub Otwarcie bramy" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="36" />
+                                <TextBox x:Name="MarkerDescriptionBox" Text="{Binding EventCenter.MarkerDescription, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" Padding="7,5" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#454C59" ToolTip="Opis zdarzenia, np. Wejście osoby lub Otwarcie bramy" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="36" />
                                 <WrapPanel>
                                     <Button Content="Dodaj zdarzenie" Click="AddMarker_Click" Style="{StaticResource PrimaryButton}" />
                                     <Button Content="Zmień opis" Click="UpdateMarker_Click" />
@@ -915,23 +916,25 @@
                                         <TextBlock Text="CENTRUM ZDARZEŃ — BIEŻĄCE NAGRANIE" FontSize="10" FontWeight="Bold" Foreground="#75A5FF" Margin="0,0,0,5" />
                                         <TextBox x:Name="EventCenterFilterBox" Padding="6,4" Margin="0,0,0,5"
                                                  ToolTip="Szukaj w opisie, numerze tablicy, marce lub typie zdarzenia"
-                                                 TextChanged="EventCenterFilter_Changed" />
+                                                 Text="{Binding EventCenter.FilterText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <DockPanel>
-                                            <ComboBox x:Name="EventCenterCategoryBox" Width="150" Height="27" SelectedIndex="0"
-                                                      SelectionChanged="EventCenterFilter_Changed" Margin="0,0,6,5">
+                                            <ComboBox x:Name="EventCenterCategoryBox" Width="150" Height="27"
+                                                      SelectedValuePath="Tag"
+                                                      SelectedValue="{Binding EventCenter.SelectedCategoryTag, Mode=TwoWay}"
+                                                      Margin="0,0,6,5">
                                                 <ComboBoxItem Content="Wszystkie zdarzenia" Tag="all" />
                                                 <ComboBoxItem Content="Wykryty ruch" Tag="Ruch" />
                                                 <ComboBoxItem Content="Tablice rejestracyjne" Tag="Tablica" />
                                                 <ComboBoxItem Content="Zdarzenia ręczne" Tag="Ręczne" />
                                                 <ComboBoxItem Content="Tablice powiązane z ruchem" Tag="related" />
                                             </ComboBox>
-                                            <Button Content="Wyczyść" Click="EventCenterClearFilter_Click" Padding="8,3" Margin="0,0,0,5" />
+                                            <Button Content="Wyczyść" Command="{Binding EventCenter.ClearFilterCommand}" Padding="8,3" Margin="0,0,0,5" />
                                         </DockPanel>
-                                        <TextBlock x:Name="EventCenterCountText" Text="Brak zdarzeń dla bieżącego nagrania." FontSize="10"
+                                        <TextBlock x:Name="EventCenterCountText" Text="{Binding EventCenter.SummaryText}" FontSize="10"
                                                    Foreground="#AEB9CA" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
-                                <ListBox x:Name="TimelineMarkersListBox" Height="165" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" SelectionChanged="TimelineMarkersListBox_SelectionChanged" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
+                                <ListBox x:Name="TimelineMarkersListBox" Height="165" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" ItemsSource="{Binding EventCenter.VisibleMarkers}" SelectedItem="{Binding EventCenter.SelectedMarker, Mode=TwoWay}" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
                                             <EventSetter Event="MouseDoubleClick" Handler="MarkerListItem_DoubleClick" />
@@ -949,7 +952,7 @@
                                     <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
                                         <StackPanel>
                                             <TextBlock Text="Numer tablicy" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="SearchPlateFilterBox" CharacterCasing="Upper" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBox x:Name="SearchPlateFilterBox" Text="{Binding PlateSearch.PlateFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" CharacterCasing="Upper" Padding="6,4" Margin="0,0,0,6" />
                                             <Grid Margin="0,0,0,6">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -957,19 +960,19 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,4,0">
                                                     <TextBlock Text="Marka" FontSize="11" Margin="0,0,0,3" />
-                                                    <TextBox x:Name="SearchMakeFilterBox" Padding="6,4" />
+                                                    <TextBox x:Name="SearchMakeFilterBox" Text="{Binding PlateSearch.MakeFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1">
                                                     <TextBlock Text="Nagranie" FontSize="11" Margin="0,0,0,3" />
-                                                    <TextBox x:Name="SearchSourceFilterBox" Padding="6,4" />
+                                                    <TextBox x:Name="SearchSourceFilterBox" Text="{Binding PlateSearch.SourceFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" />
                                                 </StackPanel>
                                             </Grid>
                                             <WrapPanel>
-                                                <Button Content="Szukaj" Click="PlateSearchExecute_Click" Style="{StaticResource PrimaryButton}" />
+                                                <Button Content="Szukaj" Command="{Binding PlateSearch.SearchCommand}" Style="{StaticResource PrimaryButton}" />
                                                 <Button Content="Otwórz wybrane" Click="PlateSearchOpenSelected_Click" />
                                             </WrapPanel>
-                                            <TextBlock x:Name="SearchResultCountText" Text="Wpisz kryteria i kliknij Szukaj." Foreground="#AEB9CA" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6" />
-                                            <ListView x:Name="PlateSearchResultsList" Height="150" Background="#12151B" Foreground="#E6EAF0" BorderBrush="#343B48" MouseDoubleClick="PlateSearchResultsList_MouseDoubleClick">
+                                            <TextBlock x:Name="SearchResultCountText" Text="{Binding PlateSearch.ResultCountText}" Foreground="#AEB9CA" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <ListView x:Name="PlateSearchResultsList" Height="150" Background="#12151B" Foreground="#E6EAF0" BorderBrush="#343B48" ItemsSource="{Binding PlateSearch.Results}" SelectedItem="{Binding PlateSearch.SelectedResult, Mode=TwoWay}" MouseDoubleClick="PlateSearchResultsList_MouseDoubleClick">
                                                 <ListView.View>
                                                     <GridView>
                                                         <GridViewColumn Header="Tablica" Width="88" DisplayMemberBinding="{Binding PlateNumber}" />
@@ -1018,8 +1021,8 @@
                                 <TextBlock Text="Raport wybranej sprawy lub bieżącego nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <WrapPanel>
-                                    <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" />
-                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" Style="{StaticResource PrimaryButton}" />
+                                    <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" IsEnabled="{Binding Export.CanStartOperation}" />
+                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding Export.CanStartOperation}" />
                                 </WrapPanel>
                             </StackPanel>
                         </ScrollViewer>
@@ -1030,20 +1033,20 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Bieżące zaznaczenie" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <TextBlock x:Name="ClipRangeText" Text="Nie zaznaczono fragmentu." FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <TextBlock x:Name="ClipRangeText" Text="{Binding Export.ClipRangeText}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10" />
                                 <TextBlock Text="Profil eksportu" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <ComboBox x:Name="ExportProfileBox" Margin="0,0,0,10" SelectedIndex="1" ToolTip="Wybierz kompromis między szybkością, jakością i rozmiarem" HorizontalAlignment="Stretch">
+                                <ComboBox x:Name="ExportProfileBox" Margin="0,0,0,10" SelectedValuePath="Tag" SelectedValue="{Binding Export.SelectedProfileTag, Mode=TwoWay}" IsEnabled="{Binding Export.CanStartOperation}" ToolTip="Wybierz kompromis między szybkością, jakością i rozmiarem" HorizontalAlignment="Stretch">
                                     <ComboBoxItem Content="Szybki eksport" Tag="fast" />
                                     <ComboBoxItem Content="Standardowy" Tag="standard" />
                                     <ComboBoxItem Content="Mniejszy plik" Tag="small" />
                                     <ComboBoxItem Content="Wysoka jakość" Tag="quality" />
                                 </ComboBox>
-                                <CheckBox x:Name="StreamCopyCheckBox" Content="Kopiuj strumienie bez rekompresji" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,12" ToolTip="Kopiuje strumienie bez kodowania. Cięcie może wypaść na najbliższej klatce kluczowej; kodeki muszą być zgodne z MP4." />
-                                <Button x:Name="ExportClipButton" Content="Zapisz zaznaczenie jako MP4" Style="{StaticResource PrimaryButton}" Click="ExportClip_Click" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
-                                <Button x:Name="ExportAllButton" Content="Eksportuj całą listę fragmentów" Click="ExportAll_Click" Margin="0,0,0,14" HorizontalAlignment="Stretch" />
+                                <CheckBox x:Name="StreamCopyCheckBox" Content="Kopiuj strumienie bez rekompresji" IsChecked="{Binding Export.UseStreamCopy, Mode=TwoWay}" IsEnabled="{Binding Export.CanStartOperation}" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,12" ToolTip="Kopiuje strumienie bez kodowania. Cięcie może wypaść na najbliższej klatce kluczowej; kodeki muszą być zgodne z MP4." />
+                                <Button x:Name="ExportClipButton" Content="Zapisz zaznaczenie jako MP4" Style="{StaticResource PrimaryButton}" Click="ExportClip_Click" IsEnabled="{Binding Export.CanStartOperation}" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
+                                <Button x:Name="ExportAllButton" Content="Eksportuj całą listę fragmentów" Click="ExportAll_Click" IsEnabled="{Binding Export.CanStartOperation}" Margin="0,0,0,14" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="Eksport korzysta z aktualnego zaznaczenia albo listy zapisanych fragmentów. Postęp i anulowanie są zawsze na dolnym pasku." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,10" />
                                 <TextBlock Text="Nowy film bez zaznaczenia" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <Button x:Name="RemoveClipButton" Content="Zapisz film bez zaznaczonego fragmentu" Click="RemoveClip_Click" Margin="0,0,0,8" Padding="12,8" Background="#8F3038" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Tworzy nowe nagranie bez zaznaczonego fragmentu" HorizontalAlignment="Stretch" />
+                                <Button x:Name="RemoveClipButton" Content="Zapisz film bez zaznaczonego fragmentu" Click="RemoveClip_Click" IsEnabled="{Binding Export.CanStartOperation}" Margin="0,0,0,8" Padding="12,8" Background="#8F3038" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Tworzy nowe nagranie bez zaznaczonego fragmentu" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="Oryginał pozostaje bez zmian. Ta operacja tworzy nowy plik." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
                             </StackPanel>
                         </ScrollViewer>
@@ -1060,8 +1063,8 @@
                             <!-- Pasek stanu Dahua -->
                             <Border Grid.Row="0" Background="#13161F" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,0,0,6">
                                 <StackPanel>
-                                    <TextBlock x:Name="DahuaSdkStatusBadge" Text="Dahua NetSDK: Oczekuje na uruchomienie" Foreground="#CBD5E1" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock x:Name="DahuaStatusLabel" Text="Wybierz urządzenie z listy i połącz." Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                    <TextBlock x:Name="DahuaSdkStatusBadge" Text="{Binding Dahua.SdkStatusBadge}" Foreground="#CBD5E1" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="DahuaStatusLabel" Text="{Binding Dahua.StatusText}" Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
                                 </StackPanel>
                             </Border>
 
@@ -1071,7 +1074,7 @@
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                                         <StackPanel>
                                             <TextBlock Text="URZĄDZENIA DAHUA" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ListBox x:Name="DahuaDevicesListBox" Height="110" Background="#0F1724" Foreground="#F8FAFC" BorderBrush="#475569" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" SelectionChanged="DahuaDevicesListBox_SelectionChanged" Margin="0,0,0,8">
+                                            <ListBox x:Name="DahuaDevicesListBox" Height="110" Background="#0F1724" Foreground="#F8FAFC" BorderBrush="#475569" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" ItemsSource="{Binding Dahua.Devices}" SelectionChanged="DahuaDevicesListBox_SelectionChanged" Margin="0,0,0,8">
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Margin="2">
@@ -1083,8 +1086,8 @@
                                             </ListBox>
 
                                             <WrapPanel Margin="0,0,0,6">
-                                                <Button x:Name="DahuaConnectButton" Content="▶ Połącz" Click="DahuaConnect_Click" Style="{StaticResource DahuaGreenButton}" />
-                                                <Button x:Name="DahuaDisconnectButton" Content="■ Rozłącz" Click="DahuaDisconnect_Click" Style="{StaticResource DahuaRedButton}" IsEnabled="False" />
+                                                <Button x:Name="DahuaConnectButton" Content="▶ Połącz" Click="DahuaConnect_Click" IsEnabled="{Binding Dahua.CanConnect}" Style="{StaticResource DahuaGreenButton}" />
+                                                <Button x:Name="DahuaDisconnectButton" Content="■ Rozłącz" Click="DahuaDisconnect_Click" IsEnabled="{Binding Dahua.CanDisconnect}" Style="{StaticResource DahuaRedButton}" />
                                                 <Button x:Name="DahuaQueryDeviceButton" Content="🔄 Odczytaj z NVR" Click="DahuaQueryFromDevice_Click" Style="{StaticResource DahuaBlueButton}" ToolTip="Pobiera nazwy kanałów i presety PTZ bezpośrednio z urządzenia" />
                                             </WrapPanel>
 
@@ -1281,11 +1284,12 @@
                                                 <Border Width="10" Height="10" Background="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />
                                                 <TextBlock Text="Wybrany" Foreground="#DBEAFE" FontSize="10" />
                                             </WrapPanel>
-                                            <TextBlock x:Name="DahuaCalendarAvailabilityStatusText" Text="Otwórz kalendarz, aby sprawdzić dostępność nagrań." Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <TextBlock x:Name="DahuaCalendarAvailabilityStatusText" Text="{Binding Dahua.CalendarAvailabilityStatusText}" Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6" />
 
                                             <Button x:Name="DahuaSearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="DahuaSearchArchive_Click" Style="{StaticResource DahuaBlueButton}" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
 
                                             <DataGrid x:Name="DahuaArchiveRecordsGrid" Height="165" AutoGenerateColumns="False"
+                                                      ItemsSource="{Binding Dahua.ArchiveRecords}"
                                                       IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
                                                       CanUserAddRows="False" CanUserDeleteRows="False"
                                                       Background="#101722" Foreground="#F8FAFC"
@@ -1326,7 +1330,7 @@
                                             </WrapPanel>
 
                                             <ProgressBar x:Name="DahuaDownloadProgressBar" Height="8" Margin="0,0,0,6" Visibility="Collapsed" Background="#13161F" Foreground="#22C55E" />
-                                            <TextBlock x:Name="DahuaDownloadStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#4ADE80" Margin="0,0,0,6" Visibility="Collapsed" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="DahuaDownloadStatusText" Text="{Binding Dahua.DownloadStatusText}" FontSize="11" FontWeight="SemiBold" Foreground="#4ADE80" Margin="0,0,0,6" Visibility="Collapsed" TextWrapping="Wrap" />
 
                                             <Button x:Name="DahuaLoadToPlayerButton" Content="★ Pobierz zakres do Odtwarzacza" Click="DahuaLoadToPlayer_Click" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
                                             <Button Content="Odtwórz zakres w podglądzie Dahua" Click="DahuaPlayArchiveInWindow_Click" HorizontalAlignment="Stretch" />
@@ -1339,7 +1343,7 @@
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                                         <StackPanel>
                                             <TextBlock Text="LISTA SKONFIGUROWANYCH URZĄDZEŃ" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ListBox x:Name="DahuaConfigDevicesList" Height="110" Background="#101A2A" Foreground="#FFFFFF" BorderBrush="#42546D" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" SelectionChanged="DahuaConfigDevicesList_SelectionChanged" Margin="0,0,0,6">
+                                            <ListBox x:Name="DahuaConfigDevicesList" Height="110" Background="#101A2A" Foreground="#FFFFFF" BorderBrush="#42546D" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" ItemsSource="{Binding Dahua.Devices}" SelectionChanged="DahuaConfigDevicesList_SelectionChanged" Margin="0,0,0,6">
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Margin="2">
@@ -1409,7 +1413,7 @@
                                 </WrapPanel>
 
                                 <Expander Header="Informacje o nagraniu" Margin="0,10,0,6" Foreground="#D8DCE4">
-                                    <TextBlock x:Name="MediaInfoText" Text="Otwórz nagranie, aby odczytać kodek, rozdzielczość, FPS, bitrate i rozmiar." Foreground="#D8DCE4" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                    <TextBlock x:Name="MediaInfoText" Text="{Binding Export.MediaInfoText}" Foreground="#D8DCE4" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
                                 </Expander>
 
                                 <Expander Header="Widok i sesja" Margin="0,2,0,6" Foreground="#D8DCE4">
@@ -1505,8 +1509,8 @@
                 <Button x:Name="PlayButton" Content="Play / Pauza" Style="{StaticResource PlayButtonStyle}" Click="PlayPause_Click" Margin="0,0,6,0" MinWidth="100" Padding="14,8" />
                 <Button Content="Klatka ▶" Click="NextFrame_Click" Margin="0,0,14,0" Padding="10,8" />
                 <Button x:Name="ScreenshotButton" Content="Zapisz klatkę (S)" Click="Screenshot_Click" Margin="0,0,6,0" Padding="10,8" />
-                <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" Margin="0,0,6,0" Padding="10,8" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
-                <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Click="MotionCancel_Click" Margin="0" Padding="10,8" Visibility="Collapsed" IsEnabled="False" />
+                <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" IsEnabled="{Binding Motion.CanStart}" Margin="0,0,6,0" Padding="10,8" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
+                <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Command="{Binding Motion.CancelCommand}" Visibility="{Binding Motion.IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0" Padding="10,8" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Prędkość" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#AEB9CA" />
@@ -1540,11 +1544,11 @@
                     <TextBlock x:Name="StatusText" Text="Uruchamianie odtwarzacza…" Foreground="#9CA6B6" FontSize="11" TextWrapping="NoWrap" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                 </DockPanel>
                 <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <TextBlock x:Name="ExportOperationText" Text="Brak aktywnej operacji" Foreground="#7F899A" FontSize="10" TextWrapping="NoWrap" Margin="0" MaxHeight="14" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="ExportProgressText" Text="Gotowy do eksportu" Foreground="#9CA6B6" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ExportOperationText" Text="{Binding Export.OperationTitle}" Foreground="#7F899A" FontSize="10" TextWrapping="NoWrap" Margin="0" MaxHeight="14" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ExportProgressText" Text="{Binding Export.ProgressText}" Foreground="#9CA6B6" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
-                <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100" Value="0" Height="7" Background="#303541" Foreground="#3478F6" BorderThickness="0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <Button x:Name="CancelExportButton" Content="Anuluj" Padding="10,5" Margin="0" Visibility="Collapsed" IsEnabled="False" Click="CancelExport_Click" Grid.Row="1" Grid.Column="2" />
+                <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100" Value="{Binding Export.ProgressPercent}" Height="7" Background="#303541" Foreground="#3478F6" BorderThickness="0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <Button x:Name="CancelExportButton" Content="Anuluj" Padding="10,5" Margin="0" Visibility="{Binding Export.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" IsEnabled="{Binding Export.CanCancel}" Command="{Binding Export.CancelCommand}" Grid.Row="1" Grid.Column="2" />
             </Grid>
         </Border>
     </Grid>

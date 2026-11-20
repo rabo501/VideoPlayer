@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="VideoPlayer.csproj" />
+  <Project Path="VideoPlayer.Tests/VideoPlayer.Tests.csproj" />
 </Solution>
