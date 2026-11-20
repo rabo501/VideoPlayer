@@ -1007,13 +1007,14 @@
                                             <WrapPanel>
                                                 <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
                                                 <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
+                                                <Button x:Name="DeleteCaseButton" Content="Usuń sprawę" Click="DeleteCase_Click" />
                                             </WrapPanel>
-                                            <TextBlock x:Name="CaseArchiveStatusText" Text="Sprawy są przechowywane lokalnie. Zapis nie kopiuje ani nie modyfikuje nagrań." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
+                                            <TextBlock x:Name="CaseArchiveStatusText" Text="Sprawa może zawierać wiele nagrań. Zapis nie kopiuje ani nie modyfikuje plików źródłowych." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
                                         </StackPanel>
                                     </Border>
                                 </Expander>
 
-                                <TextBlock Text="Raport zdarzeń" FontWeight="SemiBold" Margin="0,4,0,6" />
+                                <TextBlock Text="Raport wybranej sprawy lub bieżącego nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <WrapPanel>
                                     <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" />
