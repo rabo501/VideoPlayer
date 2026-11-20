@@ -24,10 +24,9 @@ namespace VideoPlayer
             if (_cases == null || ReportCasesBox == null) return;
             List<CaseRecord> cases = _cases.LoadAll();
             ReportCasesBox.ItemsSource = cases;
-            if (selectId.HasValue)
-                ReportCasesBox.SelectedItem = cases.FirstOrDefault(item => item.Id == selectId.Value);
-            if (ReportCasesBox.SelectedItem == null && cases.Count > 0)
-                ReportCasesBox.SelectedIndex = 0;
+            ReportCasesBox.SelectedItem = selectId.HasValue
+                ? cases.FirstOrDefault(item => item.Id == selectId.Value)
+                : null;
         }
 
         private void SaveCase_Click(object sender, RoutedEventArgs e)
