@@ -866,6 +866,28 @@
                                         <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj tablicę (wieloklatkowo)" Click="OcrRecognize_Click" ToolTip="Nagranie lokalne: porównanie do 5 klatek w pobliżu bieżącej pozycji. Podgląd Dahua: rozpoznanie bieżącej klatki." Style="{StaticResource PrimaryButton}" IsEnabled="False" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
                                         <TextBlock x:Name="OcrStatusText" Text="Silnik OCR działa lokalnie. Wynik wymaga sprawdzenia." FontSize="11" Foreground="#F5C970" TextWrapping="Wrap" Margin="0,0,0,6" />
 
+                                        <Border Background="#101722" BorderBrush="#34445B" BorderThickness="1" CornerRadius="4" Padding="7" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <TextBlock Text="WYSZUKIWANIE NUMERU W CAŁYM NAGRANIU" FontSize="10" FontWeight="Bold" Foreground="#75A5FF" Margin="0,0,0,4" />
+                                                <TextBlock Text="Analiza obejmuje zaznaczony obszar obrazu w kolejnych klatkach. Dla kamery nieruchomej zaznacz miejsce, przez które przejeżdżają pojazdy. Obiekty poza tym obszarem nie zostaną wykryte." FontSize="10" Foreground="#AEB9CA" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <TextBlock Text="Odstęp próbkowania:" FontSize="10" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <ComboBox x:Name="OcrSearchIntervalBox" Width="76" Height="27" SelectedIndex="2" HorizontalAlignment="Left">
+                                                        <ComboBoxItem Content="1 s" Tag="1" />
+                                                        <ComboBoxItem Content="2 s" Tag="2" />
+                                                        <ComboBoxItem Content="5 s" Tag="5" />
+                                                        <ComboBoxItem Content="10 s" Tag="10" />
+                                                    </ComboBox>
+                                                </DockPanel>
+                                                <WrapPanel>
+                                                    <Button x:Name="OcrSearchButton" Content="Szukaj w nagraniu" Click="OcrSearchStart_Click" IsEnabled="False" Style="{StaticResource PrimaryButton}" />
+                                                    <Button x:Name="OcrSearchCancelButton" Content="Anuluj wyszukiwanie" Click="OcrSearchCancel_Click" IsEnabled="False" Visibility="Collapsed" />
+                                                </WrapPanel>
+                                                <TextBlock x:Name="OcrSearchProgressText" Text="Wpisz numer tablicy, potwierdź go i rozpocznij wyszukiwanie." FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,6,0,4" />
+                                                <ListBox x:Name="OcrSearchResultsList" Height="86" Background="#0B0F15" Foreground="#E6EAF0" BorderBrush="#34445B" DisplayMemberPath="DisplayText" MouseDoubleClick="OcrSearchResultsList_MouseDoubleClick" ToolTip="Dwuklik na wyniku przenosi odtwarzacz do wskazanego czasu" />
+                                            </StackPanel>
+                                        </Border>
+
                                         <TextBlock Text="Numer tablicy:" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,3" />
                                         <TextBox x:Name="OcrPlateBox" FontSize="18" FontWeight="Bold" MaxLength="24" Padding="6,4" CharacterCasing="Upper" TextChanged="OcrPlate_Changed" Margin="0,0,0,6" />
 
