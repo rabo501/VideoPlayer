@@ -51,6 +51,17 @@ Aplikacja obsługuje podgląd wielu kanałów w układach 1, 4, 9 i 16 okien. Op
 
 Dostępność kanału zależy od konfiguracji i możliwości rejestratora. Nie należy zakładać, że numer kanału widoczny w urządzeniu zawsze odpowiada pozycji na liście bez uwzględnienia mapowania zwracanego przez SDK.
 
+### Sterowanie obszarowe PTZ w podglądzie jednego kanału
+
+W układzie Live 1 (jeden wyświetlany kanał) operator może przeciągnąć lewym przyciskiem myszy prostokąt na obrazie. Zaznaczenie jest używane jako wskazówka dla fizycznego pozycjonowania kamery:
+1. środek zaznaczenia względem środka obrazu wyznacza kierunek obrotu i pochylenia;
+2. po krótkich impulsach PTZ ruchu poziomego/pionowego wykonywany jest impuls `ZOOM_IN`;
+3. długości impulsów są szacowane z proporcji prostokąta do rozmiaru podglądu. Nie jest to kalibracja pola widzenia, dlatego wynik może wymagać ręcznej korekty.
+
+Sterowanie używa `CLIENT_DHPTZControlEx2` i poleceń `LEFT/RIGHT/UP/DOWN/ZOOM_IN`, po każdym impulsie wysyłając odpowiadające mu zatrzymanie (`bStop=true`). Kółko myszy w układzie jednego kanału wykonuje krótki optyczny zoom in/out. W tym trybie nie wolno zmieniać skali ani położenia kontrolki obrazu w celu symulowania przybliżenia. Gesty obszarowe są dostępne tylko po zalogowaniu i w układzie jednego kanału; w układach 4/9/16 dotychczasowa nawigacja kafelków pozostaje odrębna.
+
+Funkcja wymaga kamery PTZ i kanału, na którym NetSDK przyjmuje polecenia PTZ. Nie zadziała na kamerze stałopozycyjnej ani na kanale bez uprawnień PTZ. Czas impulsu jest przybliżony i zależy od modelu, prędkości PTZ, zoomu optycznego i konfiguracji urządzenia. Pozycję należy ocenić na obrazie i w razie potrzeby skorygować ręcznie.
+
 ## 4. Wyszukiwanie i odtwarzanie archiwum
 
 W zakładce **Archiwum NVR** operator wybiera:
