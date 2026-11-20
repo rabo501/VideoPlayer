@@ -13,7 +13,7 @@ Windows desktop application (WPF, .NET 8, x64) for reviewing and analyzing video
 
 ## Ongoing development
 
-- [Stage 6 — reporting, local case archive and release 1.7 plan](Dokumentacja/ETAP-6-Raportowanie-i-wydanie-2.0-Wersja-1.7.md)
+- [Stage 6 — reporting, local case archive and release 1.7 plan](Dokumentacja/ETAP-6-Raportowanie-i-wydanie-1.7-Wersja-1.7.md)
 
 ## Documentation
 
