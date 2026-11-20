@@ -1,7 +1,7 @@
-# VideoPlayer 1.6.0 — lista kontrolna publikacji
+# VideoPlayer 1.7.0 — lista kontrolna publikacji
 
 ## Kompilacja
-- [ ] Wersja projektu: 1.6.0.
+- [ ] Wersja projektu: 1.7.0.
 - [ ] Konfiguracja Release, platforma x64.
 - [ ] Czysta kompilacja w Visual Studio bez błędów.
 - [ ] Publikacja i uruchomienie na komputerze docelowym.
@@ -27,6 +27,6 @@
 
 ## Przekazanie
 - [ ] Wykonać kopię VideoPlayer.db przed aktualizacją.
-- [ ] Dołączyć dokumentację 1.6.0 i informacje o wydaniu.
-- [ ] Potwierdzić numer 1.6.0 w tytule i oknie Informacje.
+- [ ] Dołączyć dokumentację 1.7.0 i informacje o wydaniu.
+- [ ] Potwierdzić numer 1.7.0 w tytule i oknie Informacje.
 - [ ] Usunąć z paczki dane testowe i prywatne nagrania.
