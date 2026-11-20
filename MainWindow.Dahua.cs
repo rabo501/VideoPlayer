@@ -52,6 +52,7 @@ namespace VideoPlayer
         private readonly List<DahuaMultiViewSlot> _dahuaMultiViewSlots = new();
         private readonly List<IntPtr> _dahuaMultiPlaybackHandles = new();
         private readonly HashSet<int> _dahuaArchiveSelectedChannels = new();
+        private bool _dahuaUpdatingArchiveChannelChecks;
         private readonly DispatcherTimer _dahuaPlaybackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
         private DateTime _dahuaPlaybackRangeStart;
         private DateTime _dahuaPlaybackRangeEnd;
@@ -302,6 +303,7 @@ namespace VideoPlayer
             _dahuaCurrentChannel = dev.Channel;
             RefreshDahuaChannelLists();
             RefreshDahuaPresetsList();
+            BuildDahuaArchiveChannelChecks();
             RefreshDahuaArchiveSelectedChannelsSummary();
 
             DahuaChannelNameEditBox.Text = dev.GetChannelName(_dahuaCurrentChannel);
@@ -1260,6 +1262,113 @@ namespace VideoPlayer
             _ => 4
         };
 
+        private int GetDahuaArchiveMultiViewCapacity() => DahuaArchiveGridModeBox.SelectedIndex switch
+        {
+            0 => 1,
+            2 => 9,
+            3 => 16,
+            _ => 4
+        };
+
+        private void BuildDahuaArchiveChannelChecks()
+        {
+            if (DahuaArchiveChannelChecksPanel == null) return;
+            DahuaArchiveChannelChecksPanel.Children.Clear();
+            if (_currentDahuaDevice == null) return;
+
+            var channels = _currentDahuaDevice.Channels.OrderBy(channel => channel.Number).ToList();
+            if (channels.Count == 0) return;
+
+            if (_dahuaArchiveSelectedChannels.Count == 0)
+            {
+                int initial = GetSelectedDahuaArchiveChannel();
+                if (!channels.Any(channel => channel.Number == initial))
+                    initial = channels[0].Number;
+                _dahuaArchiveSelectedChannels.Add(initial);
+            }
+
+            int capacity = GetDahuaArchiveMultiViewCapacity();
+            _dahuaUpdatingArchiveChannelChecks = true;
+            foreach (var channel in channels)
+            {
+                var check = new CheckBox
+                {
+                    Content = $"{channel.Name}  (CH {channel.Number})",
+                    Tag = channel.Number,
+                    IsChecked = _dahuaArchiveSelectedChannels.Contains(channel.Number),
+                    Foreground = Brushes.White,
+                    FontSize = 11,
+                    Margin = new Thickness(3, 5, 3, 5),
+                    ToolTip = channel.Name
+                };
+                check.Checked += DahuaArchiveChannelCheck_Changed;
+                check.Unchecked += DahuaArchiveChannelCheck_Changed;
+                DahuaArchiveChannelChecksPanel.Children.Add(check);
+            }
+
+            var selected = DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(check => check.IsChecked == true).ToList();
+            foreach (var check in selected.Skip(capacity))
+            {
+                check.IsChecked = false;
+                if (check.Tag is int number) _dahuaArchiveSelectedChannels.Remove(number);
+            }
+            _dahuaUpdatingArchiveChannelChecks = false;
+            UpdateDahuaArchiveChannelCheckStates();
+            RefreshDahuaArchiveSelectedChannelsSummary();
+        }
+
+        private void UpdateDahuaArchiveChannelCheckStates()
+        {
+            if (DahuaArchiveChannelChecksPanel == null) return;
+            int capacity = GetDahuaArchiveMultiViewCapacity();
+            var checks = DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>().ToList();
+            int selectedCount = checks.Count(check => check.IsChecked == true);
+            foreach (var check in checks)
+                check.IsEnabled = check.IsChecked == true || selectedCount < capacity;
+        }
+
+        private void DahuaArchiveChannelCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dahuaUpdatingArchiveChannelChecks || sender is not CheckBox changed || changed.Tag is not int channel)
+                return;
+
+            int capacity = GetDahuaArchiveMultiViewCapacity();
+            var selected = DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(check => check.IsChecked == true).ToList();
+            if (selected.Count > capacity)
+            {
+                _dahuaUpdatingArchiveChannelChecks = true;
+                changed.IsChecked = false;
+                _dahuaUpdatingArchiveChannelChecks = false;
+                DahuaPlaybackSyncStatusText.Text = $"Układ obsługuje maksymalnie {capacity} kanałów.";
+            }
+
+            _dahuaArchiveSelectedChannels.Clear();
+            foreach (var check in DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>().Where(check => check.IsChecked == true))
+                if (check.Tag is int number) _dahuaArchiveSelectedChannels.Add(number);
+
+            UpdateDahuaArchiveChannelCheckStates();
+            RefreshDahuaArchiveSelectedChannelsSummary();
+        }
+
+        private void DahuaArchiveGridModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || DahuaArchiveChannelChecksPanel == null) return;
+            int capacity = GetDahuaArchiveMultiViewCapacity();
+            _dahuaUpdatingArchiveChannelChecks = true;
+            var selected = DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(check => check.IsChecked == true).ToList();
+            foreach (var check in selected.Skip(capacity))
+            {
+                check.IsChecked = false;
+                if (check.Tag is int number) _dahuaArchiveSelectedChannels.Remove(number);
+            }
+            _dahuaUpdatingArchiveChannelChecks = false;
+            UpdateDahuaArchiveChannelCheckStates();
+            RefreshDahuaArchiveSelectedChannelsSummary();
+        }
+
         private void DahuaModernGridModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!IsLoaded || DahuaModernChannelChecksPanel == null) return;
@@ -1301,13 +1410,13 @@ namespace VideoPlayer
             if (DahuaMultiVideoGrid != null) DahuaMultiVideoGrid.Children.Clear();
         }
 
-        private void BuildDahuaMultiViewSlots(IReadOnlyList<int> channels)
+        private void BuildDahuaMultiViewSlots(IReadOnlyList<int> channels, int? requestedCapacity = null)
         {
             DahuaStopMultiLiveStreams();
             DahuaStopPlaybackHandlesOnly();
             DisposeDahuaMultiViewSlots();
 
-            int capacity = GetDahuaMultiViewCapacity();
+            int capacity = requestedCapacity ?? GetDahuaMultiViewCapacity();
             int columns = capacity == 1 ? 1 : capacity == 4 ? 2 : capacity == 9 ? 3 : 4;
             DahuaMultiVideoGrid.Columns = columns;
             DahuaMultiVideoGrid.Rows = capacity / columns;
@@ -1696,7 +1805,7 @@ namespace VideoPlayer
                 _dahuaArchiveSelectedChannels.Add(defaultChannel);
             }
             RefreshDahuaArchiveSelectedChannelsSummary();
-            int capacity = GetDahuaMultiViewCapacity();
+            int capacity = GetDahuaArchiveMultiViewCapacity();
             if (channels.Count > capacity)
             {
                 MessageBox.Show(this, $"Wybrano {channels.Count} kanałów, ale aktualny układ obsługuje maksymalnie {capacity}. Zmień układ lub wybierz mniej kanałów.", "Za dużo kanałów", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1711,7 +1820,7 @@ namespace VideoPlayer
                 _dahuaRealPlayHandle = IntPtr.Zero;
             }
             DahuaStopSynchronizedPlayback();
-            BuildDahuaMultiViewSlots(channels);
+            BuildDahuaMultiViewSlots(channels, capacity);
 
             _dahuaPlaybackRangeStart = start.Value;
             _dahuaPlaybackRangeEnd = end.Value;
