@@ -1559,7 +1559,13 @@ namespace VideoPlayer
 
             int capacity = GetDahuaMultiViewCapacity();
             if (_dahuaArchiveSelectedChannels.Count == 0)
-                _dahuaArchiveSelectedChannels.Add(availableChannels[0].Number);
+            {
+                int singleChannel = GetSelectedDahuaArchiveChannel();
+                int initialChannel = availableChannels.Any(channel => channel.Number == singleChannel)
+                    ? singleChannel
+                    : availableChannels[0].Number;
+                _dahuaArchiveSelectedChannels.Add(initialChannel);
+            }
 
             var dialog = new Window
             {
