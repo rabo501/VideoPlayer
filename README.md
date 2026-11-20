@@ -1,4 +1,4 @@
-# VideoPlayer 1.6.0
+# VideoPlayer 1.7.0
 
 Windows desktop application (WPF, .NET 8, x64) for reviewing and analyzing video recordings.
 
@@ -13,13 +13,13 @@ Windows desktop application (WPF, .NET 8, x64) for reviewing and analyzing video
 
 ## Ongoing development
 
-- [Stage 6 — reporting, local case archive and release 2.0 plan](Dokumentacja/ETAP-6-Raportowanie-i-wydanie-2.0-Wersja-1.7.md)
+- [Stage 6 — reporting, local case archive and release 1.7 plan](Dokumentacja/ETAP-6-Raportowanie-i-wydanie-2.0-Wersja-1.7.md)
 
 ## Documentation
 
-- [User and deployment manual — 1.6.0](Dokumentacja/VideoPlayer-1.6.0-Dokumentacja.md)
-- [Release notes — 1.6.0](Dokumentacja/VideoPlayer-1.6.0-Informacje-o-wydaniu.md)
-- [Publication checklist — 1.6.0](Dokumentacja/VideoPlayer-1.6.0-Lista-publikacyjna.md)
+- [User and deployment manual — 1.7.0](Dokumentacja/VideoPlayer-1.7.0-Dokumentacja.md)
+- [Release notes — 1.7.0](Dokumentacja/VideoPlayer-1.7.0-Informacje-o-wydaniu.md)
+- [Publication checklist — 1.7.0](Dokumentacja/VideoPlayer-1.7.0-Lista-publikacyjna.md)
 
 Older Dahua development notes and documents labelled 1.3.2 are historical references, not the current user manual.
 
@@ -38,4 +38,4 @@ OCR runs locally; the selected frame/crop is processed by the local Tesseract en
 
 ## Release status
 
-Version metadata is set to 1.6.0. A Windows x64 Release build and final target-machine validation must be completed before distributing a binary package.
+Version metadata is set to 1.7.0. A Windows x64 Release build and final target-machine validation must be completed before distributing a binary package.
