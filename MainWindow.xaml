@@ -788,15 +788,8 @@
                                             MouseWheel="DahuaRecordingTimelineCanvas_MouseWheel"
                                             MouseRightButtonDown="DahuaRecordingTimelineCanvas_ResetZoom" />
                                 </Border>
-                                <Border Background="#14243A" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="5" Padding="7,5" Margin="0,0,0,7">
-                                    <StackPanel>
-                                        <TextBlock Text="KANAŁY DO ODTWARZANIA RÓWNOCZESNEGO" Foreground="#93C5FD" FontSize="10" FontWeight="Bold" />
-                                        <TextBlock x:Name="DahuaArchiveSelectedChannelsText" Text="Domyślnie: kanał wybrany w panelu Archiwum NVR." Foreground="#F8FAFC" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Border>
                                 <DockPanel>
                                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                                        <Button Content="Wybór kanałów archiwum…" Click="DahuaSelectArchiveChannels_Click" Padding="10,4" Margin="0,0,5,0" ToolTip="Wybierz kilka kamer, których nagrania mają być odtwarzane równocześnie" />
                                         <Button Content="▶ Start" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" Padding="10,4" Margin="0,0,5,0" />
                                         <Button Content="Ⅱ / ▶" Click="DahuaToggleSynchronizedPlayback_Click" Padding="10,4" Margin="0,0,5,0" />
                                         <Button Content="■ Stop" Click="DahuaStopSynchronizedPlayback_Click" Style="{StaticResource DahuaRedButton}" Padding="10,4" Margin="0,0,8,0" />
@@ -1238,6 +1231,27 @@
                                                 <DatePicker x:Name="DahuaEndDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
                                                 <TextBox x:Name="DahuaEndTimeBox" Grid.Column="1" Text="12:15:00" FontWeight="Bold" />
                                             </Grid>
+
+                                            <Border Background="#14243A" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,2,0,8">
+                                                <StackPanel>
+                                                    <TextBlock Text="ODTWARZANIE ARCHIWUM — WIELE KANAŁÓW" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" Margin="0,0,0,6" />
+                                                    <TextBlock Text="1. Wybierz układ:" Foreground="#E2E8F0" FontSize="11" />
+                                                    <ComboBox x:Name="DahuaArchiveGridModeBox" SelectedIndex="1" Margin="0,3,0,7" SelectionChanged="DahuaArchiveGridModeBox_SelectionChanged">
+                                                        <ComboBoxItem Content="1 kanał" />
+                                                        <ComboBoxItem Content="4 kanały" />
+                                                        <ComboBoxItem Content="9 kanałów" />
+                                                        <ComboBoxItem Content="16 kanałów" />
+                                                    </ComboBox>
+                                                    <TextBlock Text="2. Zaznacz kanały do równoczesnego odtwarzania:" Foreground="#E2E8F0" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5" />
+                                                    <Border Background="#0F1724" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="6">
+                                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                                            <StackPanel x:Name="DahuaArchiveChannelChecksPanel" />
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                    <TextBlock x:Name="DahuaArchiveSelectedChannelsText" Text="Wybierz kanały powyżej." Foreground="#BFDBFE" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                                    <Button Content="▶ Odtwarzaj wybrane kanały od wskazanego czasu" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+                                                </StackPanel>
+                                            </Border>
 
                                             <WrapPanel Margin="0,0,0,4" VerticalAlignment="Center">
                                                 <Border Width="10" Height="10" Background="#14532D" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />
