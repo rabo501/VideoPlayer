@@ -911,6 +911,27 @@
                                     <Button Content="Dodaj zdarzenie" Click="AddMarker_Click" Style="{StaticResource PrimaryButton}" />
                                     <Button Content="Zmień opis" Click="UpdateMarker_Click" />
                                 </WrapPanel>
+                                <Border Background="#121923" BorderBrush="#344155" BorderThickness="1" CornerRadius="5" Padding="7" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="CENTRUM ZDARZEŃ — BIEŻĄCE NAGRANIE" FontSize="10" FontWeight="Bold" Foreground="#75A5FF" Margin="0,0,0,5" />
+                                        <TextBox x:Name="EventCenterFilterBox" Padding="6,4" Margin="0,0,0,5"
+                                                 ToolTip="Szukaj w opisie, numerze tablicy, marce lub typie zdarzenia"
+                                                 TextChanged="EventCenterFilter_Changed" />
+                                        <DockPanel>
+                                            <ComboBox x:Name="EventCenterCategoryBox" Width="150" Height="27" SelectedIndex="0"
+                                                      SelectionChanged="EventCenterFilter_Changed" Margin="0,0,6,5">
+                                                <ComboBoxItem Content="Wszystkie zdarzenia" Tag="all" />
+                                                <ComboBoxItem Content="Wykryty ruch" Tag="Ruch" />
+                                                <ComboBoxItem Content="Tablice rejestracyjne" Tag="Tablica" />
+                                                <ComboBoxItem Content="Zdarzenia ręczne" Tag="Ręczne" />
+                                                <ComboBoxItem Content="Tablice powiązane z ruchem" Tag="related" />
+                                            </ComboBox>
+                                            <Button Content="Wyczyść" Click="EventCenterClearFilter_Click" Padding="8,3" Margin="0,0,0,5" />
+                                        </DockPanel>
+                                        <TextBlock x:Name="EventCenterCountText" Text="Brak zdarzeń dla bieżącego nagrania." FontSize="10"
+                                                   Foreground="#AEB9CA" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
                                 <ListBox x:Name="TimelineMarkersListBox" Height="165" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" SelectionChanged="TimelineMarkersListBox_SelectionChanged" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
