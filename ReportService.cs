@@ -26,7 +26,7 @@ namespace VideoPlayer
             if(trimmed.Length>0&&"=+-@".Contains(trimmed[0]))text="'"+text;
             return "\""+text.Replace("\"","\"\"")+"\"";
         }
-        public async Task CsvAsync(string source,List<TimelineMarker> markers,string output,CancellationToken ct)
+        public async Task CsvAsync(string source,List<TimelineMarker> markers,string output,ReportMetadata metadata,MediaInfoData? mediaInfo,List<ExportHistoryItem> exports,CancellationToken ct)
         {
             string temp=ExportService.Temporary(output);
             try
@@ -34,11 +34,43 @@ namespace VideoPlayer
                 await using(var stream=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,true))
                 await using(var writer=new StreamWriter(stream,new UTF8Encoding(true)))
                 {
-                    await writer.WriteLineAsync("Plik;Czas;Sekundy;Opis;Marka pojazdu".AsMemory(),ct);
-                    foreach(var m in markers)
+                    await writer.WriteLineAsync("Rodzaj;Numer sprawy;Tytuł sprawy;Miejsce;Uwagi;Plik źródłowy;Czas;Koniec;Sekundy;Sekundy końca;Typ zdarzenia;Opis;Marka pojazdu;Powiązane zdarzenia ruchu;Data eksportu;Operacja;Plik wynikowy;Szczegóły".AsMemory(),ct);
+                    string caseNumber=CsvCell(metadata.CaseNumber);
+                    string caseTitle=CsvCell(metadata.CaseTitle);
+                    string location=CsvCell(metadata.Location);
+                    string notes=CsvCell(metadata.Notes);
+                    string sourceCell=CsvCell(source);
+
+                    foreach(var marker in markers.OrderBy(m=>m.Seconds))
                     {
                         ct.ThrowIfCancellationRequested();
-                        string line=string.Join(";",CsvCell(source),CsvCell(Timestamp(m.Seconds)),CsvCell(m.Seconds.ToString("0.###",CultureInfo.InvariantCulture)),CsvCell(m.Description),CsvCell(m.VehicleMake));
+                        string endText=marker.EndSeconds.HasValue?Timestamp(marker.EndSeconds.Value):"";
+                        string endSeconds=marker.EndSeconds?.ToString("0.###",CultureInfo.InvariantCulture)??"";
+                        string line=string.Join(";",new[]{
+                            CsvCell("Zdarzenie"),caseNumber,caseTitle,location,notes,sourceCell,
+                            CsvCell(Timestamp(marker.Seconds)),CsvCell(endText),
+                            CsvCell(marker.Seconds.ToString("0.###",CultureInfo.InvariantCulture)),
+                            CsvCell(endSeconds),CsvCell(marker.EventType),CsvCell(marker.Description),
+                            CsvCell(marker.VehicleMake),CsvCell(marker.RelatedMotionCount.ToString(CultureInfo.InvariantCulture)),
+                            CsvCell(""),CsvCell(""),CsvCell(""),CsvCell("")
+                        });
+                        await writer.WriteLineAsync(line.AsMemory(),ct);
+                    }
+
+                    foreach(var export in exports.OrderBy(e=>e.CreatedLocal))
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        string rangeStart=export.StartSeconds.HasValue?Timestamp(export.StartSeconds.Value):"";
+                        string rangeEnd=export.EndSeconds.HasValue?Timestamp(export.EndSeconds.Value):"";
+                        string line=string.Join(";",new[]{
+                            CsvCell("Eksport"),caseNumber,caseTitle,location,notes,sourceCell,
+                            CsvCell(rangeStart),CsvCell(rangeEnd),
+                            CsvCell(export.StartSeconds?.ToString("0.###",CultureInfo.InvariantCulture)??""),
+                            CsvCell(export.EndSeconds?.ToString("0.###",CultureInfo.InvariantCulture)??""),
+                            CsvCell(""),CsvCell(""),CsvCell(""),CsvCell(""),
+                            CsvCell(export.CreatedLocal.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)),
+                            CsvCell(export.Operation),CsvCell(export.OutputPath),CsvCell(export.Details)
+                        });
                         await writer.WriteLineAsync(line.AsMemory(),ct);
                     }
                 }
