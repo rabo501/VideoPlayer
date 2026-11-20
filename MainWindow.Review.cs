@@ -88,6 +88,16 @@ namespace VideoPlayer
             }
         }
 
+        private void ClearCaseSelection_Click(object sender, RoutedEventArgs e)
+        {
+            ReportCasesBox.SelectedItem = null;
+            ReportCaseNumberBox.Clear();
+            ReportCaseTitleBox.Clear();
+            ReportLocationBox.Clear();
+            ReportNotesBox.Clear();
+            CaseArchiveStatusText.Text = "Wybór sprawy wyczyszczono. Raport będzie dotyczył bieżącego nagrania.";
+        }
+
         private void ApplyCaseMetadata(CaseRecord record)
         {
             ReportCaseNumberBox.Text = record.CaseNumber;
