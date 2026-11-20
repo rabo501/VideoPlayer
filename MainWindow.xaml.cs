@@ -28,6 +28,7 @@ namespace VideoPlayer
         private ReviewRepository _reviews = null!;
         private ExportService _exports = null!;
         private ReportService _reports = null!;
+        private CaseRepository _cases = null!;
         private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(3) };
         private readonly List<string> _recentFiles = new(), _recentScreenshots = new();
         private readonly List<TimelineMarker> _timelineMarkers = new();
@@ -75,6 +76,8 @@ namespace VideoPlayer
             try
             {
                 _historyService = new HistoryService();
+                _cases = new CaseRepository();
+                RefreshCaseArchiveList();
                 _reviews = new ReviewRepository();
                 _exports = new ExportService(_ffmpegService);
                 _reports = new ReportService(_exports);
