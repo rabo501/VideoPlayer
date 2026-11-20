@@ -91,7 +91,7 @@ namespace VideoPlayer
                 throw new FileNotFoundException("Nie znaleziono bieżącego nagrania. Sprawa nie została zapisana.");
 
             string caseNumber = metadata.CaseNumber.Trim();
-            string sourceKey = Path.GetFullPath(sourcePath).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+            string sourceKey = Path.GetFullPath(sourcePath).TrimEnd(Path.DirectorySeparatorChar);
             DateTime now = DateTime.Now;
             using var connection = Open();
             using var transaction = connection.BeginTransaction();
@@ -146,17 +146,46 @@ namespace VideoPlayer
                 if (Guid.TryParse(Convert.ToString(resolve.ExecuteScalar()), out Guid savedId)) id = savedId;
             }
 
-            using (var link = connection.CreateCommand())
+            string? existingSourcePath = null;
+            using (var findSource = connection.CreateCommand())
             {
+                findSource.Transaction = transaction;
+                findSource.CommandText = "SELECT SourcePath FROM CaseSources WHERE CaseId = $id;";
+                findSource.Parameters.AddWithValue("$id", id.ToString("D"));
+                using var reader = findSource.ExecuteReader();
+                while (reader.Read())
+                {
+                    string candidate = reader.GetString(0);
+                    if (string.Equals(candidate, sourceKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existingSourcePath = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (existingSourcePath == null)
+            {
+                using var link = connection.CreateCommand();
                 link.Transaction = transaction;
-                link.CommandText = @"
-                    INSERT INTO CaseSources (CaseId, SourcePath, AddedLocal)
-                    VALUES ($id, $source, $added)
-                    ON CONFLICT(CaseId, SourcePath) DO NOTHING;";
+                link.CommandText = @"INSERT INTO CaseSources (CaseId, SourcePath, AddedLocal)
+                                     VALUES ($id, $source, $added);";
                 link.Parameters.AddWithValue("$id", id.ToString("D"));
                 link.Parameters.AddWithValue("$source", sourceKey);
                 link.Parameters.AddWithValue("$added", now.ToString("yyyy-MM-dd HH:mm:ss"));
                 link.ExecuteNonQuery();
+            }
+            else if (!string.Equals(existingSourcePath, sourceKey, StringComparison.Ordinal))
+            {
+                // Refresh legacy uppercase paths while retaining the original display casing.
+                using var updateSource = connection.CreateCommand();
+                updateSource.Transaction = transaction;
+                updateSource.CommandText = @"UPDATE CaseSources SET SourcePath = $source
+                                             WHERE CaseId = $id AND SourcePath = $old;";
+                updateSource.Parameters.AddWithValue("$source", sourceKey);
+                updateSource.Parameters.AddWithValue("$id", id.ToString("D"));
+                updateSource.Parameters.AddWithValue("$old", existingSourcePath);
+                updateSource.ExecuteNonQuery();
             }
 
             transaction.Commit();
