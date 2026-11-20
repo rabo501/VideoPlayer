@@ -152,3 +152,34 @@ Przy zmianie urządzenia poprzedni wybór wielokanałowy jest czyszczony, aby nu
 3. Potwierdź, że panel „Kanały do odtwarzania równoczesnego” pokazuje nazwy i numery wybranych kamer.
 4. Zmień pojedynczy kanał wyszukiwania/pobierania i sprawdź, że lista wielokanałowa się nie zmienia.
 5. Zmień urządzenie i sprawdź, że poprzedni wybór wielokanałowy nie przechodzi na nowe urządzenie.
+
+## Przebudowa obsługi archiwum — wybór kanałów i układu w jednym miejscu
+
+Wybór kanałów i układu do odtwarzania równoczesnego został przeniesiony do zakładki **Archiwum NVR**. Nie zależy już od układu ustawionego w zakładce „Podgląd & PTZ”.
+
+Nowy przebieg pracy:
+
+1. Użytkownik wybiera urządzenie oraz zakres daty i czasu.
+2. W sekcji „Odtwarzanie archiwum — wiele kanałów” wybiera układ: 1, 4, 9 lub 16 kanałów.
+3. Zaznacza konkretne kanały bezpośrednio na liście w tej samej sekcji.
+4. Widzi podsumowanie wybranych nazw i numerów kanałów.
+5. Uruchamia odtwarzanie przyciskiem „Odtwarzaj wybrane kanały od wskazanego czasu”.
+
+Dolny pasek głównego okna pozostaje miejscem do sterowania już uruchomionym odtwarzaniem (pauza/wznów, stop, prędkość). Nie ma tam już osobnego wyboru kanałów ani drugiego przycisku Start.
+
+Pojedynczy wybór kanału w sekcji wyszukiwania/pobierania nadal służy do wyszukania pojedynczego nagrania na liście i pobrania go do głównego odtwarzacza. Nie steruje wyborem wielokanałowym.
+
+### Rozdzielenie układów
+
+- Układ w „Podgląd & PTZ” steruje wyłącznie podglądem na żywo.
+- Układ w „Archiwum NVR” steruje wyłącznie liczbą pól i limitem kanałów odtwarzania archiwum.
+- Zmiana układu archiwum nie zmienia układu live i odwrotnie.
+
+### Testy
+
+1. Ustaw w „Podgląd & PTZ” układ 1 kamery.
+2. Przejdź do „Archiwum NVR”, ustaw 4 kanały i zaznacz CH 1–4.
+3. Uruchom odtwarzanie. Powinny pojawić się cztery pola archiwum.
+4. Zmień układ live na 9 kamer i sprawdź, że archiwum pozostaje w układzie 4 kanałów.
+5. Zmień układ archiwum na 1 kanał i sprawdź, że lista pozwala zaznaczyć maksymalnie jeden kanał.
+6. Wyszukaj nagrania pojedynczego kanału i sprawdź, że zmiana tej listy nie zmienia zaznaczenia wielokanałowego.
