@@ -194,9 +194,13 @@ Raport nie stanowi niezależnego potwierdzenia prawdziwości opisu albo poprawno
 
 ### 12.3. Lokalne archiwum spraw
 
-W zakładce Zdarzenia znajduje się sekcja Archiwum spraw. Wpisz numer sprawy, tytuł, miejsce i uwagi w sekcji danych sprawy, a następnie wybierz Zapisz / aktualizuj sprawę. Numer sprawy jest wymagany. Zapis powiązuje sprawę z aktualnie otwartym nagraniem. Kolejne nagrania można dołączać do tej samej sprawy, otwierając je i ponownie zapisując sprawę z tym samym numerem.
+W zakładce Zdarzenia znajduje się sekcja Archiwum spraw. Wpisz numer sprawy, tytuł, miejsce i uwagi w sekcji danych sprawy, a następnie wybierz Zapisz / aktualizuj sprawę. Numer sprawy jest wymagany. Zapis powiązuje sprawę z aktualnie otwartym nagraniem. Kolejne nagrania można dołączać do tej samej sprawy, otwierając następne pliki i zapisując je z tym samym numerem. Jeśli na liście jest zaznaczona sprawa, a pole numeru pozostaje puste, zapis wykorzysta tę sprawę automatycznie.
 
-Aby przywrócić metadane do formularza, wybierz sprawę na liście i kliknij Wczytaj dane sprawy. Wczytanie nie otwiera automatycznie nagrania. Po wczytaniu danych i otwarciu innego materiału zapisz sprawę ponownie, aby powiązać nową ścieżkę źródłową.
+Aby przywrócić metadane, wybierz sprawę na liście i kliknij Wczytaj dane sprawy. Wczytanie nie otwiera automatycznie nagrań. Lista spraw pokazuje liczbę powiązanych plików.
+
+**Raport zbiorczy sprawy:** wybierz sprawę na liście i użyj Raport CSV albo Raport PDF. Raport obejmuje wszystkie przypisane nagrania, ich zdarzenia, historię eksportów i parametry techniczne. Nie trzeba wcześniej otwierać żadnego nagrania. W PDF każde zdarzenie jest opisane nazwą i ścieżką źródła; opcjonalne miniatury są pobierane z właściwego nagrania. CSV zawiera osobny wiersz „Nagranie” dla każdego źródła, dzięki czemu widoczne są także pliki bez zapisanych zdarzeń. Jeśli plik został przeniesiony lub usunięty, raport oznaczy niedostępne źródło, ale nadal uwzględni zachowane w bazie zdarzenia i eksporty.
+
+Przycisk Usuń sprawę wymaga potwierdzenia. Usuwa tylko dane sprawy i jej powiązania z nagraniami. Nie usuwa plików źródłowych, znaczników, historii eksportów ani plików wynikowych.
 
 Archiwum przechowuje metadane spraw i ścieżki do nagrań w lokalnej bazie VideoPlayer.db. Nie kopiuje, nie przenosi ani nie modyfikuje plików źródłowych. Przeniesienie nagrania może spowodować, że zapisana ścieżka przestanie wskazywać na istniejący plik. Kopię bazy wykonuj przed aktualizacją programu i przed testami migracji.
 
