@@ -482,6 +482,18 @@ namespace VideoPlayer
         public double? MotionY { get; set; }
         public double? MotionWidth { get; set; }
         public double? MotionHeight { get; set; }
+
+        // Event type is derived from existing marker data; no database migration is required.
+        public string EventType =>
+            Description.StartsWith("Tablica rejestracyjna:", StringComparison.OrdinalIgnoreCase)
+                ? "Tablica"
+                : EndSeconds.HasValue && Description.StartsWith("Ruch", StringComparison.OrdinalIgnoreCase)
+                    ? "Ruch"
+                    : "Ręczne";
+
+        // Runtime-only relation calculated by the event center from nearby motion intervals.
+        public int RelatedMotionCount { get; set; }
+
         public override string ToString()
         {
             TimeSpan time = TimeSpan.FromSeconds(Math.Max(0, Seconds));
@@ -492,7 +504,8 @@ namespace VideoPlayer
                 TimeSpan endTime = TimeSpan.FromSeconds(end);
                 range = $" – {(int)endTime.TotalHours:00}:{endTime.Minutes:00}:{endTime.Seconds:00}";
             }
-            return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}{range} — {Description}{make}";
+            string related = RelatedMotionCount > 0 ? $" | Powiązany ruch: {RelatedMotionCount}" : "";
+            return $"[{EventType}] {(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}{range} — {Description}{make}{related}";
         }
     }
 
