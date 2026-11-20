@@ -112,3 +112,24 @@ W `MainWindow.Dahua.cs` rozszerzono raportowanie wyniku uruchamiania zsynchroniz
 - gdy nie uruchomi się żaden kanał, dotychczasowa ścieżka błędu zatrzymuje operację.
 
 To jest pierwszy, niewielki krok 5A. Nie oznacza jeszcze zakończenia testów synchronizacji ani całego podetapu 5A.
+
+## Interfejs wyboru kanałów archiwum — implementacja
+
+Dodano przycisk **Wybierz kanały** bezpośrednio przy sterowaniu archiwum w głównym panelu.
+
+- Okno pokazuje kanały wybranego urządzenia Dahua wraz z nazwą i numerem.
+- Zaznaczenie kanałów archiwum jest przechowywane niezależnie od checkboxów konfiguracji podglądu na żywo.
+- Okno pokazuje bieżącą liczbę wybranych kanałów i limit wynikający z wybranego układu 1/4/9/16.
+- Po przekroczeniu limitu pozostałe checkboxy są blokowane.
+- Przycisk **Zastosuj** wymaga zaznaczenia co najmniej jednego kanału.
+- Anulowanie nie zmienia poprzedniego wyboru.
+- Przycisk **Start** używa wyboru z okna archiwum. Jeżeli liczba zaznaczonych kanałów przekracza limit układu, program wyświetla ostrzeżenie zamiast po cichu obcinać listę.
+
+### Testy interfejsu do wykonania
+
+1. Otwórz **Wybierz kanały** i zaznacz dwa lub więcej kanałów.
+2. Zastosuj wybór i uruchom archiwum.
+3. Zmień zaznaczenie kanałów podglądu na żywo w konfiguracji i sprawdź, czy wybór archiwum pozostaje bez zmian.
+4. Zmień układ na mniejszy niż liczba wybranych kanałów i sprawdź komunikat po naciśnięciu **Start**.
+5. Otwórz okno ponownie i sprawdź, czy poprzedni wybór został zachowany.
+6. Anuluj zmianę i sprawdź, czy poprzedni wybór nadal obowiązuje.
