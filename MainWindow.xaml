@@ -790,6 +790,7 @@
                                 </Border>
                                 <DockPanel>
                                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                                        <Button Content="Wybierz kanały" Click="DahuaSelectArchiveChannels_Click" Padding="10,4" Margin="0,0,5,0" ToolTip="Wybierz kamery, z których archiwum ma być odtwarzane równocześnie" />
                                         <Button Content="▶ Start" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" Padding="10,4" Margin="0,0,5,0" />
                                         <Button Content="Ⅱ / ▶" Click="DahuaToggleSynchronizedPlayback_Click" Padding="10,4" Margin="0,0,5,0" />
                                         <Button Content="■ Stop" Click="DahuaStopSynchronizedPlayback_Click" Style="{StaticResource DahuaRedButton}" Padding="10,4" Margin="0,0,8,0" />
