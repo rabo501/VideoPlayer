@@ -1,10 +1,10 @@
-# VideoPlayer 1.7 — etap 6: raportowanie i przygotowanie wydania 2.0
+# VideoPlayer 1.7 — etap 6: raportowanie i przygotowanie wydania 1.7
 
 ## Cel etapu
 
 Przygotowanie aplikacji do kolejnego wydania przez rozwój raportowania, lokalne archiwum spraw, pełną regresję funkcji oraz aktualizację dokumentacji i paczki publikacyjnej.
 
-Prace są prowadzone na gałęzi `wersja-1.7`. Wersja aplikacji pozostaje `1.6.0` do czasu zakończenia implementacji i testów akceptacyjnych.
+Prace są prowadzone na gałęzi `wersja-1.7`. Wersja aplikacji zostaje ustawiona na `1.7.0` do czasu zakończenia implementacji i testów akceptacyjnych.
 
 ## Podetapy
 
@@ -26,7 +26,7 @@ Prace są prowadzone na gałęzi `wersja-1.7`. Wersja aplikacji pozostaje `1.6.0
 - Kontrola poprawności danych i bezpieczny zapis pliku wynikowego.
 - Raport musi rozróżniać czas względny nagrania od czasu rzeczywistego rejestratora.
 
-### 6C — testy regresyjne i publikacyjne
+### 6C — testy regresyjne i publikacyjne (w trakcie)
 
 - Czysta kompilacja Release x64 w Visual Studio.
 - Weryfikacja kompletności folderu publikacyjnego: .NET, mpv, FFmpeg, Dahua SDK, Tesseract, tessdata i licencje.
@@ -35,11 +35,11 @@ Prace są prowadzone na gałęzi `wersja-1.7`. Wersja aplikacji pozostaje `1.6.0
 - Test na komputerze docelowym bez środowiska programistycznego.
 - Usunięcie danych testowych i prywatnych nagrań z paczki.
 
-### 6D — dokumentacja i wydanie
+### 6D — dokumentacja i wydanie 1.7.0 (przygotowane; publikacja po testach 6C)
 
 - Aktualizacja instrukcji użytkownika i wdrożeniowej.
 - Aktualizacja informacji o wydaniu oraz listy kontrolnej publikacji.
-- Ustalenie numeru 2.0.0 dopiero po zaliczeniu testów.
+- Ustalenie numeru 1.7.0 dopiero po zaliczeniu testów.
 - Przygotowanie finalnego folderu publikacyjnego x64.
 
 ## Ograniczenia
@@ -133,4 +133,4 @@ Czasy są jednoznacznie opisane jako względne względem początku pliku. Nie s�
 
 ## Kryterium zakończenia
 
-Etap 6A jest zakończony po kompilacji bez błędów i potwierdzeniu powyższych testów. Następnie można przejść do 6B — raportów.
+Etap 6A i 6B zostały wdrożone i zaakceptowane przez użytkownika. Etap 6C obejmuje testy regresyjne oraz publikacyjne na środowisku Windows.
