@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 
 namespace VideoPlayer
 {
     public partial class MainWindow
     {
+        private bool _plateSearchLoadedOnce;
+
         private void PlateSearch_Click(object sender, RoutedEventArgs e)
         {
             if (_historyService == null)
@@ -14,11 +18,52 @@ namespace VideoPlayer
                 return;
             }
 
-            var dialog = new PlateSearchWindow(_historyService) { Owner = this };
-            if (dialog.ShowDialog() != true || dialog.SelectedResult is not PlateSearchResult result)
-                return;
+            SetWorkspaceMode(WorkspaceMode.Player, 1);
+            PlateSearchExpander.IsExpanded = true;
+            PlateSearchExpander.BringIntoView();
+            RunPlateSearch();
+            SearchPlateFilterBox.Focus();
+        }
 
-            _ = OpenPlateSearchResultAsync(result);
+        private void PlateSearchExpander_Expanded(object sender, RoutedEventArgs e)
+        {
+            if (_historyService != null && !_plateSearchLoadedOnce)
+            {
+                _plateSearchLoadedOnce = true;
+                RunPlateSearch();
+            }
+        }
+
+        private void PlateSearchExecute_Click(object sender, RoutedEventArgs e) => RunPlateSearch();
+
+        private void RunPlateSearch()
+        {
+            if (_historyService == null) return;
+            try
+            {
+                List<PlateSearchResult> results = _historyService.SearchMarkers(
+                    SearchPlateFilterBox.Text, SearchMakeFilterBox.Text, SearchSourceFilterBox.Text);
+                PlateSearchResultsList.ItemsSource = results;
+                SearchResultCountText.Text = results.Count == 1000
+                    ? "Znaleziono co najmniej 1000 wyników (limit listy: 1000). Zawęź kryteria."
+                    : $"Znaleziono: {results.Count} zdarzeń.";
+            }
+            catch (Exception ex)
+            {
+                SearchResultCountText.Text = "Błąd wyszukiwania: " + ex.Message;
+            }
+        }
+
+        private void PlateSearchOpenSelected_Click(object sender, RoutedEventArgs e)
+        {
+            if (PlateSearchResultsList.SelectedItem is PlateSearchResult result)
+                _ = OpenPlateSearchResultAsync(result);
+        }
+
+        private void PlateSearchResultsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (PlateSearchResultsList.SelectedItem is PlateSearchResult result)
+                _ = OpenPlateSearchResultAsync(result);
         }
 
         private async System.Threading.Tasks.Task OpenPlateSearchResultAsync(PlateSearchResult result)
@@ -30,7 +75,13 @@ namespace VideoPlayer
                 return;
             }
 
-            await OpenMediaAsync(result.SourcePath);
+            SetWorkspaceMode(WorkspaceMode.Player, 1);
+            if (_sourceFilePath == null ||
+                !string.Equals(Path.GetFullPath(_sourceFilePath), Path.GetFullPath(result.SourcePath), StringComparison.OrdinalIgnoreCase))
+            {
+                await OpenMediaAsync(result.SourcePath);
+            }
+
             if (!_opening && _sourceFilePath != null &&
                 string.Equals(Path.GetFullPath(_sourceFilePath), Path.GetFullPath(result.SourcePath), StringComparison.OrdinalIgnoreCase))
             {

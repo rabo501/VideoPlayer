@@ -43,7 +43,7 @@ namespace VideoPlayer
         }
         private async void Open_Click(object sender,RoutedEventArgs e)
         {
-            if(!_ready||_opening||_exporting||_shutdownRequested){StatusText.Text="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
+            if(!_ready||_opening||_exporting||_motionDetectionRunning||_shutdownRequested){StatusText.Text="Poczekaj na zakończenie operacji lub uruchom mpv.";return;}
             var d=new Microsoft.Win32.OpenFileDialog{Title="Wybierz film",Filter="Pliki wideo|*.mp4;*.mkv;*.avi;*.mov;*.webm;*.m4v;*.wmv;*.ts|Wszystkie pliki|*.*"};
             if(d.ShowDialog(this)==true)await OpenMediaAsync(d.FileName);
         }
@@ -51,6 +51,7 @@ namespace VideoPlayer
         {
             if(!_ready||_opening||_exporting||_shutdownRequested)return;
             if(!File.Exists(path)){StatusText.Text="Plik nie istnieje.";return;}
+            SetWorkspaceMode(WorkspaceMode.Player);
             SaveSession();_opening=true;
             try
             {
@@ -92,7 +93,7 @@ namespace VideoPlayer
                 finally{_restoring=false;}
                 RefreshRanges();UpdateClipRangeText();
                 MediaInfoText.Text="Odczytywanie parametrów…";_=UpdateMediaInfoAsync(path);
-                Title="VideoPlayer 1.4.0 — "+_fileName;
+                Title="VideoPlayer 1.5.0 — "+_fileName;
                 StatusText.Text=restore?"Przywrócono sesję: "+_fileName:_fileName;
             }
             catch(Exception ex)

@@ -19,7 +19,19 @@ namespace VideoPlayer
         {
             string data=Path.Combine(AppContext.BaseDirectory,"tessdata");
             if(!File.Exists(Path.Combine(data,"eng.traineddata")))
-                throw new FileNotFoundException("Brak tessdata/eng.traineddata. Skopiuj cały katalog tessdata z projektu do folderu programu.");
+                throw new FileNotFoundException("Brak pliku tessdata/eng.traineddata. Sprawdź, czy katalog tessdata znajduje się obok pliku VideoPlayer.exe.");
+
+            // Wrapper charlesw/Tesseract 5.2.0 ładuje natywne biblioteki z podkatalogu x64.
+            string nativeDirectory = Path.Combine(AppContext.BaseDirectory, "x64");
+            string[] nativeLibraries = { "tesseract50.dll", "leptonica-1.82.0.dll" };
+            foreach (string library in nativeLibraries)
+            {
+                string libraryPath = Path.Combine(nativeDirectory, library);
+                if (!File.Exists(libraryPath))
+                    throw new FileNotFoundException(
+                        $"Brak natywnej biblioteki OCR: x64\\{library}. Skopiuj 64-bitowe biblioteki Tesseract 5.2.0 i Leptonica 1.82.0 do katalogu x64 obok VideoPlayer.exe.",
+                        libraryPath);
+            }
             using var input=new MemoryStream(crop);
             using var source=new Bitmap(input);
             double scale=Math.Min(Math.Clamp(110.0/source.Height,1.0,4.0),1800.0/source.Width);

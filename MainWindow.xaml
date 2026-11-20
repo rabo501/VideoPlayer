@@ -1,12 +1,22 @@
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="VideoPlayer.MainWindow" Title="VideoPlayer 1.5.0 — analiza nagrań" Width="1280" Height="780" MinWidth="900" MinHeight="600" Background="#111318" Foreground="#F1F3F5" FontFamily="Segoe UI" FontSize="13" Loaded="Window_Loaded" Closing="Window_Closing" WindowStartupLocation="CenterScreen" Icon="/VideoPlayer;component/VideoPlayer.ico">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="VideoPlayer.MainWindow"
+        Title="VideoPlayer 1.6.0 — analiza nagrań"
+        Width="1360" Height="820" MinWidth="960" MinHeight="620"
+        Background="#111318" Foreground="#F1F3F5"
+        FontFamily="Segoe UI" FontSize="13"
+        Loaded="Window_Loaded" Closing="Window_Closing"
+        WindowStartupLocation="CenterScreen"
+        Icon="/VideoPlayer;component/VideoPlayer.ico">
     <Window.Resources>
         <Style TargetType="Button">
             <Setter Property="Background" Value="#292D36" />
             <Setter Property="Foreground" Value="#F1F3F5" />
             <Setter Property="BorderBrush" Value="#3A404C" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="13,9" />
-            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,0,6,6" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="Medium" />
@@ -14,7 +24,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -32,21 +42,187 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="#3478F6" />
             <Setter Property="BorderBrush" Value="#3478F6" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
+
         <Style x:Key="PlayButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Padding" Value="19,10" />
             <Setter Property="MinWidth" Value="125" />
         </Style>
+
+        <Style x:Key="DahuaGreenButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#16A34A" />
+            <Setter Property="BorderBrush" Value="#22C55E" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+
+        <Style x:Key="DahuaRedButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#DC2626" />
+            <Setter Property="BorderBrush" Value="#EF4444" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+
+        <Style x:Key="DahuaBlueButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#2563EB" />
+            <Setter Property="BorderBrush" Value="#3B82F6" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+
+        <Style x:Key="DahuaChannelButton" TargetType="Button">
+            <Setter Property="MinWidth" Value="80" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Background" Value="#252A36" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#525C6C" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ChBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChBorder" Property="Background" Value="#384357" />
+                                <Setter TargetName="ChBorder" Property="BorderBrush" Value="#93A3BF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DahuaPresetTileButton" TargetType="Button" BasedOn="{StaticResource DahuaChannelButton}">
+            <Setter Property="MinWidth" Value="68" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Background" Value="#1E293B" />
+            <Setter Property="BorderBrush" Value="#3B82F6" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+
+        <Style x:Key="DahuaListBoxItemStyle" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="Margin" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#334155"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#64748B"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#1E40AF"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#60A5FA"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#2563EB"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#BFDBFE"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ItemBorder" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DahuaFieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CBD5E1" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <Style x:Key="DahuaDarkCalendarStyle" TargetType="{x:Type Calendar}">
+            <Setter Property="Background" Value="#111827" />
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="BorderBrush" Value="#64748B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CalendarDayButtonStyle">
+                <Setter.Value>
+                    <Style TargetType="{x:Type CalendarDayButton}">
+                        <Setter Property="Background" Value="#1F2937" />
+                        <Setter Property="Foreground" Value="#F8FAFC" />
+                        <Setter Property="BorderBrush" Value="#374151" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Setter Property="Margin" Value="1" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Style.Triggers>
+                            <Trigger Property="IsInactive" Value="True">
+                                <Setter Property="Foreground" Value="#64748B" />
+                            </Trigger>
+                            <Trigger Property="IsToday" Value="True">
+                                <Setter Property="BorderBrush" Value="#F59E0B" />
+                                <Setter Property="BorderThickness" Value="2" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#1D4ED8" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="BorderBrush" Value="#93C5FD" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#475569" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DahuaDatePickerStyle" TargetType="DatePicker">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Background" Value="#161922" />
+            <Setter Property="BorderBrush" Value="#5B667A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CalendarStyle" Value="{StaticResource DahuaDarkCalendarStyle}" />
+        </Style>
+
         <Style TargetType="ComboBox">
             <Setter Property="Background" Value="#292D36" />
             <Setter Property="Foreground" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#454C59" />
             <Setter Property="Padding" Value="8,5" />
-            <Setter Property="Height" Value="36" />
+            <Setter Property="Height" Value="34" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="ItemContainerStyle">
                 <Setter.Value>
@@ -80,9 +256,9 @@
                                 <ContentPresenter Grid.Column="0" Margin="9,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" TextElement.Foreground="#FFFFFF" RecognizesAccessKey="True" />
                                 <Path Grid.Column="1" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#FFFFFF" Width="8" Height="4" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
-                            <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen,                             Mode=TwoWay,                             RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press" Background="Transparent" BorderThickness="0" Opacity="0.01" />
+                            <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press" Background="Transparent" BorderThickness="0" Opacity="0.01" />
                             <Popup Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
-                                <Border Background="#292D36" BorderBrush="#454C59" BorderThickness="1" CornerRadius="6" MinWidth="{Binding ActualWidth,                                 RelativeSource={RelativeSource TemplatedParent}}">
+                                <Border Background="#292D36" BorderBrush="#454C59" BorderThickness="1" CornerRadius="6" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ScrollViewer SnapsToDevicePixels="True" MaxHeight="300">
                                         <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
                                     </ScrollViewer>
@@ -93,6 +269,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style TargetType="ComboBoxItem">
             <Setter Property="Foreground" Value="#F1F3F5" />
             <Setter Property="Background" Value="#292D36" />
@@ -112,9 +289,11 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#D8DCE4" />
         </Style>
+
         <Style x:Key="ClipTimelineHandleStyle" TargetType="Thumb">
             <Setter Property="Width" Value="14" />
             <Setter Property="Height" Value="24" />
@@ -135,22 +314,24 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#8E98A9" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
+
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="#D7DFEB" />
             <Setter Property="Background" Value="#242A34" />
-            <Setter Property="Padding" Value="9,10" />
+            <Setter Property="Padding" Value="8,9" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
                         <Border Background="{TemplateBinding Background}" BorderBrush="#3D4655" BorderThickness="0,0,0,2" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" />
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
@@ -165,75 +346,480 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="DahuaSubTabItemStyle" TargetType="{x:Type TabItem}">
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="#252D3A"/>
+            <Setter Property="BorderBrush" Value="#475569"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9,6"/>
+            <Setter Property="Margin" Value="0,0,4,6"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabItem}">
+                        <Border x:Name="TabBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                              TextElement.FontWeight="{TemplateBinding FontWeight}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#1D4ED8"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#60A5FA"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#93C5FD"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="TextBox">
             <Setter Property="Background" Value="#171A20" />
             <Setter Property="Foreground" Value="#E6EAF0" />
+            <Setter Property="CaretBrush" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#454C59" />
             <Setter Property="Padding" Value="7" />
         </Style>
-        <Style TargetType="MenuItem">
-            <Setter Property="Background" Value="#242832" />
+
+        <Style TargetType="PasswordBox">
+            <Setter Property="Background" Value="#171A20" />
             <Setter Property="Foreground" Value="#E6EAF0" />
-            <Style.Triggers>
-                <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Foreground" Value="#111318" />
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="CaretBrush" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#454C59" />
+            <Setter Property="Padding" Value="7" />
+        </Style>
+
+        <!-- Płaskie pozycje menu: bez obramowań, z czytelnym odstępem i delikatnym podświetleniem. -->
+        <!-- Pozycje rozwiniętego menu -->
+        <Style TargetType="{x:Type MenuItem}">
+            <Setter Property="Background" Value="#1E2B3D" />
+            <Setter Property="Foreground" Value="#F1F5F9" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,5" />
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Border x:Name="ItemBorder"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        Padding="{TemplateBinding Padding}"
+                        CornerRadius="6"
+                        SnapsToDevicePixels="True">
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <!-- Ikona lub znacznik zaznaczenia -->
+                                    <ColumnDefinition Width="22" />
+
+                                    <!-- Nazwa pozycji -->
+                                    <ColumnDefinition Width="*" />
+
+                                    <!-- Opis skrótu klawiaturowego -->
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <ContentPresenter x:Name="ItemIcon"
+                                          Grid.Column="0"
+                                          ContentSource="Icon"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center" />
+
+                                <TextBlock x:Name="CheckMark"
+                                   Grid.Column="0"
+                                   Text="&#xE73E;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="13"
+                                   Foreground="#93C5FD"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Center"
+                                   Visibility="Collapsed" />
+
+                                <ContentPresenter Grid.Column="1"
+                                          ContentSource="Header"
+                                          RecognizesAccessKey="True"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+
+                                <TextBlock Grid.Column="2"
+                                   Text="{TemplateBinding InputGestureText}"
+                                   Margin="18,0,0,0"
+                                   Foreground="#A9B7CC"
+                                   VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder"
+                                Property="Background"
+                                Value="#30445E" />
+                                <Setter Property="Foreground"
+                                Value="#FFFFFF" />
+                            </Trigger>
+
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark"
+                                Property="Visibility"
+                                Value="Visible" />
+                                <Setter TargetName="ItemIcon"
+                                Property="Visibility"
+                                Value="Collapsed" />
+                            </Trigger>
+
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ItemBorder"
+                                Property="Opacity"
+                                Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Główne pozycje na pasku: Plik, Widok i Pomoc -->
+        <Style x:Key="MainMenuTopItemStyle"
+       TargetType="{x:Type MenuItem}">
+
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#E8EEF8" />
+            <Setter Property="Padding" Value="15,10" />
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Grid>
+                            <Border x:Name="TopItemBorder"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            CornerRadius="6">
+
+                                <ContentPresenter ContentSource="Header"
+                                          RecognizesAccessKey="True"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+
+                            <!-- Panel rozwijanego menu -->
+                            <Popup x:Name="PART_Popup"
+                           Placement="Bottom"
+                           IsOpen="{TemplateBinding IsSubmenuOpen}"
+                           AllowsTransparency="True"
+                           Focusable="False"
+                           PopupAnimation="Fade">
+
+                                <Border Background="#111827"
+                                BorderBrush="#344256"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="8,4"
+                                MinWidth="340"
+                                Margin="0,4,0,0"
+                                SnapsToDevicePixels="True">
+
+                                    <ScrollViewer MaxHeight="550"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto"
+                                          CanContentScroll="True">
+                                        <ItemsPresenter
+                                    KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="TopItemBorder"
+                                Property="Background"
+                                Value="#263B5B" />
+                            </Trigger>
+
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="TopItemBorder"
+                                Property="Background"
+                                Value="#263B5B" />
+                            </Trigger>
+
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="TopItemBorder"
+                                Property="Opacity"
+                                Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type Separator}">
+            <Setter Property="Background" Value="#3B485C" />
+            <Setter Property="Margin" Value="8,5" />
+            <Setter Property="Height" Value="1" />
         </Style>
     </Window.Resources>
+
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" MinHeight="160" />
-            <RowDefinition Height="76" />
-            <RowDefinition Height="56" />
+            <RowDefinition Height="*" MinHeight="180" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+
+        <!-- Pasek górny: menu i przełącznik trybów w jednym oknie -->
         <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="True">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Content="Kamery Dahua IP" Click="DahuaStream_Click" Background="#16A34A" BorderBrush="#15803D" Margin="0,0,8,0" Padding="12,7" ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua" />
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Background="#1B1F27" BorderBrush="#343B48" BorderThickness="1" CornerRadius="7" Padding="3" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="ModePlayerButton" Content="Odtwarzacz" Click="SwitchToPlayerMode_Click" Background="#3478F6" BorderBrush="#3478F6" Foreground="#FFFFFF" Margin="0,0,3,0" Padding="11,6" />
+                        <Button x:Name="ModeDahuaButton" Content="Kamery Dahua IP" Click="DahuaStream_Click" Background="Transparent" BorderBrush="Transparent" Foreground="#D8DCE4" Margin="0" Padding="11,6" ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua (Ctrl+D)" />
+                    </StackPanel>
+                </Border>
+                <Button x:Name="OcrReturnTopButton" Content="Powrót do wideo (OCR)" Click="OcrCancel_Click" Visibility="Collapsed" Background="#B45309" BorderBrush="#D97706" Foreground="#FFFFFF" Margin="0,0,8,0" Padding="11,7" />
                 <Button Content="Otwórz nagranie" Click="Open_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="12,7" />
                 <Button x:Name="PanelToggleButton" Content="Ukryj panel ▶" Click="ToggleTools_Click" Margin="0" Padding="12,7" ToolTip="Pokaż lub ukryj prawy panel narzędzi" />
             </StackPanel>
-            <Menu Background="#1B1F27" Padding="2,4">
-                <MenuItem Header="_Plik">
-                    <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click" />
-                    <MenuItem Header="Kamery Dahua IP (Live)…" InputGestureText="Ctrl+D" Click="DahuaStream_Click" />
-                    <MenuItem Header="Wyszukaj tablicę / pojazd…" Click="PlateSearch_Click" />
-                    <MenuItem Header="Zapisz sesję" Click="SaveSession_Click" />
-                    <Separator />
-                    <MenuItem Header="Zakończ" Click="ExitMenu_Click" />
-                </MenuItem>
-                <MenuItem Header="_Widok">
-                    <MenuItem Header="Panel narzędzi" x:Name="ToolsPanelMenuItem" IsCheckable="True" IsChecked="True" Click="ToggleTools_Click" />
-                    <Separator />
-                    <MenuItem Header="Dopasuj cały obraz" Tag="fit" Click="MenuScale_Click" />
-                    <MenuItem Header="Wypełnij okno" Tag="fill" Click="MenuScale_Click" />
-                    <MenuItem Header="Powiększenie 125%" Tag="1.25" Click="MenuScale_Click" />
-                    <MenuItem Header="Powiększenie 150%" Tag="1.5" Click="MenuScale_Click" />
-                    <MenuItem Header="Powiększenie 200%" Tag="2" Click="MenuScale_Click" />
-                    <MenuItem Header="Resetuj widok" InputGestureText="R" Click="ResetView_Click" />
-                </MenuItem>
-                <MenuItem Header="Pomo_c">
-                    <MenuItem Header="Obsługa i skróty" Click="BasicHelp_Click" />
-                    <MenuItem Header="Uruchom ponownie mpv" Click="RestartMpv_Click" />
-                    <Separator />
-                    <MenuItem Header="Informacje" Click="About_Click" />
-                </MenuItem>
-            </Menu>
+
+            <Border Background="#171E29" BorderBrush="#344256" BorderThickness="1" CornerRadius="9"
+                    Padding="4,3" Margin="0,0,10,0" VerticalAlignment="Center">
+                <Menu Background="Transparent" Padding="0" VerticalAlignment="Center"
+                      ItemContainerStyle="{StaticResource MainMenuTopItemStyle}">
+                    <MenuItem>
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                <TextBlock Text="Plik" />
+                            </StackPanel>
+                        </MenuItem.Header>
+                        <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click">
+                            <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Tryb odtwarzacza nagrań" Click="SwitchToPlayerMode_Click">
+                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Tryb kamer Dahua IP (Live &amp; Archiwum)" InputGestureText="Ctrl+D" Click="DahuaStream_Click">
+                            <MenuItem.Icon><TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Wyszukaj tablicę / pojazd" Click="PlateSearch_Click">
+                            <MenuItem.Icon><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Header="Zapisz sesję" Click="SaveSession_Click">
+                            <MenuItem.Icon><TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Zakończ" Click="ExitMenu_Click">
+                            <MenuItem.Icon><TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" Foreground="#FCA5A5" /></MenuItem.Icon>
+                        </MenuItem>
+                    </MenuItem>
+                    <MenuItem>
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                <TextBlock Text="Widok" />
+                            </StackPanel>
+                        </MenuItem.Header>
+                        <MenuItem Header="Panel narzędzi" x:Name="ToolsPanelMenuItem" IsCheckable="True" IsChecked="True" Click="ToggleTools_Click" />
+                        <Separator />
+                        <MenuItem Header="Dopasuj cały obraz" Tag="fit" Click="MenuScale_Click" />
+                        <MenuItem Header="Wypełnij okno" Tag="fill" Click="MenuScale_Click" />
+                        <MenuItem Header="Powiększenie 125%" Tag="1.25" Click="MenuScale_Click" />
+                        <MenuItem Header="Powiększenie 150%" Tag="1.5" Click="MenuScale_Click" />
+                        <MenuItem Header="Powiększenie 200%" Tag="2" Click="MenuScale_Click" />
+                        <MenuItem Header="Resetuj widok" InputGestureText="R" Click="ResetView_Click" />
+                    </MenuItem>
+                    <MenuItem>
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                <TextBlock Text="Pomoc" />
+                            </StackPanel>
+                        </MenuItem.Header>
+                        <MenuItem Header="Obsługa i skróty" Click="BasicHelp_Click" />
+                        <MenuItem Header="Uruchom ponownie mpv" Click="RestartMpv_Click" />
+                        <Separator />
+                        <MenuItem Header="Informacje o programie" Click="About_Click" />
+                    </MenuItem>
+                </Menu>
+            </Border>
         </DockPanel>
+
+        <!-- Główny obszar roboczy: duży podgląd po lewej + rozwijany/zmienialny panel po prawej -->
         <Grid Grid.Row="1" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="250" />
+                <ColumnDefinition Width="*" MinWidth="320" />
                 <ColumnDefinition x:Name="ToolsSplitterColumn" Width="7" />
-                <ColumnDefinition x:Name="ToolsColumn" Width="360" MinWidth="300" />
+                <ColumnDefinition x:Name="ToolsColumn" Width="390" MinWidth="320" />
             </Grid.ColumnDefinitions>
+
+            <!-- LEWA STREFA: Duży obszar podglądu (przełączane warstwy bez dodatkowych okien) -->
             <Border Grid.Column="0" Background="#050608" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
-                <wfi:WindowsFormsHost x:Name="VideoHost" Background="#050608" />
+                <Grid>
+                    <!-- 1. Odtwarzacz lokalny mpv -->
+                    <Grid x:Name="PlayerViewportLayer" Visibility="Visible">
+                        <wfi:WindowsFormsHost x:Name="VideoHost" Background="#050608" />
+                    </Grid>
+
+                    <!-- 2. Wbudowany moduł lokalnego rozpoznawania tablic (OCR) na dużym podglądzie -->
+                    <Grid x:Name="PlateOcrViewportLayer" Visibility="Collapsed" Background="#0D1117">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Background="#161C26" BorderBrush="#303846" BorderThickness="0,0,0,1" Padding="10,7">
+                            <DockPanel LastChildFill="True">
+                                <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="Powiększenie:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" Foreground="#AEB9CA" />
+                                    <Button Content="−" Click="OcrZoomOut_Click" Width="32" Padding="4" Margin="0,0,4,0" ToolTip="Pomniejsz widok klatki" />
+                                    <TextBlock x:Name="OcrZoomLabel" Text="1×" Width="46" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                    <Button Content="+" Click="OcrZoomIn_Click" Width="32" Padding="4" Margin="4,0,6,0" ToolTip="Powiększ widok klatki" />
+                                    <Button Content="Dopasuj" Click="OcrFitView_Click" Padding="9,4" Margin="0,0,6,0" ToolTip="Pokaż całą klatkę z zachowaniem narożników" />
+                                    <Button x:Name="OcrResetSelectionButton" Content="Nowe zaznaczenie" Click="OcrResetSelection_Click" Padding="9,4" Margin="0,0,6,0" />
+                                    <Button Content="Powrót do wideo" Click="OcrCancel_Click" Padding="10,4" Margin="0" Background="#8F3038" BorderBrush="#A63B44" Foreground="#FFFFFF" />
+                                </WrapPanel>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock x:Name="OcrFrameInfo" Text="Rozpoznawanie tablicy — lokalnie" FontSize="13" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="Lewy przycisk: zaznacz obszar i przesuwaj 4 narożniki • Kółko: zoom • Prawy przycisk: przesuwanie obrazu" Foreground="#94A3B8" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                        <Grid x:Name="OcrPictureArea" Grid.Row="1" Background="#080B10" ClipToBounds="True" Cursor="Cross"
+                              MouseLeftButtonDown="OcrPicture_Down" MouseMove="OcrPicture_Move"
+                              MouseLeftButtonUp="OcrPicture_Up" SizeChanged="OcrPicture_SizeChanged"
+                              LostMouseCapture="OcrPicture_LostCapture" PreviewMouseWheel="OcrPicture_Wheel"
+                              MouseRightButtonDown="OcrPicture_PanDown" MouseRightButtonUp="OcrPicture_PanUp">
+                            <Canvas IsHitTestVisible="False">
+                                <Image x:Name="OcrFrameImage" Stretch="Fill" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                            </Canvas>
+                            <Canvas x:Name="OcrSelectionCanvas" IsHitTestVisible="False">
+                                <Polygon x:Name="OcrSelectionPolygon" Stroke="#21CFFF" StrokeThickness="2" Fill="#2221CFFF" Visibility="Collapsed" />
+                            </Canvas>
+                        </Grid>
+                    </Grid>
+
+                    <!-- 3. Wbudowany podgląd kamer i archiwum Dahua IP -->
+                    <Grid x:Name="DahuaViewportLayer" Visibility="Collapsed" Background="#0B0E14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Ekran wielokanałowy Dahua -->
+                        <Border Grid.Row="0" Background="#000000" ClipToBounds="True">
+                            <Grid x:Name="DahuaVideoContainerGrid">
+                                <wfi:WindowsFormsHost x:Name="DahuaPrimaryVideoHost" Background="#000000" Visibility="Collapsed" />
+                                <UniformGrid x:Name="DahuaMultiVideoGrid" Rows="1" Columns="1" Background="#000000" />
+                                <Border x:Name="DahuaStreamOverlay" Background="#B0000000" Visibility="Visible" VerticalAlignment="Center" HorizontalAlignment="Center" CornerRadius="8" Padding="20">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="DahuaOverlayText" Text="Brak aktywnego strumienia Dahua IP" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
+                                        <TextBlock Text="Wybierz urządzenie w zakładce 'Dahua IP' po prawej i kliknij 'Połącz ze strumieniem'" Foreground="#CBD5E1" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#E0000000" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="4" Padding="9,4" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse x:Name="DahuaLiveIndicator" Width="8" Height="8" Fill="#22C55E" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                        <TextBlock x:Name="DahuaActiveChannelOverlayText" Text="BRAMA GŁÓWNA (CH 1)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Szybki pasek kanałów po nazwie -->
+                        <Border Grid.Row="1" Background="#161A23" BorderBrush="#343B48" BorderThickness="0,1,0,0" Padding="8,6">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock Text="KANAŁY:" FontSize="11" FontWeight="Bold" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <TextBlock Text="Inny kanał:" FontSize="11" Foreground="#AEB9CA" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBox x:Name="DahuaCustomChannelBox" Text="1" Width="42" Height="26" TextAlignment="Center" Padding="2" FontWeight="Bold" />
+                                        <Button Content="Przełącz" Click="DahuaCustomChannel_Click" Padding="9,3" Margin="4,0,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <ScrollViewer MaxHeight="88" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <WrapPanel x:Name="DahuaChannelButtonsPanel" />
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Wspólna oś czasu odtwarzania archiwalnego Dahua -->
+                        <Border Grid.Row="2" Background="#171D29" BorderBrush="#344155" BorderThickness="0,1,0,0" Padding="9,6">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock Text="ODTWARZANIE ARCHIWUM DAHUA" Foreground="#F8FAFC" FontWeight="Bold" FontSize="11" />
+                                    <TextBlock x:Name="DahuaPlaybackPositionText" Text="00:00:00 / 00:00:00" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" HorizontalAlignment="Right" />
+                                </DockPanel>
+                                <Slider x:Name="DahuaPlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
+                                        Margin="24,0,8,0" IsEnabled="False" IsMoveToPointEnabled="True"
+                                        PreviewMouseLeftButtonDown="DahuaPlaybackSlider_MouseLeftButtonDown"
+                                        PreviewMouseLeftButtonUp="DahuaPlaybackSlider_MouseLeftButtonUp"
+                                        LostMouseCapture="DahuaPlaybackSlider_LostMouseCapture"
+                                        TickFrequency="1" IsSnapToTickEnabled="False" />
+                                <Border Background="#101722" BorderBrush="#344155" BorderThickness="1" CornerRadius="4" Padding="5,3" Margin="0,4,0,4">
+                                    <Canvas x:Name="DahuaRecordingTimelineCanvas" Height="42" ClipToBounds="True" Background="Transparent"
+                                            SizeChanged="DahuaRecordingTimelineCanvas_SizeChanged"
+                                            PreviewMouseLeftButtonDown="DahuaRecordingTimelineCanvas_MouseLeftButtonDown"
+                                            MouseWheel="DahuaRecordingTimelineCanvas_MouseWheel"
+                                            MouseRightButtonDown="DahuaRecordingTimelineCanvas_ResetZoom" />
+                                </Border>
+                                <DockPanel>
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                                        <Button Content="▶ Start" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" Padding="10,4" Margin="0,0,5,0" />
+                                        <Button Content="Ⅱ / ▶" Click="DahuaToggleSynchronizedPlayback_Click" Padding="10,4" Margin="0,0,5,0" />
+                                        <Button Content="■ Stop" Click="DahuaStopSynchronizedPlayback_Click" Style="{StaticResource DahuaRedButton}" Padding="10,4" Margin="0,0,8,0" />
+                                        <TextBlock Text="Tempo" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="#CBD5E1" FontSize="11" />
+                                        <ComboBox x:Name="DahuaArchiveSpeedBox" Width="76" Height="28" Margin="0,0,8,0" SelectedIndex="2" SelectionChanged="DahuaArchiveSpeedBox_SelectionChanged">
+                                            <ComboBoxItem Content="0,25×" Tag="0.25" />
+                                            <ComboBoxItem Content="0,5×" Tag="0.5" />
+                                            <ComboBoxItem Content="1×" Tag="1" />
+                                            <ComboBoxItem Content="2×" Tag="2" />
+                                            <ComboBoxItem Content="4×" Tag="4" />
+                                            <ComboBoxItem Content="8×" Tag="8" />
+                                            <ComboBoxItem Content="16×" Tag="16" />
+                                            <ComboBoxItem Content="32×" Tag="32" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <TextBlock x:Name="DahuaPlaybackSyncStatusText" Text="Wybierz kanały i zakres czasu." Foreground="#CBD5E1" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
             </Border>
+
             <GridSplitter x:Name="ToolsSplitter" Grid.Column="1" Width="7" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#292F3A" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ShowsPreview="True" ToolTip="Przeciągnij, żeby zmienić szerokość panelu" />
+
+            <!-- PRAWA STREFA: Wszystkie narzędzia w jednym panelu zakładek -->
             <Border x:Name="ToolsPanel" Grid.Column="2" Background="#20242C" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" Padding="3">
-                <TabControl x:Name="ToolsTabs" SelectedIndex="0" Background="#20242C" BorderThickness="0" Padding="8">
+                <TabControl x:Name="ToolsTabs" SelectedIndex="0" Background="#20242C" BorderThickness="0" Padding="6" SelectionChanged="ToolsTabs_SelectionChanged">
+
+                    <!-- ZAKŁADKA 0: Fragmenty -->
                     <TabItem Header="Fragmenty">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
@@ -243,7 +829,7 @@
                                     <Button Content="Koniec (O)" Click="MarkEnd_Click" />
                                 </WrapPanel>
                                 <TextBlock x:Name="RangeFeedbackText" TextWrapping="Wrap" Foreground="#F5C970" Margin="0,0,0,10" />
-                                <TextBlock Text="Nazwa fragmentu" FontWeight="SemiBold" Margin="0,8,0,8" />
+                                <TextBlock Text="Nazwa fragmentu" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <TextBox x:Name="ClipNameBox" Margin="0,0,0,8" Padding="7" Text="Fragment" ToolTip="Nazwa fragmentu" HorizontalAlignment="Stretch" />
                                 <WrapPanel>
                                     <Button Content="Dodaj zaznaczenie" Click="AddRange_Click" Style="{StaticResource PrimaryButton}" />
@@ -258,17 +844,52 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
+
+                    <!-- ZAKŁADKA 1: Zdarzenia, OCR tablic, Wyszukiwarka, Raporty -->
                     <TabItem Header="Zdarzenia">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Zapisz zdarzenie w bieżącej pozycji filmu. Dwuklik na liście przenosi do wskazanego czasu." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
-                                <Button x:Name="PlateOcrButton" Content="Rozpoznaj tablicę — lokalnie" Click="PlateOcr_Click" Margin="0,0,0,8" Padding="10,8" ToolTip="Zatrzymaj klatkę, zaznacz tablicę i potwierdź odczyt. Bez internetu." />
+                                <Button x:Name="PlateOcrButton" Content="Rozpoznaj tablicę (OCR) — lokalnie" Click="PlateOcr_Click" Margin="0,0,0,8" Padding="10,8" HorizontalAlignment="Stretch" ToolTip="Zatrzymaj klatkę, zaznacz tablicę po lewej i potwierdź odczyt. Bez internetu." />
+
+                                <!-- Wbudowany inspektor OCR (widoczny podczas rozpoznawania tablicy) -->
+                                <Border x:Name="OcrInspectorPanel" Visibility="Collapsed" Background="#151B25" BorderBrush="#3478F6" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="MODUŁ ROZPOZNAWANIA TABLIC (LOKALNY)" FontWeight="Bold" FontSize="11" Foreground="#75A5FF" Margin="0,0,0,6" />
+                                        <Border Background="#0B0F15" BorderBrush="#2D3748" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,6">
+                                            <StackPanel>
+                                                <TextBlock Text="Wycinek po prostowaniu perspektywy:" FontSize="10" Foreground="#94A3B8" Margin="0,0,0,4" />
+                                                <Image x:Name="OcrRectifiedPreview" Height="64" Stretch="Uniform" />
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock x:Name="OcrSelectionInfo" Text="Zaznacz tablicę na obrazie po lewej." FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                        <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj zaznaczoną tablicę" Click="OcrRecognize_Click" Style="{StaticResource PrimaryButton}" IsEnabled="False" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
+                                        <TextBlock x:Name="OcrStatusText" Text="Silnik OCR działa lokalnie. Wynik wymaga sprawdzenia." FontSize="11" Foreground="#F5C970" TextWrapping="Wrap" Margin="0,0,0,6" />
+
+                                        <TextBlock Text="Numer tablicy:" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,3" />
+                                        <TextBox x:Name="OcrPlateBox" FontSize="18" FontWeight="Bold" MaxLength="24" Padding="6,4" CharacterCasing="Upper" TextChanged="OcrPlate_Changed" Margin="0,0,0,6" />
+
+                                        <TextBlock Text="Marka pojazdu:" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,3" />
+                                        <TextBox x:Name="OcrVehicleMakeBox" FontSize="13" MaxLength="60" Padding="6,4" Margin="0,0,0,6" ToolTip="Wpisz ręcznie markę pojazdu, np. Toyota, Volkswagen, BMW" />
+
+                                        <TextBlock Text="Inne propozycje:" FontSize="11" Margin="0,0,0,3" />
+                                        <ComboBox x:Name="OcrCandidatesBox" Height="30" SelectionChanged="OcrCandidate_Changed" Margin="0,0,0,6" />
+
+                                        <CheckBox x:Name="OcrConfirmedBox" Content="Potwierdzam zgodność numeru z obrazem" Foreground="#E6EAF0" Margin="0,2,0,8" Checked="OcrConfirmation_Changed" Unchecked="OcrConfirmation_Changed" />
+
+                                        <WrapPanel>
+                                            <Button x:Name="OcrSaveEventButton" Content="Zapisz jako zdarzenie" Click="OcrSave_Click" Style="{StaticResource DahuaGreenButton}" IsEnabled="False" />
+                                            <Button Content="Anuluj OCR" Click="OcrCancel_Click" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
                                 <TextBox x:Name="MarkerDescriptionBox" Margin="0,0,0,8" Padding="7,5" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#454C59" ToolTip="Opis zdarzenia, np. Wejście osoby lub Otwarcie bramy" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="36" />
                                 <WrapPanel>
                                     <Button Content="Dodaj zdarzenie" Click="AddMarker_Click" Style="{StaticResource PrimaryButton}" />
                                     <Button Content="Zmień opis" Click="UpdateMarker_Click" />
                                 </WrapPanel>
-                                <ListBox x:Name="TimelineMarkersListBox" Height="190" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" SelectionChanged="TimelineMarkersListBox_SelectionChanged" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
+                                <ListBox x:Name="TimelineMarkersListBox" Height="165" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" SelectionChanged="TimelineMarkersListBox_SelectionChanged" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
                                             <EventSetter Event="MouseDoubleClick" Handler="MarkerListItem_DoubleClick" />
@@ -277,23 +898,82 @@
                                 </ListBox>
                                 <WrapPanel>
                                     <Button Content="Przejdź do" Click="GoToMarker_Click" />
+                                    <Button Content="Podgląd obszaru ruchu" Click="MotionPreview_Click" />
                                     <Button Content="Usuń" Click="DeleteMarker_Click" />
                                 </WrapPanel>
-                                <TextBlock Text="Raport zdarzeń" FontWeight="SemiBold" Margin="0,8,0,8" />
+
+                                <!-- Wbudowana wyszukiwarka tablic i pojazdów -->
+                                <Expander x:Name="PlateSearchExpander" Header="Wyszukiwarka tablic i pojazdów" Margin="0,8,0,6" Foreground="#D8DCE4" Expanded="PlateSearchExpander_Expanded">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Numer tablicy" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="SearchPlateFilterBox" CharacterCasing="Upper" Padding="6,4" Margin="0,0,0,6" />
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                                    <TextBlock Text="Marka" FontSize="11" Margin="0,0,0,3" />
+                                                    <TextBox x:Name="SearchMakeFilterBox" Padding="6,4" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="Nagranie" FontSize="11" Margin="0,0,0,3" />
+                                                    <TextBox x:Name="SearchSourceFilterBox" Padding="6,4" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <WrapPanel>
+                                                <Button Content="Szukaj" Click="PlateSearchExecute_Click" Style="{StaticResource PrimaryButton}" />
+                                                <Button Content="Otwórz wybrane" Click="PlateSearchOpenSelected_Click" />
+                                            </WrapPanel>
+                                            <TextBlock x:Name="SearchResultCountText" Text="Wpisz kryteria i kliknij Szukaj." Foreground="#AEB9CA" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <ListView x:Name="PlateSearchResultsList" Height="150" Background="#12151B" Foreground="#E6EAF0" BorderBrush="#343B48" MouseDoubleClick="PlateSearchResultsList_MouseDoubleClick">
+                                                <ListView.View>
+                                                    <GridView>
+                                                        <GridViewColumn Header="Tablica" Width="88" DisplayMemberBinding="{Binding PlateNumber}" />
+                                                        <GridViewColumn Header="Marka" Width="80" DisplayMemberBinding="{Binding VehicleMake}" />
+                                                        <GridViewColumn Header="Czas" Width="80" DisplayMemberBinding="{Binding TimeText}" />
+                                                        <GridViewColumn Header="Opis" Width="180" DisplayMemberBinding="{Binding Description}" />
+                                                    </GridView>
+                                                </ListView.View>
+                                            </ListView>
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+
+                                <!-- Wbudowane dane sprawy do raportu PDF -->
+                                <Expander x:Name="ReportDetailsExpander" Header="Dane sprawy do raportu PDF (opcjonalne)" Margin="0,2,0,8" Foreground="#D8DCE4">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Numer sprawy / referencyjny" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportCaseNumberBox" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Tytuł sprawy" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportCaseTitleBox" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Miejsce zdarzenia" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportLocationBox" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Uwagi / opis sprawy" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportNotesBox" Padding="6,4" MinHeight="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+
+                                <TextBlock Text="Raport zdarzeń" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
                                 <WrapPanel>
                                     <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" />
-                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" />
+                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" Style="{StaticResource PrimaryButton}" />
                                 </WrapPanel>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
+
+                    <!-- ZAKŁADKA 2: Eksport -->
                     <TabItem Header="Eksport">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
-                                <TextBlock Text="Bieżące zaznaczenie" FontWeight="SemiBold" Margin="0,8,0,8" />
-                                <TextBlock x:Name="ClipRangeText" Text="Nie zaznaczono fragmentu." FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12" />
-                                <TextBlock Text="Profil eksportu" FontWeight="SemiBold" Margin="0,8,0,8" />
+                                <TextBlock Text="Bieżące zaznaczenie" FontWeight="SemiBold" Margin="0,4,0,6" />
+                                <TextBlock x:Name="ClipRangeText" Text="Nie zaznaczono fragmentu." FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <TextBlock Text="Profil eksportu" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <ComboBox x:Name="ExportProfileBox" Margin="0,0,0,10" SelectedIndex="1" ToolTip="Wybierz kompromis między szybkością, jakością i rozmiarem" HorizontalAlignment="Stretch">
                                     <ComboBoxItem Content="Szybki eksport" Tag="fast" />
                                     <ComboBoxItem Content="Standardowy" Tag="standard" />
@@ -302,43 +982,393 @@
                                 </ComboBox>
                                 <CheckBox x:Name="StreamCopyCheckBox" Content="Kopiuj strumienie bez rekompresji" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,12" ToolTip="Kopiuje strumienie bez kodowania. Cięcie może wypaść na najbliższej klatce kluczowej; kodeki muszą być zgodne z MP4." />
                                 <Button x:Name="ExportClipButton" Content="Zapisz zaznaczenie jako MP4" Style="{StaticResource PrimaryButton}" Click="ExportClip_Click" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
-                                <Button x:Name="ExportAllButton" Content="Eksportuj całą listę fragmentów" Click="ExportAll_Click" Margin="0,0,0,16" HorizontalAlignment="Stretch" />
-                                <TextBlock Text="Eksport korzysta z aktualnego zaznaczenia albo listy zapisanych fragmentów. Postęp i anulowanie są zawsze na dolnym pasku." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
-                                <TextBlock Text="Nowy film bez zaznaczenia" FontWeight="SemiBold" Margin="0,8,0,8" />
+                                <Button x:Name="ExportAllButton" Content="Eksportuj całą listę fragmentów" Click="ExportAll_Click" Margin="0,0,0,14" HorizontalAlignment="Stretch" />
+                                <TextBlock Text="Eksport korzysta z aktualnego zaznaczenia albo listy zapisanych fragmentów. Postęp i anulowanie są zawsze na dolnym pasku." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,10" />
+                                <TextBlock Text="Nowy film bez zaznaczenia" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <Button x:Name="RemoveClipButton" Content="Zapisz film bez zaznaczonego fragmentu" Click="RemoveClip_Click" Margin="0,0,0,8" Padding="12,8" Background="#8F3038" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Tworzy nowe nagranie bez zaznaczonego fragmentu" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="Oryginał pozostaje bez zmian. Ta operacja tworzy nowy plik." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
+
+                    <!-- ZAKŁADKA 3: Kamery Dahua IP (Podgląd & PTZ, Archiwum NVR, Konfiguracja urządzeń) -->
+                    <TabItem x:Name="DahuaTab" Header="Dahua IP">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Pasek stanu Dahua -->
+                            <Border Grid.Row="0" Background="#13161F" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,0,0,6">
+                                <StackPanel>
+                                    <TextBlock x:Name="DahuaSdkStatusBadge" Text="Dahua NetSDK: Oczekuje na uruchomienie" Foreground="#CBD5E1" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="DahuaStatusLabel" Text="Wybierz urządzenie z listy i połącz." Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <TabControl x:Name="DahuaSubTabs" Grid.Row="1" Background="#1A1E28" BorderThickness="0" Padding="2" ItemContainerStyle="{StaticResource DahuaSubTabItemStyle}">
+                                <!-- Podzakładka 3.0: Podgląd Live & PTZ -->
+                                <TabItem Header="Podgląd &amp; PTZ">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
+                                        <StackPanel>
+                                            <TextBlock Text="URZĄDZENIA DAHUA" Style="{StaticResource DahuaFieldLabel}" />
+                                            <ListBox x:Name="DahuaDevicesListBox" Height="110" Background="#0F1724" Foreground="#F8FAFC" BorderBrush="#475569" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" SelectionChanged="DahuaDevicesListBox_SelectionChanged" Margin="0,0,0,8">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="2">
+                                                            <TextBlock Text="{Binding Name}" Foreground="#F8FAFC" FontWeight="Bold" FontSize="12" />
+                                                            <TextBlock Text="{Binding DisplayLabel}" Foreground="#94A3B8" FontSize="10" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+
+                                            <WrapPanel Margin="0,0,0,6">
+                                                <Button x:Name="DahuaConnectButton" Content="▶ Połącz" Click="DahuaConnect_Click" Style="{StaticResource DahuaGreenButton}" />
+                                                <Button x:Name="DahuaDisconnectButton" Content="■ Rozłącz" Click="DahuaDisconnect_Click" Style="{StaticResource DahuaRedButton}" IsEnabled="False" />
+                                                <Button x:Name="DahuaQueryDeviceButton" Content="🔄 Odczytaj z NVR" Click="DahuaQueryFromDevice_Click" Style="{StaticResource DahuaBlueButton}" ToolTip="Pobiera nazwy kanałów i presety PTZ bezpośrednio z urządzenia" />
+                                            </WrapPanel>
+
+                                            <TextBlock Text="UKŁAD PODGLĄDU I KANAŁY" Style="{StaticResource DahuaFieldLabel}" />
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox x:Name="DahuaModernGridModeBox" SelectedIndex="0" SelectionChanged="DahuaModernGridModeBox_SelectionChanged" Margin="0,0,6,0">
+                                                    <ComboBoxItem Content="1 kamera" />
+                                                    <ComboBoxItem Content="4 kamery" />
+                                                    <ComboBoxItem Content="9 kamer" />
+                                                    <ComboBoxItem Content="16 kamer" />
+                                                </ComboBox>
+                                                <Button Grid.Column="1" Content="▶ Podgląd zaznaczonych" Click="DahuaStartMultiLive_Click" Style="{StaticResource DahuaGreenButton}" Margin="0" />
+                                            </Grid>
+
+                                            <Border Background="#121722" BorderBrush="#334155" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,8">
+                                                <ScrollViewer MaxHeight="115" VerticalScrollBarVisibility="Auto">
+                                                    <StackPanel x:Name="DahuaModernChannelChecksPanel" />
+                                                </ScrollViewer>
+                                            </Border>
+
+                                            <TextBlock Text="KANAŁ AKTYWNY I JAKOŚĆ STRUMIENIA" Style="{StaticResource DahuaFieldLabel}" />
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox x:Name="DahuaChannelComboBox" SelectedIndex="0" SelectionChanged="DahuaChannelComboBox_SelectionChanged" Margin="0,0,6,0" />
+                                                <ComboBox x:Name="DahuaStreamTypeBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="DahuaStreamTypeBox_SelectionChanged">
+                                                    <ComboBoxItem Content="Główny (Main - HD)" />
+                                                    <ComboBoxItem Content="Podstrumień (Sub)" />
+                                                </ComboBox>
+                                            </Grid>
+
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="DahuaChannelNameEditBox" Text="Brama główna" FontWeight="Bold" Margin="0,0,6,0" ToolTip="Wpisz własną nazwę kamery" />
+                                                <Button Grid.Column="1" Content="Zapisz nazwę" Click="DahuaSaveChannelName_Click" Padding="10,5" Margin="0" />
+                                            </Grid>
+
+                                            <TextBlock Text="ANALIZA ZE STRUMIENIA" Style="{StaticResource DahuaFieldLabel}" />
+                                            <WrapPanel Margin="0,0,0,8">
+                                                <Button Content="Zapisz klatkę (JPG)" Click="DahuaSnapshot_Click" />
+                                                <Button Content="Rozpoznaj tablicę (OCR)" Click="DahuaOcrFromLive_Click" Style="{StaticResource DahuaBlueButton}" />
+                                            </WrapPanel>
+
+                                            <TextBlock Text="PRESETY PTZ" Style="{StaticResource DahuaFieldLabel}" />
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox x:Name="DahuaPresetsComboBox" Margin="0,0,4,0" SelectedIndex="0" SelectionChanged="DahuaPresetsComboBox_SelectionChanged" />
+                                                <Button Grid.Column="1" Content="↻" Click="DahuaRefreshPresetsFromDevice_Click" Padding="9,6" Margin="0,0,4,0" ToolTip="Odczytaj listę presetów z urządzenia" />
+                                                <Button Grid.Column="2" Content="▶ Idź" Click="DahuaGotoPreset_Click" Style="{StaticResource DahuaGreenButton}" Padding="10,6" Margin="0" />
+                                            </Grid>
+
+                                            <WrapPanel x:Name="DahuaQuickPresetsPanel" Margin="0,0,0,6" />
+
+                                            <Expander Header="Edycja i zapis presetów PTZ" Foreground="#E2E8F0" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8">
+                                                <Border Background="#161922" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,4,0,0">
+                                                    <StackPanel>
+                                                        <Grid Margin="0,0,0,6">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="65" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                                <TextBlock Text="Nr" FontSize="10" Foreground="#CBD5E1" Margin="0,0,0,2" />
+                                                                <TextBox x:Name="DahuaPresetNumberBox" Text="1" TextAlignment="Center" FontWeight="Bold" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBlock Text="Nazwa punktu" FontSize="10" Foreground="#CBD5E1" Margin="0,0,0,2" />
+                                                                <TextBox x:Name="DahuaPresetNameBox" Text="Brama wjazdowa" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                        <WrapPanel>
+                                                            <Button Content="💾 Zapisz bieżącą" Click="DahuaSaveCurrentPositionAsPreset_Click" Style="{StaticResource DahuaBlueButton}" Padding="9,5" />
+                                                            <Button Content="Zmień nazwę" Click="DahuaRenameSelectedPreset_Click" Padding="9,5" />
+                                                            <Button Content="Usuń preset" Click="DahuaDeletePreset_Click" Padding="9,5" />
+                                                        </WrapPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Expander>
+
+                                            <TextBlock Text="RĘCZNE STEROWANIE PTZ" Style="{StaticResource DahuaFieldLabel}" />
+                                            <Grid Width="150" Height="84" HorizontalAlignment="Left" Margin="0,0,0,6">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*" />
+                                                    <RowDefinition Height="*" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button Grid.Row="0" Grid.Column="1" Content="▲" PreviewMouseDown="DahuaPtzUp_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="UP" />
+                                                <Button Grid.Row="1" Grid.Column="0" Content="◀" PreviewMouseDown="DahuaPtzLeft_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="LEFT" />
+                                                <Button Grid.Row="1" Grid.Column="2" Content="▶" PreviewMouseDown="DahuaPtzRight_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="RIGHT" />
+                                                <Button Grid.Row="2" Grid.Column="1" Content="▼" PreviewMouseDown="DahuaPtzDown_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="DOWN" />
+                                            </Grid>
+                                            <WrapPanel Margin="0,0,0,6">
+                                                <Button Content="Zoom +" PreviewMouseDown="DahuaPtzZoomIn_Down" PreviewMouseUp="DahuaPtz_Stop" Padding="9,5" Tag="ZOOM_IN" />
+                                                <Button Content="Zoom -" PreviewMouseDown="DahuaPtzZoomOut_Down" PreviewMouseUp="DahuaPtz_Stop" Padding="9,5" Tag="ZOOM_OUT" />
+                                                <Button Content="Focus +" PreviewMouseDown="DahuaPtzFocusIn_Down" PreviewMouseUp="DahuaPtz_Stop" Padding="9,5" Tag="FOCUS_IN" />
+                                                <Button Content="Focus -" PreviewMouseDown="DahuaPtzFocusOut_Down" PreviewMouseUp="DahuaPtz_Stop" Padding="9,5" Tag="FOCUS_OUT" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <!-- Podzakładka 3.1: Archiwum NVR -->
+                                <TabItem Header="Archiwum NVR">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
+                                        <StackPanel x:Name="DahuaArchivePanel">
+                                            <StackPanel.Resources>
+                                                <Style TargetType="DatePickerTextBox">
+                                                    <Setter Property="Background" Value="#161922" />
+                                                    <Setter Property="Foreground" Value="#FFFFFF" />
+                                                    <Setter Property="CaretBrush" Value="#FFFFFF" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </Style>
+                                            </StackPanel.Resources>
+
+                                            <Border Background="#166534" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,0,0,8">
+                                                <TextBlock Text="Pobierz nagranie wg kanału i czasu, aby wczytać je bezpośrednio do głównego odtwarzacza (klatkowanie, OCR, cięcie i eksport MP4/PDF)." Foreground="#DCFCE7" FontSize="11" TextWrapping="Wrap" />
+                                            </Border>
+
+                                            <TextBlock Text="KANAŁ KAMERY" Style="{StaticResource DahuaFieldLabel}" />
+                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,8" SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
+
+                                            <TextBlock Text="POCZĄTEK (OD)" Style="{StaticResource DahuaFieldLabel}" />
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.4*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <DatePicker x:Name="DahuaStartDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
+                                                <TextBox x:Name="DahuaStartTimeBox" Grid.Column="1" Text="12:00:00" FontWeight="Bold" />
+                                            </Grid>
+
+                                            <TextBlock Text="KONIEC (DO)" Style="{StaticResource DahuaFieldLabel}" />
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.4*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <DatePicker x:Name="DahuaEndDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
+                                                <TextBox x:Name="DahuaEndTimeBox" Grid.Column="1" Text="12:15:00" FontWeight="Bold" />
+                                            </Grid>
+
+                                            <WrapPanel Margin="0,0,0,4" VerticalAlignment="Center">
+                                                <Border Width="10" Height="10" Background="#14532D" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />
+                                                <TextBlock Text="Na NVR" Foreground="#BBF7D0" FontSize="10" Margin="0,0,8,0" />
+                                                <Border Width="10" Height="10" Background="#16A34A" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />
+                                                <TextBlock Text="Znalezione" Foreground="#D1FAE5" FontSize="10" Margin="0,0,8,0" />
+                                                <Border Width="10" Height="10" Background="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />
+                                                <TextBlock Text="Wybrany" Foreground="#DBEAFE" FontSize="10" />
+                                            </WrapPanel>
+                                            <TextBlock x:Name="DahuaCalendarAvailabilityStatusText" Text="Otwórz kalendarz, aby sprawdzić dostępność nagrań." Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6" />
+
+                                            <Button x:Name="DahuaSearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="DahuaSearchArchive_Click" Style="{StaticResource DahuaBlueButton}" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+
+                                            <DataGrid x:Name="DahuaArchiveRecordsGrid" Height="165" AutoGenerateColumns="False"
+                                                      IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
+                                                      CanUserAddRows="False" CanUserDeleteRows="False"
+                                                      Background="#101722" Foreground="#F8FAFC"
+                                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                                      HorizontalGridLinesBrush="#475569"
+                                                      RowBackground="#1D2939" AlternatingRowBackground="#263548"
+                                                      AlternationCount="2" RowHeight="28"
+                                                      BorderBrush="#64748B" BorderThickness="1" Margin="0,0,0,8">
+                                                <DataGrid.Resources>
+                                                    <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                        <Setter Property="Background" Value="#334155" />
+                                                        <Setter Property="Foreground" Value="#FFFFFF" />
+                                                        <Setter Property="FontWeight" Value="Bold" />
+                                                        <Setter Property="FontSize" Value="10" />
+                                                        <Setter Property="Padding" Value="6,5" />
+                                                    </Style>
+                                                    <Style TargetType="{x:Type DataGridRow}">
+                                                        <Setter Property="Foreground" Value="#F8FAFC" />
+                                                        <Setter Property="Background" Value="#1D2939" />
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter Property="Background" Value="#1D4ED8" />
+                                                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGrid.Resources>
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Początek" Binding="{Binding StartTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="*" />
+                                                    <DataGridTextColumn Header="Czas" Binding="{Binding DurationText}" Width="62" />
+                                                    <DataGridTextColumn Header="Rozmiar" Binding="{Binding SizeText}" Width="65" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+
+                                            <WrapPanel Margin="0,0,0,6">
+                                                <Button Content="▶ Odtwórz zaznaczone" Click="DahuaPlaySelectedRecord_Click" />
+                                                <Button Content="★ Wczytaj zaznaczone do odtwarzacza" Click="DahuaLoadSelectedRecord_Click" Style="{StaticResource DahuaGreenButton}" />
+                                            </WrapPanel>
+
+                                            <ProgressBar x:Name="DahuaDownloadProgressBar" Height="8" Margin="0,0,0,6" Visibility="Collapsed" Background="#13161F" Foreground="#22C55E" />
+                                            <TextBlock x:Name="DahuaDownloadStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#4ADE80" Margin="0,0,0,6" Visibility="Collapsed" TextWrapping="Wrap" />
+
+                                            <Button x:Name="DahuaLoadToPlayerButton" Content="★ Pobierz zakres do Odtwarzacza" Click="DahuaLoadToPlayer_Click" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
+                                            <Button Content="Odtwórz zakres w podglądzie Dahua" Click="DahuaPlayArchiveInWindow_Click" HorizontalAlignment="Stretch" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <!-- Podzakładka 3.2: Konfiguracja urządzeń Dahua (zastępuje DahuaConfigurationWindow) -->
+                                <TabItem Header="Urządzenia">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
+                                        <StackPanel>
+                                            <TextBlock Text="LISTA SKONFIGUROWANYCH URZĄDZEŃ" Style="{StaticResource DahuaFieldLabel}" />
+                                            <ListBox x:Name="DahuaConfigDevicesList" Height="110" Background="#101A2A" Foreground="#FFFFFF" BorderBrush="#42546D" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" SelectionChanged="DahuaConfigDevicesList_SelectionChanged" Margin="0,0,0,6">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="2">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#FFFFFF" FontSize="12" />
+                                                            <TextBlock Text="{Binding DisplayLabel}" FontSize="10" Foreground="#94A3B8" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                            <Button Content="＋ Dodaj nowe urządzenie" Click="DahuaConfigAdd_Click" HorizontalAlignment="Stretch" Margin="0,0,0,10" />
+
+                                            <TextBlock Text="EDYCJA DANYCH URZĄDZENIA" Style="{StaticResource DahuaFieldLabel}" Foreground="#60A5FA" />
+                                            <TextBlock Text="Nazwa wyświetlana" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="DahuaConfigNameBox" Margin="0,0,0,6" />
+
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="2*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock Text="Adres IP / host" FontSize="11" Margin="0,0,0,3" />
+                                                    <TextBox x:Name="DahuaConfigAddressBox" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                                    <TextBlock Text="Port SDK" FontSize="11" Margin="0,0,0,3" />
+                                                    <TextBox x:Name="DahuaConfigPortBox" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="HTTP" FontSize="11" Margin="0,0,0,3" />
+                                                    <TextBox x:Name="DahuaConfigHttpPortBox" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <TextBlock Text="Użytkownik" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="DahuaConfigUsernameBox" Margin="0,0,0,6" />
+                                            <TextBlock Text="Hasło" FontSize="11" Margin="0,0,0,3" />
+                                            <PasswordBox x:Name="DahuaConfigPasswordBox" Margin="0,0,0,6" />
+
+                                            <TextBlock x:Name="DahuaConfigCredentialInfo" Text="Dane logowania są szyfrowane przez Windows DPAPI (CurrentUser)." Foreground="#86EFAC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                                            <WrapPanel>
+                                                <Button Content="💾 Zapisz zmiany" Click="DahuaConfigSave_Click" Style="{StaticResource DahuaBlueButton}" />
+                                                <Button Content="🗑 Usuń urządzenie" Click="DahuaConfigDelete_Click" Style="{StaticResource DahuaRedButton}" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- ZAKŁADKA 4: Pliki, MediaInfo, Sesja, Obsługa i O programie -->
                     <TabItem Header="Pliki">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
-                                <TextBlock Text="Ostatnie nagrania" FontWeight="SemiBold" Margin="0,8,0,8" />
+                                <TextBlock Text="Ostatnie nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
                                 <ComboBox x:Name="RecentFilesBox" Margin="0,0,0,8" ToolTip="Ostatnio otwierane nagrania" HorizontalAlignment="Stretch" />
                                 <Button Content="Otwórz wybrane" Click="OpenRecent_Click" />
-                                <TextBlock Text="Zapisane klatki" FontWeight="SemiBold" Margin="0,8,0,8" />
+
+                                <TextBlock Text="Zapisane klatki" FontWeight="SemiBold" Margin="0,8,0,6" />
                                 <ComboBox x:Name="ScreenshotsBox" Margin="0,0,0,8" ToolTip="Ostatnio zapisane zrzuty klatek" HorizontalAlignment="Stretch" />
                                 <WrapPanel>
                                     <Button Content="Pokaż klatkę" Click="OpenScreenshot_Click" />
                                     <Button Content="Folder klatek" Click="OpenScreenshotsFolder_Click" />
                                 </WrapPanel>
-                                <Expander Header="Informacje o nagraniu" Margin="0,12,0,8" Foreground="#D8DCE4">
-                                    <TextBlock x:Name="MediaInfoText" Text="Otwórz nagranie, aby odczytać kodek, rozdzielczość, FPS, bitrate i rozmiar." Foreground="#D8DCE4" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0" />
+
+                                <Expander Header="Informacje o nagraniu" Margin="0,10,0,6" Foreground="#D8DCE4">
+                                    <TextBlock x:Name="MediaInfoText" Text="Otwórz nagranie, aby odczytać kodek, rozdzielczość, FPS, bitrate i rozmiar." Foreground="#D8DCE4" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
                                 </Expander>
-                                <Expander Header="Widok i sesja" Margin="0,4,0,8" Foreground="#D8DCE4">
-                                    <StackPanel Margin="0,8,0,0">
-                                        <ComboBox x:Name="VideoScaleBox" Height="32" FontSize="12" SelectedIndex="0" SelectionChanged="VideoScaleBox_SelectionChanged" ToolTip="Dopasuj obraz, wypełnij okno lub ustaw powiększenie" Margin="0,0,0,10">
+
+                                <Expander Header="Widok i sesja" Margin="0,2,0,6" Foreground="#D8DCE4">
+                                    <StackPanel Margin="0,6,0,0">
+                                        <ComboBox x:Name="VideoScaleBox" Height="32" FontSize="12" SelectedIndex="0" SelectionChanged="VideoScaleBox_SelectionChanged" ToolTip="Dopasuj obraz, wypełnij okno lub ustaw powiększenie" Margin="0,0,0,8">
                                             <ComboBoxItem Content="Dopasuj cały obraz" Tag="fit" />
                                             <ComboBoxItem Content="Wypełnij okno" Tag="fill" />
                                             <ComboBoxItem Content="Powiększenie 125%" Tag="1.25" />
                                             <ComboBoxItem Content="Powiększenie 150%" Tag="1.5" />
                                             <ComboBoxItem Content="Powiększenie 200%" Tag="2" />
                                         </ComboBox>
-                                        <CheckBox x:Name="RestoreSessionCheckBox" Content="Przywracaj pozycję i widok" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,10" />
+                                        <CheckBox x:Name="RestoreSessionCheckBox" Content="Przywracaj pozycję i widok" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
                                         <WrapPanel>
                                             <Button Content="Zapisz sesję" Click="SaveSession_Click" />
                                             <Button Content="Resetuj widok" Click="ResetView_Click" />
                                         </WrapPanel>
+                                    </StackPanel>
+                                </Expander>
+
+                                <!-- Wbudowana pomoc i skróty (zastępuje BasicHelpWindow) -->
+                                <Expander x:Name="HelpExpander" Header="Obsługa i skróty klawiszowe" Margin="0,2,0,6" Foreground="#D8DCE4">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock TextWrapping="Wrap" Text="Wszystkie funkcje programu działają w jednym oknie: po lewej znajduje się duży obszar podglądu (odtwarzacz, rozpoznawanie tablic OCR lub kamery Dahua IP), a po prawej panel zakładek." Foreground="#AEB9CA" FontSize="11" Margin="0,0,0,8" />
+                                        <TextBlock Text="Fragmenty" FontWeight="Bold" FontSize="12" />
+                                        <TextBlock TextWrapping="Wrap" Text="Zatrzymaj film, ustaw początek (I) i koniec (O), wpisz nazwę i dodaj fragment do listy." FontSize="11" Foreground="#CBD5E1" Margin="0,2,0,8" />
+                                        <TextBlock Text="Zdarzenia, OCR i Raporty" FontWeight="Bold" FontSize="12" />
+                                        <TextBlock TextWrapping="Wrap" Text="Dodawaj znaczniki na osi czasu, uruchamiaj lokalny OCR tablicy z 4 narożnikami w głównym oknie, przeszukuj bazę tablic oraz uzupełniaj dane sprawy do raportów CSV/PDF." FontSize="11" Foreground="#CBD5E1" Margin="0,2,0,8" />
+                                        <TextBlock Text="Kamery Dahua IP" FontWeight="Bold" FontSize="12" />
+                                        <TextBlock TextWrapping="Wrap" Text="W zakładce Dahua IP zarządzasz urządzeniami (DPAPI), podglądem 1/4/9/16 kamer, PTZ/presetami oraz archiwum NVR z wczytaniem do odtwarzacza." FontSize="11" Foreground="#CBD5E1" Margin="0,2,0,8" />
+                                        <TextBlock Text="Skróty i mysz (w trybie Odtwarzacza)" FontWeight="Bold" FontSize="12" />
+                                        <TextBlock TextWrapping="Wrap" Text="Spacja: Play/Pauza • Strzałki: pojedyncze klatki • I / O: początek/koniec • S: klatka JPG • R: reset widoku • Ctrl+O: otwórz plik • Ctrl+D: kamery Dahua • Kółko: zoom • Lewy przycisk: przesuwanie • Prawy: menu." FontSize="11" Foreground="#CBD5E1" Margin="0,2,0,4" />
+                                    </StackPanel>
+                                </Expander>
+
+                                <!-- Wbudowane informacje o programie (zastępuje AboutWindow) -->
+                                <Expander x:Name="AboutExpander" Header="Informacje o programie" Margin="0,2,0,8" Foreground="#D8DCE4">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock x:Name="AboutVersionText" Text="VideoPlayer" FontWeight="SemiBold" Foreground="#8FB5FF" FontSize="13" Margin="0,0,0,4" />
+                                        <TextBlock Text="Narzędzie wspomagające przeglądanie i analizę nagrań monitoringu: odtwarzanie klatka po klatce, zdarzenia, wycinanie fragmentów, lokalny OCR tablic, integracja z kamerami Dahua IP oraz raporty CSV/PDF." TextWrapping="Wrap" FontSize="11" Foreground="#D5DCE7" Margin="0,0,0,8" />
+                                        <TextBlock x:Name="AboutAuthorVersionText" Text="Autor: Rafał Bonna" FontSize="11" Foreground="#AEB9CA" Margin="0,0,0,4" />
+                                        <TextBlock Text="Komponenty: mpv • FFmpeg • Tesseract OCR • SQLite • PDFsharp • Dahua NetSDK" TextWrapping="Wrap" FontSize="11" Foreground="#E3EAF4" Margin="0,0,0,6" />
+                                        <TextBlock FontSize="11">
+                                            <Hyperlink NavigateUri="https://github.com/rabo501/VideoPlayer" RequestNavigate="ProjectLink_RequestNavigate" Foreground="#8FB5FF">github.com/rabo501/VideoPlayer</Hyperlink>
+                                        </TextBlock>
                                     </StackPanel>
                                 </Expander>
                             </StackPanel>
@@ -347,7 +1377,9 @@
                 </TabControl>
             </Border>
         </Grid>
-        <Border Grid.Row="2" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" Padding="10,5">
+
+        <!-- Dolna oś czasu odtwarzacza mpv (chowana tylko w trybie Dahua, który ma własną oś archiwum) -->
+        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="74" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" Padding="10,5" Margin="0,0,0,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="20" />
@@ -376,7 +1408,9 @@
                 </Grid>
             </Grid>
         </Border>
-        <Grid Grid.Row="3" Margin="0,6,0,6">
+
+        <!-- Pasek transportu odtwarzacza mpv -->
+        <Grid x:Name="PlayerTransportGrid" Grid.Row="3" Height="46" Margin="0,6,0,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -385,7 +1419,9 @@
                 <Button Content="◀ Klatka" Click="PreviousFrame_Click" Margin="0,0,6,0" Padding="10,8" />
                 <Button x:Name="PlayButton" Content="Play / Pauza" Style="{StaticResource PlayButtonStyle}" Click="PlayPause_Click" Margin="0,0,6,0" MinWidth="100" Padding="14,8" />
                 <Button Content="Klatka ▶" Click="NextFrame_Click" Margin="0,0,14,0" Padding="10,8" />
-                <Button x:Name="ScreenshotButton" Content="Zapisz klatkę (S)" Click="Screenshot_Click" Margin="0" Padding="10,8" />
+                <Button x:Name="ScreenshotButton" Content="Zapisz klatkę (S)" Click="Screenshot_Click" Margin="0,0,6,0" Padding="10,8" />
+                <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" Margin="0,0,6,0" Padding="10,8" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
+                <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Click="MotionCancel_Click" Margin="0" Padding="10,8" Visibility="Collapsed" IsEnabled="False" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Prędkość" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#AEB9CA" />
@@ -401,6 +1437,8 @@
                 </ComboBox>
             </StackPanel>
         </Grid>
+
+        <!-- Stały pasek statusu i postępu eksportu -->
         <Border Grid.Row="4" Background="#191D25" CornerRadius="5" Padding="8,5">
             <Grid>
                 <Grid.RowDefinitions>
