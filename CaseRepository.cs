@@ -189,6 +189,43 @@ namespace VideoPlayer
             };
         }
 
+        public List<string> LoadSources(Guid caseId)
+        {
+            var sources = new List<string>();
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = @"SELECT SourcePath FROM CaseSources
+                                    WHERE CaseId = $id ORDER BY AddedLocal, SourcePath;";
+            command.Parameters.AddWithValue("$id", caseId.ToString("D"));
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                sources.Add(reader.GetString(0));
+            return sources;
+        }
+
+        public bool Delete(Guid caseId)
+        {
+            using var connection = Open();
+            using var transaction = connection.BeginTransaction();
+            using (var links = connection.CreateCommand())
+            {
+                links.Transaction = transaction;
+                links.CommandText = "DELETE FROM CaseSources WHERE CaseId = $id;";
+                links.Parameters.AddWithValue("$id", caseId.ToString("D"));
+                links.ExecuteNonQuery();
+            }
+            int deleted;
+            using (var item = connection.CreateCommand())
+            {
+                item.Transaction = transaction;
+                item.CommandText = "DELETE FROM Cases WHERE Id = $id;";
+                item.Parameters.AddWithValue("$id", caseId.ToString("D"));
+                deleted = item.ExecuteNonQuery();
+            }
+            transaction.Commit();
+            return deleted > 0;
+        }
+
         private static DateTime ParseLocal(string value) =>
             DateTime.TryParse(value, out DateTime parsed) ? parsed : DateTime.MinValue;
     }
