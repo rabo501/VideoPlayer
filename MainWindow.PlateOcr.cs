@@ -35,6 +35,8 @@ namespace VideoPlayer
         private bool _ocrGesture, _ocrCreating, _ocrBusy;
         private byte[]? _ocrRectifiedPng;
         private CancellationTokenSource? _ocrWorkCts;
+        private CancellationTokenSource? _plateVideoSearchCts;
+        private bool _plateVideoSearchBusy;
 
         private void InitializeOcrOverlayHandles()
         {
@@ -159,6 +161,7 @@ namespace VideoPlayer
         private void ResetOcrWorkspaceState(bool silent)
         {
             _ocrWorkCts?.Cancel();
+            _plateVideoSearchCts?.Cancel();
             _ocrActive = false;
             _ocrGesture = false;
             _ocrPanning = false;
@@ -596,6 +599,238 @@ namespace VideoPlayer
                 throw new InvalidOperationException("FFmpeg nie pobrał klatki do analizy wieloklatkowej: " + error.Trim());
         }
 
+        private async void OcrSearchStart_Click(object sender, RoutedEventArgs e)
+        {
+            if (_plateVideoSearchBusy || !_ocrActive || _ocrFromDahua ||
+                _ocrFrame == null || _ocrPoints == null ||
+                string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
+            {
+                OcrSearchProgressText.Text = "Wyszukiwanie wymaga lokalnego nagrania i zaznaczonego obszaru tablicy.";
+                return;
+            }
+
+            string target = PlateOcrService.Normalize(OcrPlateBox.Text);
+            if (OcrConfirmedBox.IsChecked != true || !PlateOcrRules.IsValidManual(target))
+            {
+                OcrSearchProgressText.Text = "Najpierw wpisz poprawny numer i zaznacz potwierdzenie zgodności z obrazem.";
+                return;
+            }
+
+            int requestedInterval = 5;
+            if (OcrSearchIntervalBox.SelectedItem is ComboBoxItem intervalItem)
+                int.TryParse(intervalItem.Tag?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out requestedInterval);
+            if (requestedInterval <= 0) requestedInterval = 5;
+
+            double duration = PositionSlider.Maximum;
+            if (!double.IsFinite(duration) || duration <= 0)
+            {
+                OcrSearchProgressText.Text = "Nie można ustalić czasu trwania nagrania.";
+                return;
+            }
+
+            // Limit próbek chroni przed niekontrolowanym czasem analizy i liczbą plików tymczasowych.
+            const int maximumSamples = 1200;
+            int effectiveInterval = Math.Max(requestedInterval, (int)Math.Ceiling(duration / maximumSamples));
+            int estimatedSamples = (int)Math.Ceiling(duration / effectiveInterval);
+            string source = _sourceFilePath;
+            PlatePoint[] points = (PlatePoint[])_ocrPoints.Clone();
+            int referenceWidth = _ocrFrame.PixelWidth;
+            int referenceHeight = _ocrFrame.PixelHeight;
+
+            _plateVideoSearchBusy = true;
+            _plateVideoSearchCts = new CancellationTokenSource();
+            OcrSearchButton.IsEnabled = false;
+            OcrSearchCancelButton.Visibility = Visibility.Visible;
+            OcrSearchCancelButton.IsEnabled = true;
+            OcrSearchIntervalBox.IsEnabled = false;
+            OcrSearchResultsList.ItemsSource = null;
+            OcrSearchProgressText.Text = effectiveInterval == requestedInterval
+                ? $"Przygotowanie analizy: około {estimatedSamples} próbek co {effectiveInterval} s…"
+                : $"Dla ograniczenia liczby próbek odstęp zwiększono z {requestedInterval} s do {effectiveInterval} s. Przygotowanie analizy…";
+            UpdateOcrSave();
+
+            try
+            {
+                var hits = await SearchPlateInRecordingAsync(
+                    source, target, points, referenceWidth, referenceHeight,
+                    duration, effectiveInterval, estimatedSamples, _plateVideoSearchCts.Token);
+
+                if (_closing || !_ocrActive) return;
+                OcrSearchResultsList.ItemsSource = hits;
+                OcrSearchProgressText.Text = hits.Count == 0
+                    ? $"Zakończono analizę {estimatedSamples} próbek. Nie znaleziono dokładnego odczytu {target} w zaznaczonym obszarze."
+                    : $"Zakończono analizę. Znaleziono {hits.Count} przedziałów z odczytem {target}. Dwuklik przenosi do początku wyniku.";
+            }
+            catch (OperationCanceledException)
+            {
+                OcrSearchProgressText.Text = "Wyszukiwanie zostało anulowane.";
+            }
+            catch (Exception ex)
+            {
+                OcrSearchProgressText.Text = "Błąd wyszukiwania: " + ex.Message;
+                if (!_closing)
+                    MessageBox.Show(this, ex.Message, "Wyszukiwanie tablic w nagraniu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                _plateVideoSearchBusy = false;
+                _plateVideoSearchCts?.Dispose();
+                _plateVideoSearchCts = null;
+                OcrSearchCancelButton.IsEnabled = false;
+                OcrSearchCancelButton.Visibility = Visibility.Collapsed;
+                OcrSearchIntervalBox.IsEnabled = true;
+                UpdateOcrSave();
+            }
+        }
+
+        private void OcrSearchCancel_Click(object sender, RoutedEventArgs e)
+        {
+            _plateVideoSearchCts?.Cancel();
+            OcrSearchProgressText.Text = "Anulowanie wyszukiwania…";
+            OcrSearchCancelButton.IsEnabled = false;
+        }
+
+        private async Task<IReadOnlyList<PlateVideoSearchHit>> SearchPlateInRecordingAsync(
+            string source, string target, PlatePoint[] points, int referenceWidth, int referenceHeight,
+            double duration, int intervalSeconds, int estimatedSamples, CancellationToken cancellationToken)
+        {
+            string folder = Path.Combine(Path.GetTempPath(), "VideoPlayer_PlateSearch_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(folder);
+            try
+            {
+                string ffmpeg = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
+                if (!File.Exists(ffmpeg))
+                    throw new FileNotFoundException("Nie znaleziono ffmpeg.exe w katalogu ffmpeg obok programu.", ffmpeg);
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = ffmpeg,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true
+                };
+                string pattern = Path.Combine(folder, "frame_%06d.jpg");
+                foreach (string arg in new[]
+                {
+                    "-hide_banner", "-loglevel", "error", "-i", source,
+                    "-map", "0:v:0", "-vf", $"fps=1/{intervalSeconds}:start_time=0",
+                    "-q:v", "3", "-start_number", "0", "-an", "-sn", "-dn", "-y", pattern
+                })
+                    psi.ArgumentList.Add(arg);
+
+                OcrSearchProgressText.Text = "FFmpeg przygotowuje próbki obrazu z całego nagrania…";
+                using (var process = new Process { StartInfo = psi })
+                {
+                    if (!process.Start())
+                        throw new InvalidOperationException("Nie udało się uruchomić FFmpeg.");
+                    using var registration = cancellationToken.Register(() =>
+                    {
+                        try { if (!process.HasExited) process.Kill(true); } catch { }
+                    });
+                    Task<string> errorTask = process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync(cancellationToken);
+                    string error = await errorTask;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (process.ExitCode != 0)
+                        throw new InvalidOperationException("FFmpeg nie przygotował próbek nagrania: " + error.Trim());
+                }
+
+                string[] frames = Directory.GetFiles(folder, "frame_*.jpg")
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                if (frames.Length == 0)
+                    throw new InvalidOperationException("FFmpeg nie wyodrębnił żadnej klatki z nagrania.");
+
+                var hits = new List<PlateVideoSearchHit>();
+                for (int i = 0; i < frames.Length; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    double seconds = Math.Min(i * (double)intervalSeconds, duration);
+                    var frame = new BitmapImage();
+                    frame.BeginInit();
+                    frame.CacheOption = BitmapCacheOption.OnLoad;
+                    frame.UriSource = new Uri(frames[i]);
+                    frame.EndInit();
+                    frame.Freeze();
+
+                    var converted = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+                    converted.Freeze();
+                    byte[] pixels = new byte[checked(frame.PixelWidth * frame.PixelHeight * 4)];
+                    converted.CopyPixels(pixels, frame.PixelWidth * 4, 0);
+
+                    double sx = (double)frame.PixelWidth / referenceWidth;
+                    double sy = (double)frame.PixelHeight / referenceHeight;
+                    PlatePoint[] scaledPoints = points.Select(p => new PlatePoint(p.X * sx, p.Y * sy)).ToArray();
+                    byte[] cropBytes;
+                    try
+                    {
+                        var rectified = PlatePerspective.Rectify(pixels, frame.PixelWidth, frame.PixelHeight, scaledPoints);
+                        var image = BitmapSource.Create(rectified.Width, rectified.Height, 96, 96,
+                            PixelFormats.Bgra32, null, rectified.Pixels, rectified.Width * 4);
+                        image.Freeze();
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(image));
+                        using var png = new MemoryStream();
+                        encoder.Save(png);
+                        cropBytes = png.ToArray();
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Jeśli zaznaczenie wypada poza krawędź obrazu w danej klatce, pomijamy tę próbkę.
+                        continue;
+                    }
+
+                    var candidates = await Task.Run(
+                        () => PlateOcrService.Recognize(cropBytes, cancellationToken), cancellationToken);
+                    var match = candidates
+                        .Where(candidate => string.Equals(candidate.Text, target, StringComparison.Ordinal))
+                        .OrderByDescending(candidate => candidate.Confidence)
+                        .FirstOrDefault();
+
+                    if (match != null)
+                    {
+                        if (hits.Count > 0 && seconds - hits[hits.Count - 1].EndSeconds <= intervalSeconds * 1.6)
+                        {
+                            var previous = hits[hits.Count - 1];
+                            hits[hits.Count - 1] = previous with
+                            {
+                                EndSeconds = seconds,
+                                Confidence = Math.Max(previous.Confidence, match.Confidence)
+                            };
+                        }
+                        else
+                        {
+                            hits.Add(new PlateVideoSearchHit(seconds, seconds, match.Confidence));
+                        }
+                        OcrSearchResultsList.ItemsSource = hits.ToArray();
+                    }
+
+                    OcrSearchProgressText.Text =
+                        $"Analiza OCR: {i + 1}/{frames.Length} próbek • {TimeSpan.FromSeconds(seconds).ToString(@"hh\\:mm\\:ss")} • trafienia: {hits.Count}";
+                }
+
+                return hits;
+            }
+            finally
+            {
+                try { Directory.Delete(folder, true); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+
+        private async void OcrSearchResultsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (OcrSearchResultsList.SelectedItem is not PlateVideoSearchHit hit)
+                return;
+
+            _plateVideoSearchCts?.Cancel();
+            ResetOcrWorkspaceState(silent: true);
+            SetWorkspaceMode(WorkspaceMode.Player, 1);
+            await SeekAsync(hit.StartSeconds);
+            StatusText.Text = $"Wynik wyszukiwania tablicy: {OcrPlateBox.Text} — {hit.DisplayText}";
+        }
+
         private void OcrCandidate_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (OcrCandidatesBox.SelectedItem is string text) OcrPlateBox.Text = text;
@@ -613,7 +848,11 @@ namespace VideoPlayer
         {
             if (OcrSaveEventButton == null || OcrPlateBox == null || OcrConfirmedBox == null) return;
             string text = OcrPlateBox.Text.Trim().Replace(" ", "").Replace("-", "");
-            OcrSaveEventButton.IsEnabled = !_ocrBusy && OcrConfirmedBox.IsChecked == true && PlateOcrRules.IsValidManual(text);
+            OcrSaveEventButton.IsEnabled = !_ocrBusy && !_plateVideoSearchBusy && OcrConfirmedBox.IsChecked == true && PlateOcrRules.IsValidManual(text);
+            if (OcrSearchButton != null)
+                OcrSearchButton.IsEnabled = !_plateVideoSearchBusy && _ocrActive && !_ocrFromDahua &&
+                    _ocrPoints != null && OcrConfirmedBox.IsChecked == true &&
+                    PlateOcrRules.IsValidManual(text) && !string.IsNullOrWhiteSpace(_sourceFilePath);
         }
 
         private void OcrSave_Click(object sender, RoutedEventArgs e)
