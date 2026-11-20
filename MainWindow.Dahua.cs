@@ -1659,10 +1659,17 @@ namespace VideoPlayer
                 // przybliżeniem zależnym od wielkości zaznaczenia, nie od skali obrazu.
                 double relativeWidth = area.Width / (double)viewWidth;
                 double relativeHeight = area.Height / (double)viewHeight;
-                double targetFactor = Math.Clamp(1.0 / Math.Max(0.08, Math.Min(relativeWidth, relativeHeight)), 1.0, 6.0);
+
+                // Mocniejsze przybliżenie: obszar docelowy wyznacza mniejszy
+                // z wymiarów zaznaczenia. Dłuższy impuls pozwala wykorzystać
+                // większy zakres optycznego zoomu obiektywu PTZ.
+                double targetFactor = Math.Clamp(
+                    1.0 / Math.Max(0.05, Math.Min(relativeWidth, relativeHeight)),
+                    1.0,
+                    12.0);
                 if (targetFactor > 1.08)
                 {
-                    int zoomDuration = (int)Math.Clamp(Math.Log(targetFactor) * 430, 100, 1500);
+                    int zoomDuration = (int)Math.Clamp(Math.Log(targetFactor) * 950, 150, 4000);
                     await RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN, zoomDuration, slot.Channel);
                 }
 
