@@ -102,3 +102,13 @@ Każdy podetap powinien być dostarczony oddzielnie, aby można go było skompil
 ## Status
 
 Dokument opisuje zakres Etapu 5. Istniejące funkcje wielokanałowe są punktem wyjścia, a nie potwierdzeniem zaliczenia testów Etapu 5. Implementacja i testy podetapów 5A–5C pozostają do wykonania.
+
+## Postęp implementacji — pierwszy krok 5A
+
+W `MainWindow.Dahua.cs` rozszerzono raportowanie wyniku uruchamiania zsynchronizowanego odtwarzania:
+- program zbiera numery kanałów, dla których NetSDK nie zwrócił uchwytu odtwarzania;
+- przy częściowym uruchomieniu status pokazuje liczbę uruchomionych kanałów oraz numery kanałów niedostępnych;
+- status nie opisuje już wyniku częściowego jako pełnego uruchomienia wszystkich kanałów;
+- gdy nie uruchomi się żaden kanał, dotychczasowa ścieżka błędu zatrzymuje operację.
+
+To jest pierwszy, niewielki krok 5A. Nie oznacza jeszcze zakończenia testów synchronizacji ani całego podetapu 5A.
