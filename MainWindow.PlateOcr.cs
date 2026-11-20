@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -447,18 +449,18 @@ namespace VideoPlayer
 
             try
             {
-                var results = await Task.Run(() => PlateOcrService.Recognize(bytes, _ocrWorkCts.Token));
+                var results = await RecognizePlateAcrossFramesAsync(bytes, _ocrWorkCts.Token);
                 if (!_ocrActive || _closing) return;
                 OcrCandidatesBox.ItemsSource = results.Select(r => r.Text).ToArray();
                 if (results.Count > 0)
                 {
                     OcrPlateBox.Text = results[0].Text;
                     OcrCandidatesBox.SelectedIndex = 0;
-                    OcrStatusText.Text = "To propozycja OCR, nie pewny odczyt. Popraw numer i potwierdź zgodność z obrazem.";
+                    OcrStatusText.Text = $"Najczęstszy odczyt: {results[0].Text} — zgodność {results[0].VoteCount}/{results[0].FrameCount} klatek, średnia pewność OCR {results[0].AverageConfidence:P0}. To propozycja, nie pewny odczyt. Sprawdź numer i potwierdź go ręcznie.";
                 }
                 else
                 {
-                    OcrStatusText.Text = "Nie znaleziono czytelnego numeru. Zaznacz dokładniej albo wpisz go ręcznie, jeśli jest czytelny.";
+                    OcrStatusText.Text = "Nie znaleziono czytelnego numeru w analizowanych klatkach. Zaznacz dokładniej albo wpisz numer ręcznie, jeśli jest czytelny.";
                 }
             }
             catch (OperationCanceledException)
@@ -490,6 +492,107 @@ namespace VideoPlayer
                 OcrResetSelectionButton.IsEnabled = true;
                 UpdateOcrSave();
             }
+        }
+
+        private async Task<IReadOnlyList<PlateOcrConsensusCandidate>> RecognizePlateAcrossFramesAsync(byte[] centerCrop, CancellationToken cancellationToken)
+        {
+            var crops = new System.Collections.Generic.List<byte[]> { centerCrop };
+
+            // For a local recording, inspect neighbouring frames using the same
+            // manually selected plate quadrilateral. Dahua live preview keeps the
+            // established single-frame workflow.
+            if (_ocrFromDahua || string.IsNullOrWhiteSpace(_sourceFilePath) ||
+                _ocrFrame == null || _ocrPoints == null)
+            {
+                return await Task.Run(() => PlateOcrService.RecognizeConsensus(crops, cancellationToken), cancellationToken);
+            }
+
+            string source = _sourceFilePath;
+            PlatePoint[] points = (PlatePoint[])_ocrPoints.Clone();
+            int referenceWidth = _ocrFrame.PixelWidth;
+            int referenceHeight = _ocrFrame.PixelHeight;
+            double[] offsets = { -1.0, -0.5, 0.5, 1.0 };
+            string folder = Path.Combine(Path.GetTempPath(), "VideoPlayer_OCR_Multi_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(folder);
+
+            try
+            {
+                foreach (double offset in offsets)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    double seconds = _ocrFrameSeconds + offset;
+                    if (seconds < 0 || (PositionSlider.Maximum > 0 && seconds >= PositionSlider.Maximum))
+                        continue;
+
+                    string framePath = Path.Combine(folder, "frame_" + crops.Count.ToString(CultureInfo.InvariantCulture) + ".png");
+                    await ExtractOcrFrameAsync(source, seconds, framePath, cancellationToken);
+                    if (!File.Exists(framePath)) continue;
+
+                    var frame = new BitmapImage();
+                    frame.BeginInit();
+                    frame.CacheOption = BitmapCacheOption.OnLoad;
+                    frame.UriSource = new Uri(framePath);
+                    frame.EndInit();
+                    frame.Freeze();
+
+                    var converted = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+                    byte[] pixels = new byte[checked(frame.PixelWidth * frame.PixelHeight * 4)];
+                    converted.CopyPixels(pixels, frame.PixelWidth * 4, 0);
+
+                    // Keep the user's quadrilateral relative to the image dimensions.
+                    double sx = (double)frame.PixelWidth / referenceWidth;
+                    double sy = (double)frame.PixelHeight / referenceHeight;
+                    PlatePoint[] scaledPoints = points.Select(p => new PlatePoint(p.X * sx, p.Y * sy)).ToArray();
+                    var rectified = PlatePerspective.Rectify(pixels, frame.PixelWidth, frame.PixelHeight, scaledPoints);
+                    var image = BitmapSource.Create(rectified.Width, rectified.Height, 96, 96,
+                        PixelFormats.Bgra32, null, rectified.Pixels, rectified.Width * 4);
+                    image.Freeze();
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(image));
+                    using var png = new MemoryStream();
+                    encoder.Save(png);
+                    crops.Add(png.ToArray());
+                }
+
+                return await Task.Run(() => PlateOcrService.RecognizeConsensus(crops, cancellationToken), cancellationToken);
+            }
+            finally
+            {
+                try { Directory.Delete(folder, true); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+
+        private static async Task ExtractOcrFrameAsync(string source, double seconds, string destination, CancellationToken cancellationToken)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true
+            };
+            foreach (string arg in new[]
+            {
+                "-hide_banner", "-loglevel", "error", "-ss",
+                seconds.ToString("0.###", CultureInfo.InvariantCulture), "-i", source,
+                "-frames:v", "1", "-an", "-sn", "-dn", "-y", destination
+            })
+                psi.ArgumentList.Add(arg);
+
+            using var process = new Process { StartInfo = psi };
+            if (!process.Start()) throw new InvalidOperationException("Nie udało się uruchomić FFmpeg do pobrania klatki OCR.");
+            using var registration = cancellationToken.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(true); } catch { }
+            });
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync(cancellationToken);
+            string error = await errorTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException("FFmpeg nie pobrał klatki do analizy wieloklatkowej: " + error.Trim());
         }
 
         private void OcrCandidate_Changed(object sender, SelectionChangedEventArgs e)
