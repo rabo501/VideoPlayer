@@ -33,6 +33,8 @@ W podglądzie Live ustaw układ **1 kanał** i upewnij się, że urządzenie jes
 
 To sterowanie kamerą, a nie cyfrowe powiększenie obrazu w programie. Dopasowanie jest orientacyjne — zależy od modelu i szybkości PTZ. W razie potrzeby użyj przycisków kierunkowych i zoomu do korekty. Funkcja wymaga kamery PTZ; na kamerze stałopozycyjnej nie będzie działać. W układach 4/9/16 zaznaczanie obszaru PTZ jest niedostępne.
 
+Panel **Ręczne sterowanie PTZ** udostępnia osiem kierunków ruchu: góra, dół, lewo, prawo oraz cztery skosy (góra-lewo, góra-prawo, dół-lewo i dół-prawo). Przytrzymaj wybrany przycisk, aby poruszać kamerą, i zwolnij go, aby zatrzymać ruch. Przyciski skosów uruchamiają jednocześnie ruch w osi pionowej i poziomej.
+
 
 Główne okno zawiera menu, obszar wideo, panel narzędzi, oś czasu, przyciski odtwarzania oraz pasek stanu i postępu operacji. Panel narzędzi można pokazać lub ukryć i zmienić jego szerokość separatorem.
 
