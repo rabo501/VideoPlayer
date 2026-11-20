@@ -9,6 +9,74 @@ namespace VideoPlayer
 {
     public partial class MainWindow
     {
+        private ReportMetadata CurrentReportMetadata() => new ReportMetadata
+        {
+            CaseNumber = ReportCaseNumberBox.Text.Trim(),
+            CaseTitle = ReportCaseTitleBox.Text.Trim(),
+            Location = ReportLocationBox.Text.Trim(),
+            Notes = ReportNotesBox.Text.Trim()
+        };
+
+        private void RefreshCaseArchiveList(Guid? selectId = null)
+        {
+            if (_cases == null || ReportCasesBox == null) return;
+            List<CaseRecord> cases = _cases.LoadAll();
+            ReportCasesBox.ItemsSource = cases;
+            if (selectId.HasValue)
+                ReportCasesBox.SelectedItem = cases.FirstOrDefault(item => item.Id == selectId.Value);
+            if (ReportCasesBox.SelectedItem == null && cases.Count > 0)
+                ReportCasesBox.SelectedIndex = 0;
+        }
+
+        private void SaveCase_Click(object sender, RoutedEventArgs e)
+        {
+            if (_cases == null) return;
+            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
+            {
+                CaseArchiveStatusText.Text = "Najpierw otwórz nagranie, które ma zostać powiązane ze sprawą.";
+                StatusText.Text = CaseArchiveStatusText.Text;
+                return;
+            }
+
+            try
+            {
+                CaseRecord saved = _cases.Save(CurrentReportMetadata(), _sourceFilePath);
+                RefreshCaseArchiveList(saved.Id);
+                CaseArchiveStatusText.Text = $"Zapisano sprawę {saved.CaseNumber}. Powiązane nagrania: {saved.SourceCount}.";
+                StatusText.Text = "Dane sprawy zapisano w lokalnym archiwum.";
+            }
+            catch (Exception ex)
+            {
+                CaseArchiveStatusText.Text = "Nie udało się zapisać sprawy: " + ex.Message;
+                StatusText.Text = CaseArchiveStatusText.Text;
+                MessageBox.Show(this, ex.Message, "Archiwum spraw", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void LoadCase_Click(object sender, RoutedEventArgs e)
+        {
+            if (ReportCasesBox.SelectedItem is not CaseRecord selected)
+            {
+                CaseArchiveStatusText.Text = "Wybierz sprawę z listy.";
+                return;
+            }
+
+            CaseRecord? record = _cases.Load(selected.Id);
+            if (record == null)
+            {
+                RefreshCaseArchiveList();
+                CaseArchiveStatusText.Text = "Wybrana sprawa nie istnieje już w bazie. Odświeżono listę.";
+                return;
+            }
+
+            ReportCaseNumberBox.Text = record.CaseNumber;
+            ReportCaseTitleBox.Text = record.Title;
+            ReportLocationBox.Text = record.Location;
+            ReportNotesBox.Text = record.Notes;
+            CaseArchiveStatusText.Text = $"Wczytano sprawę {record.CaseNumber}. Powiązane nagrania: {record.SourceCount}. Zapisz ponownie, aby dołączyć bieżące nagranie.";
+            StatusText.Text = "Wczytano dane sprawy z lokalnego archiwum.";
+        }
+
         private void RefreshRanges()
         {
             if (!ReferenceEquals(ClipRangesListBox.ItemsSource, _clips)) ClipRangesListBox.ItemsSource = _clips;
