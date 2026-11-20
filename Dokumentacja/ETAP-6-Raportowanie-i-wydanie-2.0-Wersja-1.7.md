@@ -51,6 +51,47 @@ Prace są prowadzone na gałęzi `wersja-1.7`. Wersja aplikacji pozostaje `1.6.0
 - Nie zmieniać numeru wersji przed zakończeniem testów.
 - Każdy podetap wdrażać oddzielnie i przekazywać do kompilacji/testów.
 
+## Implementacja 6B — wykonane
+
+Rozbudowano raport CSV i PDF, zachowując lokalne przetwarzanie.
+
+### CSV
+
+Raport ma jeden wspólny układ kolumn dla dwóch typów wierszy: `Zdarzenie` i `Eksport`. Zawiera:
+- numer, tytuł, miejsce i uwagi sprawy;
+- ścieżkę źródłową;
+- czas początku i końca zdarzenia oraz sekundy od początku nagrania;
+- typ zdarzenia, opis, markę pojazdu i liczbę powiązanych zdarzeń ruchu;
+- datę, typ i ścieżkę eksportu oraz szczegóły operacji;
+- podstawowe parametry nagrania: kodeki, rozdzielczość, FPS, czas trwania i rozmiar pliku.
+
+Dane sprawy są pobierane z aktualnego formularza raportu. Eksporty pochodzą z lokalnej historii danego pliku źródłowego. Plik CSV jest zapisywany w UTF-8 z BOM, a komórki są cytowane i zabezpieczane przed interpretacją jako formuły arkusza.
+
+### PDF
+
+Raport zawiera:
+- dane sprawy i źródła;
+- parametry techniczne i rozmiar nagrania;
+- podsumowanie liczby zdarzeń według kategorii: tablice, ruch i ręczne;
+- zakresy czasu zdarzeń, jeśli zdarzenie ma koniec;
+- markę pojazdu i liczbę powiązanych zdarzeń ruchu;
+- historię eksportów dla danego źródła;
+- opcjonalne miniatury.
+
+Czasy są jednoznacznie opisane jako względne względem początku pliku. Nie są przedstawiane jako czas zegara rejestratora.
+
+### Testy akceptacyjne 6B
+
+1. Wybierz sprawę w archiwum i wczytaj jej dane.
+2. Wygeneruj CSV oraz PDF z miniaturami i bez miniatur.
+3. Sprawdź polskie znaki, znaki średnika i cudzysłowy w opisach oraz uwagach.
+4. Sprawdź, czy CSV otwiera się prawidłowo w Excelu i ma jednakową liczbę kolumn w wierszach zdarzeń i eksportów.
+5. Sprawdź, czy zdarzenie ruchu z zakresem ma oba czasy, a znacznik punktowy ma pusty czas końca.
+6. Sprawdź klasyfikację tablic, ruchu i zdarzeń ręcznych.
+7. Sprawdź, czy historia eksportów odpowiada bieżącemu nagraniu.
+8. Sprawdź, czy PDF zachowuje czytelność na wielu stronach, a miniatury nie nachodzą na tekst i stopkę.
+9. Sprawdź, że brak historii eksportów lub brak danych technicznych nie przerywa generowania raportu.
+
 ## Implementacja 6A — wykonane
 
 Dodano `CaseRepository.cs` oraz tabele `Cases` i `CaseSources` w istniejącej bazie `VideoPlayer.db`.
