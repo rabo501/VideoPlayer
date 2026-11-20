@@ -40,6 +40,7 @@ namespace VideoPlayer
         private IntPtr _dahuaPlaybackHandle = IntPtr.Zero;
         private bool _dahuaSdkInitialized;
         private int _dahuaCurrentChannel = 1;
+        private bool _dahuaPtzAreaZoomRunning;
         private int _dahuaDeviceChannelCount;
         private HashSet<int>? _dahuaActiveChannelNumbers;
         private readonly List<Button> _dahuaChannelButtons = new();
@@ -83,6 +84,9 @@ namespace VideoPlayer
             public bool IsDragging { get; set; }
             public System.Drawing.Point DragStart { get; set; }
             public System.Drawing.Point PanStart { get; set; }
+            public bool IsSelectingArea { get; set; }
+            public System.Drawing.Point SelectionStart { get; set; }
+            public System.Drawing.Rectangle? SelectionFrameScreen { get; set; }
             public IntPtr StreamHandle { get; set; }
             public IntPtr PlaybackHandle { get; set; }
         }
@@ -936,6 +940,65 @@ namespace VideoPlayer
         private void DahuaPtzDown_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.DOWN, false);
         private void DahuaPtzLeft_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.LEFT, false);
         private void DahuaPtzRight_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.RIGHT, false);
+
+        // Ruch po przekątnej realizujemy równoczesnymi poleceniami osi poziomej i pionowej.
+        private void SendDahuaPtzDiagonal(string? direction, bool stop)
+        {
+            if (_dahuaLoginId == IntPtr.Zero) return;
+
+            DahuaNetSdk.EM_PTZ_COMMAND command;
+            switch (direction?.ToUpperInvariant())
+            {
+                case "UP_LEFT":
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.LEFTTOP;
+                    break;
+                case "UP_RIGHT":
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.RIGHTTOP;
+                    break;
+                case "DOWN_LEFT":
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.LEFTDOWN;
+                    break;
+                case "DOWN_RIGHT":
+                    command = DahuaNetSdk.EM_PTZ_COMMAND.RIGHTDOWN;
+                    break;
+                default:
+                    return;
+            }
+
+            try
+            {
+                // Dla komend diagonalnych Dahua param1 oznacza prędkość pionową,
+                // a param2 poziomą. Jedno wywołanie steruje obiema osiami.
+                int channelIndex = Math.Max(0, _dahuaCurrentChannel - 1);
+                bool success = DahuaNetSdk.CLIENT_DHPTZControlEx2(
+                    _dahuaLoginId,
+                    channelIndex,
+                    (uint)command,
+                    4,
+                    4,
+                    0,
+                    stop,
+                    IntPtr.Zero);
+
+                if (!success)
+                    DahuaStatusLabel.Text = $"Błąd sterowania PTZ po przekątnej (kod: 0x{DahuaNetSdk.CLIENT_GetLastError():X}).";
+            }
+            catch (Exception ex)
+            {
+                DahuaStatusLabel.Text = $"Błąd sterowania PTZ po przekątnej: {ex.Message}";
+            }
+        }
+
+        private void DahuaPtzDiagonal_Down(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Button button) SendDahuaPtzDiagonal(button.Tag?.ToString(), false);
+        }
+
+        private void DahuaPtzDiagonal_Stop(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Button button) SendDahuaPtzDiagonal(button.Tag?.ToString(), true);
+        }
+
         private void DahuaPtzZoomIn_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN, false);
         private void DahuaPtzZoomOut_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_OUT, false);
         private void DahuaPtzFocusIn_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.FOCUS_IN, false);
@@ -1439,12 +1502,12 @@ namespace VideoPlayer
                 picture.CreateControl();
                 viewport.MouseWheel += (_, args) => HandleDahuaSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
                 picture.MouseWheel += (_, args) => HandleDahuaSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
-                viewport.MouseDown += (_, args) => BeginDahuaSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
-                picture.MouseDown += (_, args) => BeginDahuaSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
-                viewport.MouseMove += (_, args) => UpdateDahuaSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
-                picture.MouseMove += (_, args) => UpdateDahuaSlotPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
-                viewport.MouseUp += (_, args) => EndDahuaSlotPan(slotRef!, args);
-                picture.MouseUp += (_, args) => EndDahuaSlotPan(slotRef!, args);
+                viewport.MouseDown += (_, args) => BeginDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                picture.MouseDown += (_, args) => BeginDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                viewport.MouseMove += (_, args) => UpdateDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                picture.MouseMove += (_, args) => UpdateDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
+                viewport.MouseUp += (_, args) => EndDahuaSlotSelectionOrPan(slotRef!, args);
+                picture.MouseUp += (_, args) => EndDahuaSlotSelectionOrPan(slotRef!, args);
 
                 var host = new FormsIntegration.WindowsFormsHost { Child = viewport, Background = Brushes.Black };
                 var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
@@ -1501,6 +1564,17 @@ namespace VideoPlayer
         private void HandleDahuaSlotZoomWheel(DahuaMultiViewSlot slot, Forms.MouseEventArgs args, System.Drawing.Point cursor)
         {
             if (args.Delta == 0) return;
+
+            // W widoku jednego kanału kółko steruje fizycznym obiektywem PTZ.
+            // Nie zmieniamy rozmiaru obrazu w oknie aplikacji.
+            if (_dahuaMultiViewSlots.Count == 1)
+            {
+                if (_dahuaLoginId == IntPtr.Zero || _dahuaPtzAreaZoomRunning) return;
+                _ = RunDahuaPtzWheelZoomAsync(args.Delta > 0);
+                return;
+            }
+
+            // W układach wielokanałowych pozostaje lokalna nawigacja po kafelku.
             double oldZoom = slot.Zoom;
             double newZoom = Math.Max(1.0, Math.Min(5.0, oldZoom * (args.Delta > 0 ? 1.2 : 1.0 / 1.2)));
             if (Math.Abs(newZoom - oldZoom) < 0.001) return;
@@ -1513,9 +1587,33 @@ namespace VideoPlayer
             slot.Viewport.Focus();
         }
 
-        private void BeginDahuaSlotPan(DahuaMultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
+        private async Task RunDahuaPtzWheelZoomAsync(bool zoomIn)
         {
-            if (args.Button != Forms.MouseButtons.Left || slot.Zoom <= 1.001) return;
+            if (_dahuaPtzAreaZoomRunning) return;
+            _dahuaPtzAreaZoomRunning = true;
+            try
+            {
+                await RunDahuaPtzPulseAsync(
+                    zoomIn ? DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN : DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_OUT,
+                    180);
+            }
+            finally { _dahuaPtzAreaZoomRunning = false; }
+        }
+
+        private void BeginDahuaSlotSelectionOrPan(DahuaMultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
+        {
+            if (args.Button != Forms.MouseButtons.Left) return;
+
+            if (_dahuaMultiViewSlots.Count == 1 && _dahuaLoginId != IntPtr.Zero)
+            {
+                slot.IsSelectingArea = true;
+                slot.SelectionStart = cursor;
+                slot.Viewport.Capture = true;
+                slot.Viewport.Cursor = Forms.Cursors.Cross;
+                return;
+            }
+
+            if (slot.Zoom <= 1.001) return;
             slot.IsDragging = true;
             slot.DragStart = cursor;
             slot.PanStart = new System.Drawing.Point(slot.PanX, slot.PanY);
@@ -1523,20 +1621,144 @@ namespace VideoPlayer
             slot.Viewport.Cursor = Forms.Cursors.SizeAll;
         }
 
-        private void UpdateDahuaSlotPan(DahuaMultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
+        private void UpdateDahuaSlotSelectionOrPan(DahuaMultiViewSlot slot, System.Drawing.Point cursor, Forms.MouseEventArgs args)
         {
+            if (slot.IsSelectingArea)
+            {
+                if (slot.SelectionFrameScreen.HasValue)
+                    Forms.ControlPaint.DrawReversibleFrame(slot.SelectionFrameScreen.Value, System.Drawing.Color.Lime, Forms.FrameStyle.Dashed);
+
+                var start = slot.Viewport.PointToScreen(slot.SelectionStart);
+                var end = slot.Viewport.PointToScreen(cursor);
+                var frame = System.Drawing.Rectangle.FromLTRB(
+                    Math.Min(start.X, end.X), Math.Min(start.Y, end.Y),
+                    Math.Max(start.X, end.X), Math.Max(start.Y, end.Y));
+                if (frame.Width > 0 && frame.Height > 0)
+                {
+                    Forms.ControlPaint.DrawReversibleFrame(frame, System.Drawing.Color.Lime, Forms.FrameStyle.Dashed);
+                    slot.SelectionFrameScreen = frame;
+                }
+                else slot.SelectionFrameScreen = null;
+                return;
+            }
+
             if (!slot.IsDragging) return;
             slot.PanX = slot.PanStart.X + cursor.X - slot.DragStart.X;
             slot.PanY = slot.PanStart.Y + cursor.Y - slot.DragStart.Y;
             ApplyDahuaSlotViewport(slot);
         }
 
-        private void EndDahuaSlotPan(DahuaMultiViewSlot slot, Forms.MouseEventArgs args)
+        private void EndDahuaSlotSelectionOrPan(DahuaMultiViewSlot slot, Forms.MouseEventArgs args)
         {
             if (args.Button != Forms.MouseButtons.Left) return;
+
+            if (slot.IsSelectingArea)
+            {
+                if (slot.SelectionFrameScreen.HasValue)
+                    Forms.ControlPaint.DrawReversibleFrame(slot.SelectionFrameScreen.Value, System.Drawing.Color.Lime, Forms.FrameStyle.Dashed);
+
+                var start = slot.SelectionStart;
+                var end = slot.Viewport.PointToClient(Forms.Control.MousePosition);
+                slot.IsSelectingArea = false;
+                slot.SelectionFrameScreen = null;
+                slot.Viewport.Capture = false;
+                slot.Viewport.Cursor = Forms.Cursors.Default;
+
+                var area = System.Drawing.Rectangle.FromLTRB(
+                    Math.Min(start.X, end.X), Math.Min(start.Y, end.Y),
+                    Math.Max(start.X, end.X), Math.Max(start.Y, end.Y));
+                if (area.Width >= 18 && area.Height >= 18)
+                    _ = ApplyDahuaAreaZoomAsync(slot, area);
+                else
+                    DahuaStatusLabel.Text = "Zaznacz większy obszar obrazu, aby przybliżyć kamerę.";
+                return;
+            }
+
             slot.IsDragging = false;
             slot.Viewport.Capture = false;
             slot.Viewport.Cursor = Forms.Cursors.Default;
+        }
+
+        private async Task ApplyDahuaAreaZoomAsync(DahuaMultiViewSlot slot, System.Drawing.Rectangle area)
+        {
+            if (_dahuaPtzAreaZoomRunning || _dahuaLoginId == IntPtr.Zero || _dahuaMultiViewSlots.Count != 1)
+                return;
+
+            _dahuaPtzAreaZoomRunning = true;
+            try
+            {
+                int viewWidth = Math.Max(1, slot.Viewport.ClientSize.Width);
+                int viewHeight = Math.Max(1, slot.Viewport.ClientSize.Height);
+                double centerX = (area.Left + area.Width / 2.0) / viewWidth;
+                double centerY = (area.Top + area.Height / 2.0) / viewHeight;
+
+                DahuaStatusLabel.Text = "PTZ: ustawianie kierunku na zaznaczony obszar…";
+
+                // Najpierw przesuwamy kamerę w stronę środka zaznaczenia.
+                double horizontalOffset = (centerX - 0.5) * 2.0;
+                double verticalOffset = (centerY - 0.5) * 2.0;
+
+                if (Math.Abs(horizontalOffset) > 0.07)
+                {
+                    var command = horizontalOffset > 0
+                        ? DahuaNetSdk.EM_PTZ_COMMAND.RIGHT
+                        : DahuaNetSdk.EM_PTZ_COMMAND.LEFT;
+                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(horizontalOffset) * 650, 90, 650), slot.Channel);
+                }
+
+                if (Math.Abs(verticalOffset) > 0.07)
+                {
+                    var command = verticalOffset > 0
+                        ? DahuaNetSdk.EM_PTZ_COMMAND.DOWN
+                        : DahuaNetSdk.EM_PTZ_COMMAND.UP;
+                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(verticalOffset) * 550, 90, 550), slot.Channel);
+                }
+
+                // Następnie wykonujemy fizyczny zoom obiektywu. Czas jest
+                // przybliżeniem zależnym od wielkości zaznaczenia, nie od skali obrazu.
+                double relativeWidth = area.Width / (double)viewWidth;
+                double relativeHeight = area.Height / (double)viewHeight;
+
+                // Mocniejsze przybliżenie: obszar docelowy wyznacza mniejszy
+                // z wymiarów zaznaczenia. Dłuższy impuls pozwala wykorzystać
+                // większy zakres optycznego zoomu obiektywu PTZ.
+                double targetFactor = Math.Clamp(
+                    1.0 / Math.Max(0.05, Math.Min(relativeWidth, relativeHeight)),
+                    1.0,
+                    12.0);
+                if (targetFactor > 1.08)
+                {
+                    int zoomDuration = (int)Math.Clamp(Math.Log(targetFactor) * 950, 150, 4000);
+                    await RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN, zoomDuration, slot.Channel);
+                }
+
+                DahuaStatusLabel.Text = "PTZ: zakończono przybliżanie zaznaczonego obszaru. W razie potrzeby skoryguj ręcznie kierunek lub zoom.";
+            }
+            catch (Exception ex)
+            {
+                DahuaStatusLabel.Text = $"Błąd przybliżania obszaru PTZ: {ex.Message}";
+            }
+            finally { _dahuaPtzAreaZoomRunning = false; }
+        }
+
+        private async Task RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND command, int durationMs, int? channelNumber = null)
+        {
+            if (_dahuaLoginId == IntPtr.Zero) return;
+            int channelIndex = Math.Max(0, (channelNumber ?? _dahuaCurrentChannel) - 1);
+            bool started = DahuaNetSdk.CLIENT_DHPTZControlEx2(
+                _dahuaLoginId, channelIndex, (uint)command, 4, 4, 0, false, IntPtr.Zero);
+            if (!started)
+            {
+                uint error = DahuaNetSdk.CLIENT_GetLastError();
+                throw new InvalidOperationException(DahuaNetSdk.GetErrorDescription(error));
+            }
+
+            try { await Task.Delay(durationMs); }
+            finally
+            {
+                DahuaNetSdk.CLIENT_DHPTZControlEx2(
+                    _dahuaLoginId, channelIndex, (uint)command, 4, 4, 0, true, IntPtr.Zero);
+            }
         }
 
         private void DahuaStartMultiLive_Click(object sender, RoutedEventArgs e)

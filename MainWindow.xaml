@@ -1178,7 +1178,7 @@
                                             </Expander>
 
                                             <TextBlock Text="RĘCZNE STEROWANIE PTZ" Style="{StaticResource DahuaFieldLabel}" />
-                                            <Grid Width="150" Height="84" HorizontalAlignment="Left" Margin="0,0,0,6">
+                                            <Grid Width="174" Height="102" HorizontalAlignment="Left" Margin="0,0,0,6">
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="*" />
                                                     <RowDefinition Height="*" />
@@ -1189,10 +1189,15 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
+                                                <Button Grid.Row="0" Grid.Column="0" Content="↖" PreviewMouseDown="DahuaPtzDiagonal_Down" PreviewMouseUp="DahuaPtzDiagonal_Stop" Margin="2" Padding="0" Tag="UP_LEFT" ToolTip="Góra i lewo" />
                                                 <Button Grid.Row="0" Grid.Column="1" Content="▲" PreviewMouseDown="DahuaPtzUp_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="UP" />
+                                                <Button Grid.Row="0" Grid.Column="2" Content="↗" PreviewMouseDown="DahuaPtzDiagonal_Down" PreviewMouseUp="DahuaPtzDiagonal_Stop" Margin="2" Padding="0" Tag="UP_RIGHT" ToolTip="Góra i prawo" />
                                                 <Button Grid.Row="1" Grid.Column="0" Content="◀" PreviewMouseDown="DahuaPtzLeft_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="LEFT" />
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="PTZ" Foreground="#94A3B8" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 <Button Grid.Row="1" Grid.Column="2" Content="▶" PreviewMouseDown="DahuaPtzRight_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="RIGHT" />
+                                                <Button Grid.Row="2" Grid.Column="0" Content="↙" PreviewMouseDown="DahuaPtzDiagonal_Down" PreviewMouseUp="DahuaPtzDiagonal_Stop" Margin="2" Padding="0" Tag="DOWN_LEFT" ToolTip="Dół i lewo" />
                                                 <Button Grid.Row="2" Grid.Column="1" Content="▼" PreviewMouseDown="DahuaPtzDown_Down" PreviewMouseUp="DahuaPtz_Stop" Margin="2" Padding="0" Tag="DOWN" />
+                                                <Button Grid.Row="2" Grid.Column="2" Content="↘" PreviewMouseDown="DahuaPtzDiagonal_Down" PreviewMouseUp="DahuaPtzDiagonal_Stop" Margin="2" Padding="0" Tag="DOWN_RIGHT" ToolTip="Dół i prawo" />
                                             </Grid>
                                             <WrapPanel Margin="0,0,0,6">
                                                 <Button Content="Zoom +" PreviewMouseDown="DahuaPtzZoomIn_Down" PreviewMouseUp="DahuaPtz_Stop" Padding="9,5" Tag="ZOOM_IN" />
