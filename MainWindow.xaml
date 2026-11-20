@@ -1007,6 +1007,7 @@
                                             <WrapPanel>
                                                 <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
                                                 <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
+                                                <Button x:Name="ClearCaseSelectionButton" Content="Bieżące nagranie" Click="ClearCaseSelection_Click" ToolTip="Wyczyść wybór sprawy i raportuj aktualnie otwarty plik" />
                                                 <Button x:Name="DeleteCaseButton" Content="Usuń sprawę" Click="DeleteCase_Click" />
                                             </WrapPanel>
                                             <TextBlock x:Name="CaseArchiveStatusText" Text="Sprawa może zawierać wiele nagrań. Zapis nie kopiuje ani nie modyfikuje plików źródłowych." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
