@@ -17,6 +17,9 @@ Windows desktop application (WPF, .NET 8, x64) for reviewing and analyzing video
 
 ## Documentation
 
+- [Documentation index and obsolete-file review — 1.7.0](Dokumentacja/INDEKS-DOKUMENTACJI-1.7.0.md)
+- [Development chronology through 1.7.0](Dokumentacja/HISTORIA-ZMIAN-VideoPlayer-do-1.7.0.md)
+
 - [User and deployment manual — 1.7.0](Dokumentacja/VideoPlayer-1.7.0-Dokumentacja.md)
 - [Release notes — 1.7.0](Dokumentacja/VideoPlayer-1.7.0-Informacje-o-wydaniu.md)
 - [Publication checklist — 1.7.0](Dokumentacja/VideoPlayer-1.7.0-Lista-publikacyjna.md)
