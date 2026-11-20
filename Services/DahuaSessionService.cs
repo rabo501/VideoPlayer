@@ -42,6 +42,8 @@ namespace VideoPlayer
         private DahuaNetSdk.fDisConnect? _disConnectCallback;
         private DahuaNetSdk.fHaveReConnect? _haveReConnectCallback;
         private bool _disposed;
+        private readonly HashSet<IntPtr> _liveStreamHandles = new();
+        private readonly HashSet<IntPtr> _archivePlaybackHandles = new();
 
         public bool IsSdkInitialized { get; private set; }
         public IntPtr LoginId { get; private set; } = IntPtr.Zero;
@@ -304,6 +306,8 @@ namespace VideoPlayer
 
         public void Disconnect()
         {
+            StopAllLiveStreams();
+            StopAllArchivePlaybacks();
             if (LoginId != IntPtr.Zero)
             {
                 try { DahuaNetSdk.CLIENT_Logout(LoginId); } catch { }
@@ -484,6 +488,26 @@ namespace VideoPlayer
             return handle;
         }
 
+        public IntPtr StartLiveStream(int channelNumber, IntPtr windowHandle, DahuaNetSdk.EM_RealPlayType streamType)
+        {
+            IntPtr handle = StartRealPlay(channelNumber, windowHandle, streamType);
+            if (handle != IntPtr.Zero) _liveStreamHandles.Add(handle);
+            return handle;
+        }
+
+        public void StopLiveStream(IntPtr handle)
+        {
+            if (handle == IntPtr.Zero) return;
+            _liveStreamHandles.Remove(handle);
+            StopRealPlay(handle);
+        }
+
+        public void StopAllLiveStreams()
+        {
+            foreach (IntPtr handle in _liveStreamHandles.ToArray()) StopRealPlay(handle);
+            _liveStreamHandles.Clear();
+        }
+
         public static void StopRealPlay(IntPtr handle)
         {
             if (handle == IntPtr.Zero) return;
@@ -498,6 +522,66 @@ namespace VideoPlayer
             return DahuaNetSdk.CLIENT_PlayBackByTimeEx(
                 LoginId, Math.Max(0, channelNumber - 1), ref tmStart, ref tmEnd,
                 windowHandle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        }
+
+        public IntPtr StartArchivePlayback(int channelNumber, DateTime start, DateTime end, IntPtr windowHandle)
+        {
+            IntPtr handle = StartPlayBackByTime(channelNumber, start, end, windowHandle);
+            if (handle != IntPtr.Zero) _archivePlaybackHandles.Add(handle);
+            return handle;
+        }
+
+        public void StopArchivePlayback(IntPtr handle)
+        {
+            if (handle == IntPtr.Zero) return;
+            _archivePlaybackHandles.Remove(handle);
+            StopPlayBack(handle);
+        }
+
+        public void StopAllArchivePlaybacks()
+        {
+            foreach (IntPtr handle in _archivePlaybackHandles.ToArray()) StopPlayBack(handle);
+            _archivePlaybackHandles.Clear();
+        }
+
+        public IReadOnlyList<IntPtr> GetArchivePlaybackHandles() => _archivePlaybackHandles.ToArray();
+
+        public int SetArchivePlaybackSpeed(double requestedSpeed)
+        {
+            if (requestedSpeed <= 0 || double.IsNaN(requestedSpeed) || double.IsInfinity(requestedSpeed))
+                throw new ArgumentOutOfRangeException(nameof(requestedSpeed));
+            IntPtr[] handles = _archivePlaybackHandles.ToArray();
+            int succeeded = 0;
+            foreach (IntPtr handle in handles)
+            {
+                bool ok = DahuaNetSdk.CLIENT_NormalPlayBack(handle);
+                int steps = requestedSpeed == 1.0 ? 0 : (int)Math.Round(Math.Abs(Math.Log(requestedSpeed, 2)));
+                for (int step = 0; ok && step < steps; step++)
+                    ok = requestedSpeed > 1.0 ? DahuaNetSdk.CLIENT_FastPlayBack(handle) : DahuaNetSdk.CLIENT_SlowPlayBack(handle);
+                if (ok) succeeded++;
+            }
+            if (succeeded != handles.Length)
+                foreach (IntPtr handle in handles) DahuaNetSdk.CLIENT_NormalPlayBack(handle);
+            return succeeded;
+        }
+
+        public bool SetArchivePlaybackPaused(bool pause)
+        {
+            IntPtr[] handles = _archivePlaybackHandles.ToArray();
+            var succeeded = new List<IntPtr>();
+            foreach (IntPtr handle in handles)
+                if (DahuaNetSdk.CLIENT_PausePlayBack(handle, pause)) succeeded.Add(handle);
+            if (succeeded.Count == handles.Length) return true;
+            foreach (IntPtr handle in succeeded) DahuaNetSdk.CLIENT_PausePlayBack(handle, !pause);
+            return false;
+        }
+
+        public int SeekArchivePlayback(int offsetSeconds)
+        {
+            int succeeded = 0;
+            foreach (IntPtr handle in _archivePlaybackHandles.ToArray())
+                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
+            return succeeded;
         }
 
         public static void StopPlayBack(IntPtr handle)

@@ -68,6 +68,21 @@ namespace VideoPlayer.Tests
         }
 
         [Fact]
+        public void PlaybackSessionManagement_IsSafeWhenNoNativeHandlesAreActive()
+        {
+            using var service = new DahuaSessionService();
+
+            Assert.Empty(service.GetArchivePlaybackHandles());
+            Assert.Equal(0, service.SetArchivePlaybackSpeed(1.0));
+            Assert.Equal(0, service.SeekArchivePlayback(0));
+            Assert.True(service.SetArchivePlaybackPaused(false));
+
+            service.StopAllLiveStreams();
+            service.StopAllArchivePlaybacks();
+            Assert.Empty(service.GetArchivePlaybackHandles());
+        }
+
+        [Fact]
         public void ComputeArchiveSeekOffsetSeconds_ClampsToBounds()
         {
             var start = new DateTime(2026, 5, 1, 8, 0, 0);

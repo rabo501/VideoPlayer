@@ -219,6 +219,20 @@ namespace VideoPlayer.ViewModels
             }
         }
 
+        public IntPtr StartLiveStream(int channel, IntPtr windowHandle, DahuaNetSdk.EM_RealPlayType streamType) =>
+            Session.StartLiveStream(channel, windowHandle, streamType);
+
+        public void StopLiveStream(IntPtr handle) => Session.StopLiveStream(handle);
+        public void StopAllLiveStreams() => Session.StopAllLiveStreams();
+        public IntPtr StartArchivePlayback(int channel, DateTime start, DateTime end, IntPtr windowHandle) =>
+            Session.StartArchivePlayback(channel, start, end, windowHandle);
+        public void StopArchivePlayback(IntPtr handle) => Session.StopArchivePlayback(handle);
+        public void StopAllArchivePlaybacks() => Session.StopAllArchivePlaybacks();
+        public IReadOnlyList<IntPtr> GetArchivePlaybackHandles() => Session.GetArchivePlaybackHandles();
+        public int SetArchivePlaybackSpeed(double speed) => Session.SetArchivePlaybackSpeed(speed);
+        public bool SetArchivePlaybackPaused(bool pause) => Session.SetArchivePlaybackPaused(pause);
+        public int SeekArchivePlayback(int offsetSeconds) => Session.SeekArchivePlayback(offsetSeconds);
+
         public bool GotoPreset(int channel, int presetNumber)
         {
             if (Session.LoginId == IntPtr.Zero)

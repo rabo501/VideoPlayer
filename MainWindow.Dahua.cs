@@ -953,12 +953,12 @@ namespace VideoPlayer
             {
                 if (_dahuaRealPlayHandle != IntPtr.Zero)
                 {
-                    DahuaSessionService.StopRealPlay(_dahuaRealPlayHandle);
+                    ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                     _dahuaRealPlayHandle = IntPtr.Zero;
                 }
                 if (_dahuaPlaybackHandle != IntPtr.Zero)
                 {
-                    DahuaSessionService.StopPlayBack(_dahuaPlaybackHandle);
+                    ViewModel.Dahua.StopArchivePlayback(_dahuaPlaybackHandle);
                     _dahuaPlaybackHandle = IntPtr.Zero;
                 }
                 if (!_dahuaPrimaryPictureBox.IsHandleCreated) _dahuaPrimaryPictureBox.CreateControl();
@@ -966,7 +966,7 @@ namespace VideoPlayer
                 var streamType = DahuaStreamTypeBox.SelectedIndex == 1
                     ? DahuaNetSdk.EM_RealPlayType.Realplay_1
                     : DahuaNetSdk.EM_RealPlayType.Realplay;
-                _dahuaRealPlayHandle = DahuaSession.StartRealPlay(channelNumber, _dahuaPrimaryPictureBox.Handle, streamType);
+                _dahuaRealPlayHandle = ViewModel.Dahua.StartLiveStream(channelNumber, _dahuaPrimaryPictureBox.Handle, streamType);
 
                 string chName = _currentDahuaDevice?.GetChannelName(channelNumber) ?? $"Kanał {channelNumber}";
                 if (_dahuaRealPlayHandle == IntPtr.Zero)
@@ -994,12 +994,12 @@ namespace VideoPlayer
             {
                 if (_dahuaRealPlayHandle != IntPtr.Zero)
                 {
-                    DahuaSessionService.StopRealPlay(_dahuaRealPlayHandle);
+                    ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                     _dahuaRealPlayHandle = IntPtr.Zero;
                 }
                 if (_dahuaPlaybackHandle != IntPtr.Zero)
                 {
-                    DahuaSessionService.StopPlayBack(_dahuaPlaybackHandle);
+                    ViewModel.Dahua.StopArchivePlayback(_dahuaPlaybackHandle);
                     _dahuaPlaybackHandle = IntPtr.Zero;
                 }
                 ViewModel.Dahua.Disconnect();
@@ -1475,7 +1475,7 @@ namespace VideoPlayer
             DahuaStopSynchronizedPlayback();
             if (_dahuaRealPlayHandle != IntPtr.Zero)
             {
-                DahuaSessionService.StopRealPlay(_dahuaRealPlayHandle);
+                ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                 _dahuaRealPlayHandle = IntPtr.Zero;
             }
             BuildDahuaMultiViewSlots(channels);
@@ -1486,7 +1486,7 @@ namespace VideoPlayer
             int started = 0;
             foreach (var slot in _dahuaMultiViewSlots)
             {
-                slot.StreamHandle = DahuaSession.StartRealPlay(slot.Channel, slot.PictureBox.Handle, streamType);
+                slot.StreamHandle = ViewModel.Dahua.StartLiveStream(slot.Channel, slot.PictureBox.Handle, streamType);
                 if (slot.StreamHandle != IntPtr.Zero) started++;
             }
             ViewModel.Dahua.StatusText = $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów.";
@@ -1499,7 +1499,7 @@ namespace VideoPlayer
             foreach (var slot in _dahuaMultiViewSlots)
             {
                 if (slot.StreamHandle == IntPtr.Zero) continue;
-                DahuaSessionService.StopRealPlay(slot.StreamHandle);
+                ViewModel.Dahua.StopLiveStream(slot.StreamHandle);
                 slot.StreamHandle = IntPtr.Zero;
             }
         }
@@ -1603,7 +1603,7 @@ namespace VideoPlayer
             DahuaStopMultiLiveStreams();
             if (_dahuaRealPlayHandle != IntPtr.Zero)
             {
-                DahuaSessionService.StopRealPlay(_dahuaRealPlayHandle);
+                ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                 _dahuaRealPlayHandle = IntPtr.Zero;
             }
             DahuaStopSynchronizedPlayback();
@@ -1631,7 +1631,7 @@ namespace VideoPlayer
                 var failedChannels = new List<int>();
                 foreach (var slot in _dahuaMultiViewSlots)
                 {
-                    slot.PlaybackHandle = DahuaSession.StartPlayBackByTime(slot.Channel, start.Value, end.Value, slot.PictureBox.Handle);
+                    slot.PlaybackHandle = ViewModel.Dahua.StartArchivePlayback(slot.Channel, start.Value, end.Value, slot.PictureBox.Handle);
                     if (slot.PlaybackHandle != IntPtr.Zero)
                     {
                         _dahuaMultiPlaybackHandles.Add(slot.PlaybackHandle);
@@ -1818,19 +1818,10 @@ namespace VideoPlayer
             if (!_dahuaSynchronizedPlaybackPaused)
                 elapsed += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
 
-            int succeeded = 0;
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-            {
-                bool ok = DahuaNetSdk.CLIENT_NormalPlayBack(handle);
-                int steps = requestedSpeed == 1.0 ? 0 : (int)Math.Round(Math.Abs(Math.Log(requestedSpeed, 2)));
-                for (int step = 0; ok && step < steps; step++)
-                    ok = requestedSpeed > 1.0 ? DahuaNetSdk.CLIENT_FastPlayBack(handle) : DahuaNetSdk.CLIENT_SlowPlayBack(handle);
-                if (ok) succeeded++;
-            }
+            int succeeded = ViewModel.Dahua.SetArchivePlaybackSpeed(requestedSpeed);
 
             if (succeeded != _dahuaMultiPlaybackHandles.Count)
             {
-                foreach (IntPtr handle in _dahuaMultiPlaybackHandles) DahuaNetSdk.CLIENT_NormalPlayBack(handle);
                 _dahuaArchivePlaybackSpeed = 1.0;
                 _dahuaUpdatingArchiveSpeed = true;
                 DahuaArchiveSpeedBox.SelectedIndex = 2;
@@ -1848,9 +1839,7 @@ namespace VideoPlayer
         private void SeekDahuaSynchronizedPlayback(int offsetSeconds)
         {
             offsetSeconds = (int)Math.Clamp(offsetSeconds, 0, GetDahuaPlaybackDurationSeconds());
-            int succeeded = 0;
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
+            int succeeded = ViewModel.Dahua.SeekArchivePlayback(offsetSeconds);
             if (succeeded != _dahuaMultiPlaybackHandles.Count)
             {
                 ViewModel.Dahua.PlaybackSyncStatusText = $"Przewijanie nie powiodło się ({succeeded}/{_dahuaMultiPlaybackHandles.Count}).";
@@ -1912,13 +1901,10 @@ namespace VideoPlayer
         {
             if (_dahuaMultiPlaybackHandles.Count == 0) return;
             bool pause = !_dahuaSynchronizedPlaybackPaused;
-            var succeededHandles = new List<IntPtr>();
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-                if (DahuaNetSdk.CLIENT_PausePlayBack(handle, pause)) succeededHandles.Add(handle);
+            bool synchronized = ViewModel.Dahua.SetArchivePlaybackPaused(pause);
 
-            if (succeededHandles.Count != _dahuaMultiPlaybackHandles.Count)
+            if (!synchronized)
             {
-                foreach (IntPtr handle in succeededHandles) DahuaNetSdk.CLIENT_PausePlayBack(handle, !pause);
                 ViewModel.Dahua.PlaybackSyncStatusText = "Nie udało się zsynchronizować sterowania";
                 return;
             }
@@ -1940,7 +1926,7 @@ namespace VideoPlayer
         private void DahuaStopPlaybackHandlesOnly()
         {
             foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-                DahuaSessionService.StopPlayBack(handle);
+                ViewModel.Dahua.StopArchivePlayback(handle);
             _dahuaMultiPlaybackHandles.Clear();
             foreach (var slot in _dahuaMultiViewSlots) slot.PlaybackHandle = IntPtr.Zero;
         }
