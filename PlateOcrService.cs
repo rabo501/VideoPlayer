@@ -33,8 +33,11 @@ namespace VideoPlayer
                     g.Select(x=>x.Frame).Distinct().Count(),
                     crops.Count,
                     (float)g.Average(x=>x.Confidence)))
-                .OrderByDescending(x=>x.VoteCount)
-                .ThenByDescending(x=>x.AverageConfidence)
+                // Najpierw jakość odczytu, dopiero potem powtarzalność między klatkami.
+                // Krótkie fragmenty nie powinny wygrywać tylko dlatego, że OCR powtarza je częściej.
+                .OrderByDescending(x=>x.AverageConfidence)
+                .ThenByDescending(x=>x.VoteCount)
+                .ThenByDescending(x=>x.Text.Length)
                 .ThenBy(x=>x.Text,StringComparer.Ordinal)
                 .Take(5)
                 .ToArray();
@@ -94,7 +97,10 @@ namespace VideoPlayer
                     ct.ThrowIfCancellationRequested();
                     using var page=engine.Process(pix,segmentation);
                     string text=Normalize(page.GetText());
-                    if(text.Length>=2&&text.Length<=12)candidates.Add(new(text,page.GetMeanConfidence()));
+                    // Odrzucamy krótkie fragmenty obrazu (np. pierwsze 2–3 znaki),
+                    // które Tesseract potrafi zwrócić jako osobne "numery".
+                    // Cztery znaki to dolna granica dopuszczonego wyniku.
+                    if(text.Length>=4&&text.Length<=12)candidates.Add(new(text,page.GetMeanConfidence()));
                 }
             }
             ct.ThrowIfCancellationRequested();
