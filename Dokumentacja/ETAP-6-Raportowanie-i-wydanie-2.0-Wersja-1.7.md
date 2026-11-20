@@ -16,7 +16,7 @@ Prace są prowadzone na gałęzi `wersja-1.7`. Wersja aplikacji pozostaje `1.6.0
 - Aktualizacja danych sprawy po ponownym zapisie z tym samym numerem (bez rozróżniania wielkości liter).
 - Zachowanie oryginalnych plików bez kopiowania, przenoszenia lub modyfikowania.
 - Przechowywanie wyłącznie metadanych i ścieżek do źródeł; brak wysyłania danych poza komputer.
-- Brak funkcji usuwania sprawy w pierwszej wersji, aby przypadkowe kliknięcie nie usuwało informacji o materiale.
+- Usuwanie sprawy z potwierdzeniem; usuwane są wyłącznie rekord sprawy i jej powiązania, nigdy pliki nagrań, znaczniki ani pliki eksportów.
 
 ### 6B — raporty
 
@@ -61,11 +61,20 @@ W zakładce Zdarzenia dodano sekcję „Archiwum spraw”:
 - przycisk „Wczytaj dane sprawy”;
 - status informujący o liczbie powiązanych nagrań.
 
-Zapis sprawy wymaga numeru sprawy i otwartego, istniejącego nagrania. Ponowny zapis z tym samym numerem aktualizuje metadane i dopisuje bieżącą ścieżkę nagrania do powiązań. Nie kopiuje pliku źródłowego. Wczytanie sprawy przywraca metadane do formularza raportu; aby dołączyć bieżące nagranie, należy ponownie zapisać sprawę.
+Zapis sprawy wymaga numeru sprawy i otwartego, istniejącego nagrania. Ponowny zapis z tym samym numerem aktualizuje metadane i dopisuje bieżącą ścieżkę nagrania do powiązań. Nie kopiuje pliku źródłowego. Wczytanie sprawy przywraca metadane do formularza raportu. Kolejne nagrania można dołączać do tej samej sprawy przez otwarcie nagrania i ponowny zapis z tym samym numerem; gdy formularz numeru jest pusty, zapis wykorzysta zaznaczoną sprawę z listy.
 
-Nie wykonano kompilacji ani testów runtime. Etap 6A wymaga testów użytkownika przed rozpoczęciem 6B.
+Użytkownik potwierdził poprawne działanie Etapu 6A.
 
 ## Implementacja 6B — wykonane
+
+Dodatkowo poprawiono obsługę raportowania dla spraw wielonagraniowych:
+- raport CSV/PDF wybranej sprawy pobiera wszystkie ścieżki zapisane w `CaseSources`;
+- dla każdego źródła pobierane są niezależnie znaczniki zdarzeń, historia eksportów i parametry techniczne;
+- raport można wygenerować bez otwierania któregokolwiek nagrania;
+- raport PDF zawiera wykaz wszystkich nagrań, oznacza niedostępne pliki i przypisuje zdarzenia oraz eksporty do właściwego źródła;
+- CSV zawiera osobny wiersz identyfikujący każde nagranie, również gdy nie ma ono zdarzeń;
+- usuwanie sprawy wymaga potwierdzenia i nie usuwa plików źródłowych ani danych analizy.
+
 
 Rozbudowano raport CSV i PDF, zachowując lokalne przetwarzanie.
 
