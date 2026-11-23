@@ -152,28 +152,25 @@ namespace VideoPlayer
 
         private void MenuScale_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not MenuItem menu) return;
-            foreach (ComboBoxItem item in VideoScaleBox.Items)
-            {
-                if (string.Equals(item.Tag?.ToString(), menu.Tag?.ToString(), StringComparison.Ordinal))
-                {
-                    VideoScaleBox.SelectedItem = item;
-                    break;
-                }
-            }
+            if (sender is not MenuItem menu || menu.Tag is not string mode) return;
+            ApplyScaleFromContextMenu(mode);
         }
 
         private void VideoPanel_MouseUp(object? sender, System.Windows.Forms.MouseEventArgs e)
         {
             if (e.Button == System.Windows.Forms.MouseButtons.Right && _workspaceMode == WorkspaceMode.Player)
-            {
-                ShowVideoContextMenu();
-            }
+                ShowVideoContextMenu(VideoHost);
         }
 
-        private void ShowVideoContextMenu()
+        private void DahuaVideoSurface_MouseUp(object? sender, System.Windows.Forms.MouseEventArgs e)
         {
-            var menu = new ContextMenu { PlacementTarget = VideoHost, Placement = PlacementMode.MousePoint };
+            if (e.Button == System.Windows.Forms.MouseButtons.Right && _workspaceMode == WorkspaceMode.Dahua)
+                ShowVideoContextMenu(DahuaPrimaryVideoHost);
+        }
+
+        private void ShowVideoContextMenu(FrameworkElement? placementTarget = null)
+        {
+            var menu = new ContextMenu { PlacementTarget = placementTarget ?? VideoHost, Placement = PlacementMode.MousePoint };
             void Add(string text, RoutedEventHandler action)
             {
                 var item = new MenuItem { Header = text };
@@ -200,13 +197,18 @@ namespace VideoPlayer
             AddScale("Powiększenie 150%", "1.5");
             AddScale("Powiększenie 200%", "2");
             menu.Items.Add(scaleMenu);
+
+            if (_workspaceMode == WorkspaceMode.Player)
+            {
+                menu.Items.Add(new Separator());
+                Add("Ustaw początek (I)", MarkStart_Click);
+                Add("Ustaw koniec (O)", MarkEnd_Click);
+                menu.Items.Add(new Separator());
+                Add("Dodaj zdarzenie…", ContextAddMarker_Click);
+                Add("Rozpoznaj tablicę (OCR)…", PlateOcr_Click);
+                Add("Zapisz klatkę (S)", Screenshot_Click);
+            }
             menu.Items.Add(new Separator());
-            Add("Ustaw początek (I)", MarkStart_Click);
-            Add("Ustaw koniec (O)", MarkEnd_Click);
-            menu.Items.Add(new Separator());
-            Add("Dodaj zdarzenie…", ContextAddMarker_Click);
-            Add("Rozpoznaj tablicę (OCR)…", PlateOcr_Click);
-            Add("Zapisz klatkę (S)", Screenshot_Click);
             Add("Resetuj widok (R)", ResetView_Click);
             menu.IsOpen = true;
         }
