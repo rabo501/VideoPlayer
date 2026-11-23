@@ -90,19 +90,56 @@ namespace VideoPlayer
         private async void VideoScaleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_closing || _opening || _restoring || _changingScale || VideoScaleBox.SelectedItem is not ComboBoxItem item) return;
-            string mode = item.Tag?.ToString() ?? "fit";
-            if (_workspaceMode == WorkspaceMode.Dahua)
-            {
-                SetDahuaPrimaryScale(mode);
-                return;
-            }
-            if (!_ready) return;
+            await ApplyScaleModeAsync(item.Tag?.ToString() ?? "fit");
+        }
+
+        private async void ApplyScaleFromContextMenu(string mode)
+        {
+            if (_closing || _opening) return;
+
+            // Aktualizuj listę bez ponownego uruchamiania SelectionChanged;
+            // właściwe zastosowanie skali wykonuje wspólna metoda poniżej.
             _changingScale = true;
             try
             {
-                double z = 0, p = mode == "fill" ? 1 : 0;
-                if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1) z = Math.Log(factor, 2);
-                await SetViewAsync(z, 0, 0, p);
+                foreach (ComboBoxItem item in VideoScaleBox.Items)
+                {
+                    if (string.Equals(item.Tag?.ToString(), mode, StringComparison.Ordinal))
+                    {
+                        VideoScaleBox.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+            finally { _changingScale = false; }
+
+            await ApplyScaleModeAsync(mode);
+        }
+
+        private async Task ApplyScaleModeAsync(string mode)
+        {
+            if (_closing || _opening) return;
+            try
+            {
+                if (_workspaceMode == WorkspaceMode.Dahua)
+                {
+                    SetDahuaPrimaryScale(mode);
+                    return;
+                }
+
+                if (!_ready)
+                {
+                    ViewModel.StatusMessage = "Najpierw uruchom odtwarzanie lub wczytaj nagranie.";
+                    return;
+                }
+
+                _changingScale = true;
+                double zoom = 0;
+                double panscan = mode == "fill" ? 1 : 0;
+                if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1)
+                    zoom = Math.Log(factor, 2);
+
+                await SetViewAsync(zoom, 0, 0, panscan);
                 SaveSession();
             }
             catch (Exception ex) { ViewModel.StatusMessage = ex.Message; }
