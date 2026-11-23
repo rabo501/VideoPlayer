@@ -166,7 +166,7 @@ namespace VideoPlayer
                 TogglePreviewWindow();
                 return;
             }
-            if (e.Key == Key.Escape && _previewWindow != null)
+            if (e.Key == Key.Escape && _previewFullscreen)
             {
                 e.Handled = true;
                 ReturnPreviewWindow();
