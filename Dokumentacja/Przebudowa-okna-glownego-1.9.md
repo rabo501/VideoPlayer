@@ -25,3 +25,13 @@ Nowa linia interfejsu głównego okna przy zachowaniu dotychczasowych funkcji i 
 
 ## Status
 Pierwsza iteracja głównego układu została skompilowana przez użytkownika. Druga iteracja porządkuje panel narzędzi; wymaga kompilacji i testów funkcjonalnych w Windows.
+
+
+## Trzeci zakres zmian — pasek sterowania odtwarzaniem
+- wydzielenie sterowania mpv w osobny, wizualnie odseparowany panel;
+- pogrupowanie klatkowania, odtwarzania, zrzutu klatki i analizy ruchu;
+- zastosowanie zawijania przycisków przy mniejszej szerokości obszaru roboczego, zamiast wymuszania jednego długiego wiersza;
+- wyróżnienie wyboru prędkości odtwarzania jako osobnej grupy;
+- zachowanie istniejących nazw kontrolek, bindingów i handlerów; nie zmieniono logiki odtwarzania ani synchronizacji osi czasu.
+
+Ten zakres wymaga kompilacji i sprawdzenia układu w Windows, szczególnie przy szerokim i zwężonym oknie.
