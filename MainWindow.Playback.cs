@@ -56,7 +56,7 @@ namespace VideoPlayer
             try
             {
                 ReviewSession? session=null;
-                try{session=_reviews.Load(path);}catch(Exception ex){MessageBox.Show(this,"Nie odczytano sesji: "+ex.Message,"Sesja");}
+                try{session=ViewModel.ReviewSession.Load(path);}catch(Exception ex){MessageBox.Show(this,"Nie odczytano sesji: "+ex.Message,"Sesja");}
                 _fileLoaded=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 await _mpvService.SendAsync("set_property","pause",true);
                 _sourceFilePath=path;_fileName=Path.GetFileName(path);ViewModel.Export.ResetForNewMedia(path);
