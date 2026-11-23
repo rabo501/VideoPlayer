@@ -786,6 +786,8 @@
                                     <Canvas x:Name="DahuaRecordingTimelineCanvas" Height="42" ClipToBounds="True" Background="Transparent"
                                             SizeChanged="DahuaRecordingTimelineCanvas_SizeChanged"
                                             PreviewMouseLeftButtonDown="DahuaRecordingTimelineCanvas_MouseLeftButtonDown"
+                                            PreviewMouseMove="DahuaRecordingTimelineCanvas_MouseMove"
+                                            PreviewMouseLeftButtonUp="DahuaRecordingTimelineCanvas_MouseLeftButtonUp"
                                             MouseWheel="DahuaRecordingTimelineCanvas_MouseWheel"
                                             MouseRightButtonDown="DahuaRecordingTimelineCanvas_ResetZoom" />
                                 </Border>
@@ -804,6 +806,9 @@
                                             <ComboBoxItem Content="16×" Tag="16" />
                                             <ComboBoxItem Content="32×" Tag="32" />
                                         </ComboBox>
+                                        <Button x:Name="DahuaTimelineSelectionButton" Content="Zaznacz fragment" Click="DahuaToggleTimelineSelection_Click" Padding="8,4" Margin="0,0,5,0" />
+                                        <Button x:Name="DahuaDownloadTimelineSelectionButton" Content="Pobierz zaznaczony" Click="DahuaDownloadTimelineSelection_Click" Padding="8,4" Margin="0,0,5,0" />
+                                        <Button x:Name="DahuaCancelDownloadButton" Content="Anuluj pobieranie" Click="DahuaCancelDownload_Click" Padding="8,4" IsEnabled="False" />
                                     </StackPanel>
                                     <TextBlock x:Name="DahuaPlaybackSyncStatusText" Text="{Binding Dahua.PlaybackSyncStatusText}" Foreground="#CBD5E1" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
