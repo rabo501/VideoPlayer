@@ -86,6 +86,7 @@ namespace VideoPlayer
             public int SourceHeight { get; set; }
             public double SourceAspect { get; set; } = 16.0 / 9.0;
             public DahuaNetSdk.fRealDataCallBackEx2? FrameInfoCallback { get; set; }
+            public int FrameInfoUpdatePending;
             public int PanX { get; set; }
             public int PanY { get; set; }
             public bool IsDragging { get; set; }
@@ -1607,18 +1608,32 @@ namespace VideoPlayer
                             double aspect = (double)sourceWidth / sourceHeight;
                             if (!double.IsFinite(aspect) || aspect <= 0.01) return;
 
-                            // Nie wykonujemy operacji UI na wątku NetSDK.
+                            // Nie wykonujemy operacji UI na wątku NetSDK. Ograniczamy
+                            // liczbę oczekujących aktualizacji do jednej na slot.
+                            if (slot.SourceWidth == sourceWidth && slot.SourceHeight == sourceHeight)
+                                return;
+                            if (System.Threading.Interlocked.CompareExchange(
+                                ref slot.FrameInfoUpdatePending, 1, 0) != 0)
+                                return;
+
                             Dispatcher.BeginInvoke(new Action(() =>
                             {
-                                if (_closing || slot.StreamHandle != handle ||
-                                    !_dahuaMultiViewSlots.Contains(slot) ||
-                                    slot.SourceWidth == sourceWidth && slot.SourceHeight == sourceHeight)
-                                    return;
+                                try
+                                {
+                                    if (_closing || slot.StreamHandle != handle ||
+                                        !_dahuaMultiViewSlots.Contains(slot) ||
+                                        slot.SourceWidth == sourceWidth && slot.SourceHeight == sourceHeight)
+                                        return;
 
-                                slot.SourceWidth = sourceWidth;
-                                slot.SourceHeight = sourceHeight;
-                                slot.SourceAspect = aspect;
-                                ApplyDahuaSlotViewport(slot);
+                                    slot.SourceWidth = sourceWidth;
+                                    slot.SourceHeight = sourceHeight;
+                                    slot.SourceAspect = aspect;
+                                    ApplyDahuaSlotViewport(slot);
+                                }
+                                finally
+                                {
+                                    System.Threading.Interlocked.Exchange(ref slot.FrameInfoUpdatePending, 0);
+                                }
                             }), DispatcherPriority.Render);
                         }
                         catch
