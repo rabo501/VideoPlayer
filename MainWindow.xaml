@@ -1617,7 +1617,7 @@
 
         <!-- Stały pasek komunikatów i postępu operacji -->
         <Border Grid.Row="4" Background="#171C25" BorderBrush="#3A4658" BorderThickness="1"
-                BorderThickness="1" CornerRadius="8" Padding="11,7">
+                CornerRadius="8" Padding="11,7">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="21" />
