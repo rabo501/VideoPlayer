@@ -226,6 +226,7 @@ namespace VideoPlayer
             if (DahuaSession.LoginId != IntPtr.Zero && !DahuaSession.IsConnectedTo(dev))
                 DahuaDisconnect();
 
+            ClearDahuaTimelineSelection();
             _currentDahuaDevice = dev;
             ViewModel.Dahua.SelectedDevice = dev;
             DahuaStopMultiLiveStreams();
@@ -1765,6 +1766,20 @@ namespace VideoPlayer
             return (DahuaStartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(seconds);
         }
 
+        private void ClearDahuaTimelineSelection()
+        {
+            _dahuaTimelineSelectionStart = null;
+            _dahuaTimelineSelectionEnd = null;
+            if (_dahuaTimelineIsSelecting)
+            {
+                _dahuaTimelineIsSelecting = false;
+                if (DahuaRecordingTimelineCanvas?.IsMouseCaptured == true)
+                    DahuaRecordingTimelineCanvas.ReleaseMouseCapture();
+            }
+            if (DahuaRecordingTimelineCanvas != null)
+                RefreshDahuaRecordingTimeline();
+        }
+
         private void DahuaToggleTimelineSelection_Click(object sender, RoutedEventArgs e)
         {
             _dahuaTimelineSelectionMode = !_dahuaTimelineSelectionMode;
@@ -2119,6 +2134,7 @@ namespace VideoPlayer
 
         private void DahuaArchiveChannelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            ClearDahuaTimelineSelection();
             _dahuaArchiveAvailableDays.Clear();
             _dahuaRecorderAvailableDays.Clear();
             if (_currentDahuaDevice != null)
@@ -2317,6 +2333,7 @@ namespace VideoPlayer
 
             int channel = GetSelectedDahuaArchiveChannel();
 
+            ClearDahuaTimelineSelection();
             ViewModel.Dahua.DownloadStatusText = $"Wyszukiwanie nagrań: {_currentDahuaDevice.Name}, kanał {channel}…";
             ViewModel.Dahua.ArchiveRecords.Clear();
             RefreshDahuaRecordingTimeline();
