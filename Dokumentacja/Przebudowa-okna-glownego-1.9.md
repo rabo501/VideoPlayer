@@ -3,6 +3,12 @@
 ## Cel
 Nowa linia interfejsu głównego okna przy zachowaniu dotychczasowych funkcji i integracji.
 
+## Drugi zakres zmian — panel narzędzi
+- rozdzielenie raportowania od bieżącego centrum zdarzeń i OCR do osobnej zakładki „Raporty”;
+- przeniesienie archiwum spraw, danych sprawy, miniatur oraz generowania CSV/PDF do jednego miejsca;
+- doprecyzowanie nazw i podpowiedzi zakładek: Zdarzenia / OCR, Eksport, Kamery Dahua, Pliki i sesja;
+- zachowanie nazw kontrolek, bindingów i handlerów; zakładka „Pliki i sesja” pozostała na indeksie 4, więc skróty Pomoc/Informacje nadal wskazują właściwe miejsce.
+
 ## Pierwszy zakres zmian
 - większy, czytelniejszy obszar roboczy z zachowaniem podglądu mpv, OCR i Dahua;
 - uporządkowany pasek górny z oznaczeniem aplikacji, menu i przełączaniem trybu;
@@ -17,4 +23,4 @@ Nowa linia interfejsu głównego okna przy zachowaniu dotychczasowych funkcji i 
 - każdą większą zmianę układu sprawdzać kompilacją i testami regresji w Windows.
 
 ## Status
-Pierwsza iteracja układu. Wymaga kompilacji i oceny ergonomii przez użytkownika.
+Pierwsza iteracja głównego układu została skompilowana przez użytkownika. Druga iteracja porządkuje panel narzędzi; wymaga kompilacji i testów funkcjonalnych w Windows.
