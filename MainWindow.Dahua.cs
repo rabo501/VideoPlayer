@@ -1815,6 +1815,9 @@ namespace VideoPlayer
             {
                 DahuaStartDatePicker.SelectedDate = releaseTime.Date;
                 DahuaStartTimeBox.Text = releaseTime.ToString("HH:mm:ss");
+                _dahuaTimelineSelectionStart = null;
+                _dahuaTimelineSelectionEnd = null;
+                RefreshDahuaRecordingTimeline();
                 if (DahuaMultiPlaybackHandles.Count > 0 &&
                     releaseTime >= _dahuaPlaybackRangeStart && releaseTime <= _dahuaPlaybackRangeEnd)
                 {
