@@ -47,6 +47,7 @@ namespace VideoPlayer
         private readonly HashSet<DateTime> _dahuaRecorderAvailableDays = new();
         private readonly HashSet<Calendar> _dahuaHookedArchiveCalendars = new();
         private readonly List<DahuaMultiViewSlot> _dahuaMultiViewSlots = new();
+        private int _dahuaLiveStartRequestId;
         private IReadOnlyList<IntPtr> DahuaMultiPlaybackHandles => ViewModel.Dahua.GetArchivePlaybackHandles();
         private readonly HashSet<int> _dahuaArchiveSelectedChannels = new();
         private bool _dahuaUpdatingArchiveChannelChecks;
@@ -118,7 +119,7 @@ namespace VideoPlayer
                     Dispatcher.InvokeAsync(() =>
                     {
                         ViewModel.Dahua.StatusText = $"Przywrócono połączenie z {ip}:{port}.";
-                        StartDahuaMultiLiveForSelectedChannels();
+                        _ = StartDahuaMultiLiveForSelectedChannelsAsync();
                     });
                 };
             }
@@ -631,7 +632,7 @@ namespace VideoPlayer
             SelectDahuaModernChannel(channelNumber);
             if (DahuaSession.LoginId != IntPtr.Zero)
             {
-                StartDahuaMultiLiveForSelectedChannels();
+                _ = StartDahuaMultiLiveForSelectedChannelsAsync();
             }
             else
             {
@@ -886,11 +887,11 @@ namespace VideoPlayer
 
         #region Live Stream & Connection
 
-        private void DahuaStreamTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void DahuaStreamTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (DahuaSession.LoginId == IntPtr.Zero) return;
             if (_dahuaMultiViewSlots.Any(slot => slot.StreamHandle != IntPtr.Zero))
-                StartDahuaMultiLiveForSelectedChannels();
+                await StartDahuaMultiLiveForSelectedChannelsAsync();
             else if (_dahuaRealPlayHandle != IntPtr.Zero)
                 StartDahuaLiveStreamForChannel(_dahuaCurrentChannel);
         }
@@ -958,7 +959,7 @@ namespace VideoPlayer
                 ViewModel.Dahua.IsStreamOverlayVisible = false;
 
                 if (!_dahuaConnectForCalendarAvailability)
-                    StartDahuaMultiLiveForSelectedChannels();
+                    await StartDahuaMultiLiveForSelectedChannelsAsync();
                 else
                     ViewModel.Dahua.StatusText = $"Połączono z {ip}. Sprawdzanie dostępności nagrań w kalendarzu…";
 
@@ -1487,15 +1488,20 @@ namespace VideoPlayer
                 if (_dahuaMultiViewSlots.Any(slot => slot.StreamHandle != IntPtr.Zero))
                     return;
             }
-            StartDahuaMultiLiveForSelectedChannels();
+            await StartDahuaMultiLiveForSelectedChannelsAsync();
         }
 
-        private void StartDahuaMultiLiveForSelectedChannels()
+        private async Task StartDahuaMultiLiveForSelectedChannelsAsync()
         {
             if (DahuaSession.LoginId == IntPtr.Zero || _currentDahuaDevice == null) return;
+
+            // Każde nowe żądanie unieważnia oczekujące uruchomienie poprzedniego układu.
+            int requestId = ++_dahuaLiveStartRequestId;
             var channels = GetSelectedDahuaModernChannels();
             if (channels.Count == 0) channels.Add(_dahuaCurrentChannel);
             channels = channels.Take(GetDahuaMultiViewCapacity()).ToList();
+            if (channels.Count == 0) return;
+
             _dahuaCurrentChannel = channels[0];
             ViewModel.Dahua.CurrentChannel = _dahuaCurrentChannel;
             HighlightActiveDahuaChannelButton(_dahuaCurrentChannel);
@@ -1506,20 +1512,62 @@ namespace VideoPlayer
                 ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                 _dahuaRealPlayHandle = IntPtr.Zero;
             }
+
             BuildDahuaMultiViewSlots(channels);
+
+            // Nie przekazujemy SDK uchwytu kontrolki utworzonej przed dołączeniem
+            // WindowsFormsHost do widocznego drzewa WPF. Najpierw wymuszamy layout,
+            // a dopiero po jego zakończeniu tworzymy/odczytujemy końcowy HWND.
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_closing || requestId != _dahuaLiveStartRequestId) return;
+
+                DahuaViewportLayer.UpdateLayout();
+                DahuaMultiVideoGrid.UpdateLayout();
+
+                foreach (DahuaMultiViewSlot slot in _dahuaMultiViewSlots)
+                {
+                    slot.Host.UpdateLayout();
+                    if (!slot.Viewport.IsHandleCreated)
+                        slot.Viewport.CreateControl();
+                    if (!slot.PictureBox.IsHandleCreated)
+                        slot.PictureBox.CreateControl();
+
+                    ApplyDahuaSlotViewport(slot);
+                }
+            }, DispatcherPriority.Render);
+
+            if (_closing || requestId != _dahuaLiveStartRequestId ||
+                DahuaSession.LoginId == IntPtr.Zero)
+                return;
 
             var streamType = DahuaStreamTypeBox.SelectedIndex == 1
                 ? DahuaNetSdk.EM_RealPlayType.Realplay_1
                 : DahuaNetSdk.EM_RealPlayType.Realplay;
             int started = 0;
-            foreach (var slot in _dahuaMultiViewSlots)
+            uint lastError = 0;
+            foreach (DahuaMultiViewSlot slot in _dahuaMultiViewSlots)
             {
-                slot.StreamHandle = ViewModel.Dahua.StartLiveStream(slot.Channel, slot.PictureBox.Handle, streamType);
-                if (slot.StreamHandle != IntPtr.Zero) started++;
+                if (!slot.PictureBox.IsHandleCreated)
+                    slot.PictureBox.CreateControl();
+
+                slot.StreamHandle = ViewModel.Dahua.StartLiveStream(
+                    slot.Channel, slot.PictureBox.Handle, streamType);
+
+                if (slot.StreamHandle != IntPtr.Zero)
+                    started++;
+                else
+                    lastError = DahuaNetSdk.CLIENT_GetLastError();
             }
-            ViewModel.Dahua.StatusText = $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów.";
+
+            ViewModel.Dahua.StatusText = started == channels.Count
+                ? $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów."
+                : started > 0
+                    ? $"Podgląd Live: uruchomiono {started}/{channels.Count} kanałów. Błąd pozostałych: {DahuaNetSdk.GetErrorDescription(lastError)}"
+                    : $"Nie udało się uruchomić podglądu Live. {DahuaNetSdk.GetErrorDescription(lastError)}";
+
             ViewModel.Dahua.PlaybackSyncStatusText = "Podgląd na żywo";
-            ViewModel.Dahua.IsStreamOverlayVisible = false;
+            ViewModel.Dahua.IsStreamOverlayVisible = started == 0;
         }
 
         private void DahuaStopMultiLiveStreams()
