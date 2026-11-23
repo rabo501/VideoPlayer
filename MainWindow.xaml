@@ -1100,15 +1100,36 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <!-- Pasek stanu Dahua -->
-                            <Border Grid.Row="0" Background="#13161F" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,0,0,6">
-                                <StackPanel>
-                                    <TextBlock x:Name="DahuaSdkStatusBadge" Text="{Binding Dahua.SdkStatusBadge}" Foreground="#CBD5E1" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock x:Name="DahuaStatusLabel" Text="{Binding Dahua.StatusText}" Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
-                                </StackPanel>
+                            <!-- Czytelny nagłówek stanu połączenia Dahua -->
+                            <Border Grid.Row="0" Background="#151B26" BorderBrush="#3B4A60" BorderThickness="1"
+                                    CornerRadius="7" Padding="9,7" Margin="0,0,0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="145" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <TextBlock Text="STATUS SDK" Foreground="#8FA4C2" FontSize="9"
+                                                   FontWeight="Bold" Margin="0,0,0,3" />
+                                        <TextBlock x:Name="DahuaSdkStatusBadge" Text="{Binding Dahua.SdkStatusBadge}"
+                                                   Foreground="#BFDBFE" FontSize="11" FontWeight="Bold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#202A39" BorderBrush="#34445B"
+                                            BorderThickness="1" CornerRadius="5" Padding="9,6">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="URZĄDZENIE / OPERACJA" Foreground="#8FA4C2"
+                                                       FontSize="9" FontWeight="Bold" Margin="0,0,0,3" />
+                                            <TextBlock x:Name="DahuaStatusLabel" Text="{Binding Dahua.StatusText}"
+                                                       Foreground="#F1F5F9" FontSize="11" FontWeight="SemiBold"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
                             </Border>
 
-                            <TabControl x:Name="DahuaSubTabs" Grid.Row="1" Background="#1A1E28" BorderThickness="0" Padding="2" ItemContainerStyle="{StaticResource DahuaSubTabItemStyle}">
+                            <TabControl x:Name="DahuaSubTabs" Grid.Row="1" Background="#1A1E28" BorderThickness="0"
+                                        Padding="3" ItemContainerStyle="{StaticResource DahuaSubTabItemStyle}">
                                 <!-- Podzakładka 3.0: Podgląd Live & PTZ -->
                                 <TabItem Header="Podgląd &amp; PTZ">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
