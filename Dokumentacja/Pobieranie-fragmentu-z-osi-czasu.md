@@ -46,3 +46,10 @@ Nie powstaje druga kopia wynikowa. Przy konwersji MP4 plik źródłowy DAV i wyn
 9. Sprawdź dotychczasowe wyszukiwanie, odtwarzanie wielokanałowe i pobieranie do głównego odtwarzacza.
 
 Kompilację WPF oraz testy sprzętowe należy wykonać lokalnie w Visual Studio na Windows z rejestratorem BCS/Dahua.
+
+
+## Synchronizacja suwaka odtwarzania z osią godzin Dahua
+- Suwak i oś godzin korzystają z jednego punktu odniesienia: pełnej daty i godziny, a nie samej godziny względem różnych dat.
+- Zmiana dnia na osi aktualizuje zakres suwaka; przejście odtwarzania przez północ aktualizuje dzień osi.
+- Pozycja odtwarzania jest dodatkowo oznaczana pionową linią i etykietą czasu na pasku godzin.
+- Podczas przeciągania suwaka etykieta i znacznik na osi pokazują podgląd wybranej pozycji; zatwierdzenie nadal wykonuje zsynchronizowane przewinięcie kanałów.
