@@ -1365,8 +1365,15 @@ namespace VideoPlayer
                 slot.PanX = (int)Math.Round((viewportWidth - width) / 2.0);
                 slot.PanY = (int)Math.Round((viewportHeight - height) / 2.0);
             }
-            slot.PanX = Math.Min(0, Math.Max(viewportWidth - width, slot.PanX));
-            slot.PanY = Math.Min(0, Math.Max(viewportHeight - height, slot.PanY));
+            // Gdy obraz jest mniejszy od viewportu, pozycja musi być dodatnia,
+            // aby pozostawić go na środku. Gdy obraz jest większy, zakres przesuwania
+            // pozostaje ujemny lub równy zero, aby nie odsłaniać pustych krawędzi.
+            int minPanX = Math.Min(0, viewportWidth - width);
+            int maxPanX = Math.Max(0, viewportWidth - width);
+            int minPanY = Math.Min(0, viewportHeight - height);
+            int maxPanY = Math.Max(0, viewportHeight - height);
+            slot.PanX = Math.Clamp(slot.PanX, minPanX, maxPanX);
+            slot.PanY = Math.Clamp(slot.PanY, minPanY, maxPanY);
             if (slot.Zoom <= 1.001) slot.Zoom = 1.0;
 
             slot.PictureBox.Size = new System.Drawing.Size(width, height);
