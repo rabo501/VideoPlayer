@@ -62,3 +62,13 @@ Wymagana jest kompilacja i test w Windows: przewijanie suwaka, synchronizacja cz
 - bez ingerencji w przełączanie warstw OCR/Dahua, ich nakładki, obsługę strumieni, skalowanie i logikę odtwarzania.
 
 Wymagana jest kompilacja i kontrola w Windows: otwarcie lokalnego nagrania, sterowanie odtwarzaniem, zmiana skali obrazu oraz sprawdzenie, czy etykieta nie utrudnia obsługi obrazu.
+
+
+## Siódmy zakres zmian — nagłówek panelu Dahua
+- przebudowanie paska statusu połączenia na czytelny układ dwukolumnowy: osobny status SDK oraz komunikat o urządzeniu lub bieżącej operacji;
+- wyraźniejsze rozdzielenie informacji technicznej od statusu pracy rejestratora/kamery;
+- delikatne zwiększenie odstępów wokół podzakładek panelu Dahua;
+- zachowanie nazw `DahuaSdkStatusBadge`, `DahuaStatusLabel`, `DahuaSubTabs`, bindingów i całej logiki połączenia;
+- bez zmian w SDK, PTZ, presetach, podglądzie Live, archiwum i pobieraniu nagrań.
+
+Wymagana jest kompilacja i kontrola w Windows: status SDK po uruchomieniu, połączenie/rozłączenie z NVR, odczyt danych z urządzenia oraz przełączanie podzakładek Live/PTZ i Archiwum NVR.
