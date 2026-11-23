@@ -7,6 +7,7 @@ Nowa linia interfejsu głównego okna przy zachowaniu dotychczasowych funkcji i 
 - rozdzielenie raportowania od bieżącego centrum zdarzeń i OCR do osobnej zakładki „Raporty”;
 - przeniesienie archiwum spraw, danych sprawy, miniatur oraz generowania CSV/PDF do jednego miejsca;
 - doprecyzowanie nazw i podpowiedzi zakładek: Zdarzenia / OCR, Eksport, Kamery Dahua, Pliki i sesja;
+- dodanie przycisku przejścia bezpośrednio z zakładki zdarzeń do raportów;
 - zachowanie nazw kontrolek, bindingów i handlerów; zakładka „Pliki i sesja” pozostała na indeksie 4, więc skróty Pomoc/Informacje nadal wskazują właściwe miejsce.
 
 ## Pierwszy zakres zmian
