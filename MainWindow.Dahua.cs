@@ -1592,8 +1592,6 @@ namespace VideoPlayer
             DahuaPlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
             DahuaPlaybackPositionSlider.Value = 0;
             DahuaPlaybackPositionSlider.IsEnabled = true;
-            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: true);
-            RefreshDahuaRecordingTimeline();
 
             try
             {
@@ -1614,6 +1612,10 @@ namespace VideoPlayer
                 }
                 if (started == 0)
                     throw new InvalidOperationException("Rejestrator nie uruchomił odtwarzania na żadnym z wybranych kanałów.");
+
+                // Dopiero teraz istnieją uchwyty archiwum; można zsynchronizować zakres suwaka z widocznym zakresem osi godzin.
+                UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: true);
+                RefreshDahuaRecordingTimeline();
                 _dahuaPlaybackUiTimer.Start();
                 ViewModel.Dahua.IsStreamOverlayVisible = false;
                 string failedSummary = failedChannels.Count == 0
