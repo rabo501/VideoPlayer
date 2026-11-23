@@ -62,6 +62,7 @@ namespace VideoPlayer.ViewModels
             PlateOcr.CancelRecognition();
             PlateOcr.CancelSearch();
             Export.RequestCancel();
+            Export.CancelMediaInfoLoad();
             PlateSearch.CancelSearch();
         }
 
