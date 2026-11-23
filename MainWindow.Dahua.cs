@@ -58,8 +58,9 @@ namespace VideoPlayer
         private double _dahuaRecordingTimelineStartHour;
         private bool _dahuaSyncingDeviceLists;
         private bool _dahuaEventsHooked;
-        private bool _dahuaTimelineSelectionMode;
         private bool _dahuaTimelineIsSelecting;
+        private bool _dahuaTimelineDragStarted;
+        private Point _dahuaTimelinePointerDown;
         private DateTime? _dahuaTimelineSelectionStart;
         private DateTime? _dahuaTimelineSelectionEnd;
         private CancellationTokenSource? _dahuaArchiveDownloadCts;
@@ -1780,67 +1781,105 @@ namespace VideoPlayer
                 RefreshDahuaRecordingTimeline();
         }
 
-        private void DahuaToggleTimelineSelection_Click(object sender, RoutedEventArgs e)
+        private DahuaRecordItem? FindDahuaRecordAt(DateTime time, int channel)
         {
-            _dahuaTimelineSelectionMode = !_dahuaTimelineSelectionMode;
-            _dahuaTimelineIsSelecting = false;
-            DahuaTimelineSelectionButton.Content = _dahuaTimelineSelectionMode
-                ? "Zakończ zaznaczanie" : "Zaznacz fragment";
-            DahuaRecordingTimelineCanvas.Cursor = _dahuaTimelineSelectionMode
-                ? Cursors.Cross : Cursors.Arrow;
-            ViewModel.Dahua.PlaybackSyncStatusText = _dahuaTimelineSelectionMode
-                ? "Przeciągnij po osi czasu, aby zaznaczyć fragment nagrania."
-                : "Tryb zaznaczania fragmentu wyłączony.";
+            return ViewModel.Dahua.ArchiveRecords.FirstOrDefault(record =>
+                record.Channel == channel && time >= record.StartTime && time <= record.EndTime);
         }
 
         private void DahuaRecordingTimelineCanvas_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_dahuaTimelineIsSelecting) return;
-            _dahuaTimelineSelectionEnd = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
+            Point current = e.GetPosition(DahuaRecordingTimelineCanvas);
+            if (!_dahuaTimelineDragStarted)
+            {
+                double dx = current.X - _dahuaTimelinePointerDown.X;
+                double dy = current.Y - _dahuaTimelinePointerDown.Y;
+                if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return;
+                _dahuaTimelineDragStarted = true;
+            }
+            _dahuaTimelineSelectionEnd = GetDahuaTimelineTime(current);
             RefreshDahuaRecordingTimeline();
         }
 
         private void DahuaRecordingTimelineCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             if (!_dahuaTimelineIsSelecting) return;
-            _dahuaTimelineSelectionEnd = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
+            DateTime releaseTime = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
+            bool wasDrag = _dahuaTimelineDragStarted;
             _dahuaTimelineIsSelecting = false;
+            _dahuaTimelineDragStarted = false;
             DahuaRecordingTimelineCanvas.ReleaseMouseCapture();
 
-            if (_dahuaTimelineSelectionStart == null || _dahuaTimelineSelectionEnd == null)
-                return;
-
-            DateTime start = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value
-                ? _dahuaTimelineSelectionStart.Value : _dahuaTimelineSelectionEnd.Value;
-            DateTime end = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value
-                ? _dahuaTimelineSelectionEnd.Value : _dahuaTimelineSelectionStart.Value;
-
-            if (end <= start)
+            if (!wasDrag)
             {
-                ViewModel.Dahua.PlaybackSyncStatusText = "Zaznaczony przedział jest zbyt krótki.";
-                RefreshDahuaRecordingTimeline();
+                DahuaStartDatePicker.SelectedDate = releaseTime.Date;
+                DahuaStartTimeBox.Text = releaseTime.ToString("HH:mm:ss");
+                if (DahuaMultiPlaybackHandles.Count > 0 &&
+                    releaseTime >= _dahuaPlaybackRangeStart && releaseTime <= _dahuaPlaybackRangeEnd)
+                {
+                    int offset = DahuaSessionService.ComputeArchiveSeekOffsetSeconds(releaseTime, _dahuaPlaybackRangeStart, _dahuaPlaybackRangeEnd);
+                    SeekDahuaSynchronizedPlayback(offset);
+                    ViewModel.Dahua.PlaybackSyncStatusText = $"Przewinięto do {releaseTime:HH:mm:ss}.";
+                }
+                else if (FindDahuaRecordAt(releaseTime, GetSelectedDahuaArchiveChannel()) != null)
+                    ViewModel.Dahua.PlaybackSyncStatusText = $"Wybrano {releaseTime:HH:mm:ss}. Naciśnij „Odtwórz od wskazanego”, aby rozpocząć.";
+                else
+                    ViewModel.Dahua.PlaybackSyncStatusText = $"O {releaseTime:HH:mm:ss} nie ma nagrania na wybranym kanale.";
+                e.Handled = true;
                 return;
             }
 
-            int channel = GetSelectedDahuaArchiveChannel();
-            bool coveredByRecording = ViewModel.Dahua.ArchiveRecords.Any(record =>
-                record.Channel == channel && start >= record.StartTime && end <= record.EndTime);
-            if (!coveredByRecording)
+            if (_dahuaTimelineSelectionStart == null || _dahuaTimelineSelectionEnd == null) return;
+            DateTime start = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionStart.Value : _dahuaTimelineSelectionEnd.Value;
+            DateTime finish = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionEnd.Value : _dahuaTimelineSelectionStart.Value;
+            DahuaRecordItem? startRecord = FindDahuaRecordAt(start, GetSelectedDahuaArchiveChannel());
+            DahuaRecordItem? endRecord = FindDahuaRecordAt(finish, GetSelectedDahuaArchiveChannel());
+            if (finish <= start || startRecord == null || endRecord == null || !ReferenceEquals(startRecord, endRecord))
             {
-                ViewModel.Dahua.PlaybackSyncStatusText =
-                    "Zaznaczenie musi mieścić się w całości w jednym ciągłym fragmencie nagrania.";
+                _dahuaTimelineSelectionStart = null;
+                _dahuaTimelineSelectionEnd = null;
+                ViewModel.Dahua.PlaybackSyncStatusText = "Zaznaczenie musi mieścić się w jednym zielonym, ciągłym fragmencie nagrania. Spróbuj ponownie.";
                 RefreshDahuaRecordingTimeline();
+                e.Handled = true;
                 return;
             }
-
             DahuaStartDatePicker.SelectedDate = start.Date;
             DahuaStartTimeBox.Text = start.ToString("HH:mm:ss");
-            DahuaEndDatePicker.SelectedDate = end.Date;
-            DahuaEndTimeBox.Text = end.ToString("HH:mm:ss");
-            ViewModel.Dahua.PlaybackSyncStatusText =
-                $"Zaznaczono {start:yyyy-MM-dd HH:mm:ss} – {end:yyyy-MM-dd HH:mm:ss} ({(end - start).TotalMinutes:0.0} min).";
+            DahuaEndDatePicker.SelectedDate = finish.Date;
+            DahuaEndTimeBox.Text = finish.ToString("HH:mm:ss");
+            ViewModel.Dahua.PlaybackSyncStatusText = $"Zaznaczono {start:HH:mm:ss} – {finish:HH:mm:ss} ({(finish-start).TotalMinutes:0.0} min). Możesz odtworzyć lub pobrać fragment.";
             RefreshDahuaRecordingTimeline();
             e.Handled = true;
+        }
+
+        private void DahuaRecordingTimelineCanvas_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            _dahuaTimelineIsSelecting = false;
+            _dahuaTimelineDragStarted = false;
+        }
+
+        private void DahuaPlayFromTimeline_Click(object sender, RoutedEventArgs e)
+        {
+            DateTime? start = _dahuaTimelineSelectionStart.HasValue && _dahuaTimelineSelectionEnd.HasValue
+                ? (_dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionStart : _dahuaTimelineSelectionEnd)
+                : GetDahuaStartDateTime();
+            DateTime? end = _dahuaTimelineSelectionStart.HasValue && _dahuaTimelineSelectionEnd.HasValue
+                ? (_dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionEnd : _dahuaTimelineSelectionStart)
+                : null;
+            if (start == null) return;
+            DahuaRecordItem? record = FindDahuaRecordAt(start.Value, GetSelectedDahuaArchiveChannel());
+            if (record == null)
+            {
+                MessageBox.Show(this, "Wskaż kliknięciem zielony fragment nagrania albo zaznacz go przeciągnięciem.", "Brak nagrania", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (end == null || end <= start) end = record.EndTime;
+            DahuaStartDatePicker.SelectedDate = start.Value.Date;
+            DahuaStartTimeBox.Text = start.Value.ToString("HH:mm:ss");
+            DahuaEndDatePicker.SelectedDate = end.Value.Date;
+            DahuaEndTimeBox.Text = end.Value.ToString("HH:mm:ss");
+            DahuaStartSynchronizedPlayback_Click(sender, e);
         }
 
         private void DahuaRecordingTimelineCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -1876,40 +1915,21 @@ namespace VideoPlayer
         private void DahuaRecordingTimelineCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (_currentDahuaDevice == null || DahuaRecordingTimelineCanvas.ActualWidth <= 0) return;
-
-            if (_dahuaTimelineSelectionMode)
+            DateTime pressedTime = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
+            int channel = GetSelectedDahuaArchiveChannel();
+            if (FindDahuaRecordAt(pressedTime, channel) == null)
             {
-                if (ViewModel.Dahua.ArchiveRecords.Count == 0)
-                {
-                    ViewModel.Dahua.PlaybackSyncStatusText = "Najpierw wyszukaj nagrania dla wybranego kanału i dnia.";
-                    return;
-                }
-
-                DateTime selectedTime = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
-                _dahuaTimelineSelectionStart = selectedTime;
-                _dahuaTimelineSelectionEnd = selectedTime;
-                _dahuaTimelineIsSelecting = true;
-                DahuaRecordingTimelineCanvas.CaptureMouse();
-                RefreshDahuaRecordingTimeline();
-                e.Handled = true;
+                ViewModel.Dahua.PlaybackSyncStatusText = ViewModel.Dahua.ArchiveRecords.Count == 0
+                    ? "Najpierw wyszukaj nagrania dla wybranego kanału i dnia. Zielone pasy oznaczają dostępne nagrania."
+                    : $"W tym miejscu ({pressedTime:HH:mm:ss}) nie ma nagrania. Kliknij lub przeciągnij po zielonym pasie.";
                 return;
             }
-
-            DateTime clickedTime = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
-            DahuaStartTimeBox.Text = clickedTime.ToString("HH:mm:ss");
-
-            if (DahuaMultiPlaybackHandles.Count > 0 && clickedTime >= _dahuaPlaybackRangeStart && clickedTime <= _dahuaPlaybackRangeEnd)
-            {
-                int offset = DahuaSessionService.ComputeArchiveSeekOffsetSeconds(clickedTime, _dahuaPlaybackRangeStart, _dahuaPlaybackRangeEnd);
-                SeekDahuaSynchronizedPlayback(offset);
-                ViewModel.Dahua.PlaybackSyncStatusText = $"Przewinięto do {clickedTime:HH:mm:ss}";
-            }
-            else
-            {
-                ViewModel.Dahua.PlaybackSyncStatusText = DahuaMultiPlaybackHandles.Count == 0
-                    ? $"Wybrano {clickedTime:HH:mm:ss}. Uruchom odtwarzanie archiwum."
-                    : $"Godzina {clickedTime:HH:mm:ss} jest poza zakresem odtwarzania.";
-            }
+            _dahuaTimelinePointerDown = e.GetPosition(DahuaRecordingTimelineCanvas);
+            _dahuaTimelineSelectionStart = pressedTime;
+            _dahuaTimelineSelectionEnd = pressedTime;
+            _dahuaTimelineIsSelecting = true;
+            _dahuaTimelineDragStarted = false;
+            DahuaRecordingTimelineCanvas.CaptureMouse();
             e.Handled = true;
         }
 
@@ -2419,7 +2439,6 @@ namespace VideoPlayer
             ViewModel.Dahua.IsDownloadBusy = true;
             DahuaCancelDownloadButton.IsEnabled = true;
             DahuaDownloadTimelineSelectionButton.IsEnabled = false;
-            DahuaTimelineSelectionButton.IsEnabled = false;
 
             try
             {
@@ -2458,7 +2477,6 @@ namespace VideoPlayer
                 ViewModel.Dahua.IsDownloadBusy = false;
                 DahuaCancelDownloadButton.IsEnabled = false;
                 DahuaDownloadTimelineSelectionButton.IsEnabled = true;
-                DahuaTimelineSelectionButton.IsEnabled = true;
                 _dahuaArchiveDownloadCts?.Dispose();
                 _dahuaArchiveDownloadCts = null;
             }
@@ -2525,7 +2543,6 @@ namespace VideoPlayer
             ViewModel.Dahua.IsDownloadBusy = true;
             DahuaCancelDownloadButton.IsEnabled = true;
             DahuaDownloadTimelineSelectionButton.IsEnabled = false;
-            DahuaTimelineSelectionButton.IsEnabled = false;
 
             try
             {
@@ -2559,7 +2576,6 @@ namespace VideoPlayer
                 ViewModel.Dahua.IsDownloadBusy = false;
                 DahuaCancelDownloadButton.IsEnabled = false;
                 DahuaDownloadTimelineSelectionButton.IsEnabled = true;
-                DahuaTimelineSelectionButton.IsEnabled = true;
                 _dahuaArchiveDownloadCts?.Dispose();
                 _dahuaArchiveDownloadCts = null;
             }
