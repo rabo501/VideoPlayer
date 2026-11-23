@@ -1530,16 +1530,21 @@
             </Border>
         </Grid>
 
-        <!-- Dolna oś czasu odtwarzacza mpv (chowana tylko w trybie Dahua, który ma własną oś archiwum) -->
-        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="82" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,0,0,0">
+        <!-- Dolna oś czasu odtwarzacza mpv — układ wizualny bez zmian w mechanice suwaka -->
+        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="86" Background="#1B2029"
+                BorderBrush="#3A4658" BorderThickness="1" CornerRadius="8"
+                Padding="12,7" Margin="0,0,0,0">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="20" />
+                    <RowDefinition Height="22" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <DockPanel>
-                    <TextBlock Text="OŚ CZASU" FontSize="11" FontWeight="SemiBold" Foreground="#BCD0EF" />
-                    <TextBlock Text="  •  I / O: zakres  •  znaczniki: kliknij punkt" FontSize="11" Foreground="#909DB1" />
+                <DockPanel LastChildFill="True">
+                    <Border DockPanel.Dock="Left" Background="#26364D" CornerRadius="4" Padding="7,2" Margin="0,0,9,0">
+                        <TextBlock Text="OŚ CZASU" FontSize="10" FontWeight="Bold" Foreground="#C8DCFA" />
+                    </Border>
+                    <TextBlock Text="I / O — zaznaczanie fragmentu   •   Znaczniki — kliknij punkt, aby przejść do zdarzenia"
+                               FontSize="10" Foreground="#909DB1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
@@ -1547,8 +1552,14 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="76" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="PositionText" Text="00:00:00" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" Grid.Column="0" />
-                    <TextBlock x:Name="DurationText" Text="00:00:00" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Grid.Column="2" />
+                    <Border Grid.Column="0" Background="#151A23" BorderBrush="#343B48" BorderThickness="1"
+                            CornerRadius="5" Padding="5,2" Margin="0,0,4,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="PositionText" Text="00:00:00" FontFamily="Consolas" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#93C5FD" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock x:Name="DurationText" Grid.Column="2" Text="00:00:00" FontFamily="Consolas"
+                               FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
+                               HorizontalAlignment="Right" VerticalAlignment="Center" />
                     <Grid Grid.Column="1" Margin="10,0">
                         <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" Value="0" IsEnabled="False" IsSelectionRangeEnabled="False" SelectionStart="0" SelectionEnd="0" SmallChange="1" LargeChange="10" Height="30" VerticalAlignment="Center" ValueChanged="PositionSlider_ValueChanged" Thumb.DragStarted="PositionSlider_DragStarted" Thumb.DragCompleted="PositionSlider_DragCompleted" />
                         <Canvas x:Name="TimelineOverlay" Margin="10,0" VerticalAlignment="Stretch" SizeChanged="TimelineOverlay_SizeChanged">
@@ -1604,28 +1615,47 @@
             </DockPanel>
         </Border>
 
-        <!-- Stały pasek statusu i postępu eksportu -->
-        <Border Grid.Row="4" Background="#191D25" BorderBrush="#343B48" BorderThickness="1" CornerRadius="7" Padding="10,6">
+        <!-- Stały pasek komunikatów i postępu operacji -->
+        <Border Grid.Row="4" Background="#171C25" BorderBrush="#3A4658" BorderThickness="1"
+                BorderThickness="1" CornerRadius="8" Padding="11,7">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="20" />
-                    <RowDefinition Height="30" />
+                    <RowDefinition Height="21" />
+                    <RowDefinition Height="32" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="190" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <DockPanel Grid.Row="0" Grid.ColumnSpan="3">
-                    <Ellipse x:Name="StatusIndicator" Width="7" Height="7" Fill="#687386" Margin="0,0,9,0" VerticalAlignment="Center" DockPanel.Dock="Left" />
-                    <TextBlock x:Name="StatusText" Text="{Binding StatusMessage}" Foreground="#9CA6B6" FontSize="11" TextWrapping="NoWrap" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                <DockPanel Grid.Row="0" Grid.ColumnSpan="3" LastChildFill="True">
+                    <Border DockPanel.Dock="Left" Background="#26364D" CornerRadius="4" Padding="6,2" Margin="0,0,9,0">
+                        <TextBlock Text="STATUS" FontSize="9" FontWeight="Bold" Foreground="#C8DCFA" />
+                    </Border>
+                    <Ellipse x:Name="StatusIndicator" Width="7" Height="7" Fill="#687386"
+                             Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="StatusText" Text="{Binding StatusMessage}" Foreground="#C7D0DE"
+                               FontSize="11" TextWrapping="NoWrap" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                 </DockPanel>
-                <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <TextBlock x:Name="ExportOperationText" Text="{Binding Export.OperationTitle}" Foreground="#7F899A" FontSize="10" TextWrapping="NoWrap" Margin="0" MaxHeight="14" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="ExportProgressText" Text="{Binding Export.ProgressText}" Foreground="#9CA6B6" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <TextBlock x:Name="ExportOperationText" Text="{Binding Export.OperationTitle}"
+                               Foreground="#93A4BC" FontSize="10" TextWrapping="NoWrap"
+                               Margin="0" MaxHeight="14" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ExportProgressText" Text="{Binding Export.ProgressText}"
+                               Foreground="#C7D0DE" FontSize="10" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
                 </StackPanel>
-                <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100" Value="{Binding Export.ProgressPercent}" Height="7" Background="#303541" Foreground="#3478F6" BorderThickness="0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <Button x:Name="CancelExportButton" Content="Anuluj" Padding="10,5" Margin="0" Visibility="{Binding Export.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" IsEnabled="{Binding Export.CanCancel}" Command="{Binding Export.CancelCommand}" Grid.Row="1" Grid.Column="2" />
+                <Border Grid.Row="1" Grid.Column="1" Background="#242B38" CornerRadius="4"
+                        Padding="2" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100"
+                                 Value="{Binding Export.ProgressPercent}" Height="8"
+                                 Background="#242B38" Foreground="#3478F6" BorderThickness="0" />
+                </Border>
+                <Button x:Name="CancelExportButton" Content="Anuluj" Padding="10,5" Margin="0"
+                        Visibility="{Binding Export.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        IsEnabled="{Binding Export.CanCancel}" Command="{Binding Export.CancelCommand}"
+                        Grid.Row="1" Grid.Column="2" />
             </Grid>
         </Border>
     </Grid>
