@@ -83,3 +83,14 @@ Wymagana jest kompilacja i kontrola w Windows: status SDK po uruchomieniu, poł�
 - bez zmian w zapytaniach do NVR, formacie czasu, pobieraniu nagrań i logice archiwum.
 
 Wymagana jest kompilacja i test w Windows: wybór kanału, dat i godzin, wyszukanie nagrań, zaznaczenie wyniku, odtworzenie oraz wczytanie nagrania do głównego odtwarzacza. Należy też sprawdzić osobno odtwarzanie synchroniczne wielu kanałów.
+
+
+## Dziewiąty zakres zmian — konfigurowalny układ, pełny ekran i monitory
+- dodanie zapisu ustawień interfejsu w profilu użytkownika Windows (LocalAppData): rozmiar i położenie okna, stan maksymalizacji, szerokość i widoczność panelu narzędzi, wybrana zakładka, prędkość odtwarzania i skala obrazu;
+- odtwarzanie zapisanej geometrii z kontrolą, czy okno pozostaje na dostępnym ekranie; ustawienia nie są zapisywane w katalogu programu ani w bazie spraw;
+- możliwość odłączenia hosta mpv do osobnego, pełnoekranowego okna; przy wielu monitorach okno podglądu jest umieszczane na następnym ekranie, a klawisz Esc przywraca podgląd do głównego okna;
+- przycisk oraz pozycje menu do otwierania i przywracania podglądu; główny panel narzędzi pozostaje w oknie roboczym;
+- skróty: F11 — odłącz/pełny ekran podglądu, Esc — powrót z odłączonego podglądu, Spacja — pauza/odtwarzanie, strzałki lewo/prawo — klatka, I/O — początek/koniec fragmentu, S — zrzut klatki, R — reset widoku, Ctrl+O — otwarcie pliku, Ctrl+D — tryb Dahua;
+- bez zmian w komunikacji IPC z mpv, odtwarzaniu, synchronizacji suwaka, eksporcie, OCR i obsłudze SDK Dahua.
+
+Wymagane testy Windows: zamknięcie i ponowne uruchomienie z zapamiętanym rozmiarem/położeniem; zmiana szerokości i ukrywanie panelu; odłączenie podglądu na jednym i dwóch monitorach; powrót klawiszem Esc; skróty podczas odtwarzania i podczas edycji pól tekstowych.
