@@ -21,7 +21,7 @@ namespace VideoPlayer
                 ViewModel.PlateSearch.AttachSearchProvider(ViewModel.History.SearchMarkers);
                 _cases = new CaseRepository();
                 ViewModel.Cases.AttachRepository(_cases);
-                _reviews = new ReviewRepository();
+                ViewModel.ReviewSession.AttachRepository(new ReviewRepository());
                 _exports = new ExportService(_ffmpegService);
                 _reports = new ReportService(_exports);
                 ViewModel.Cases.AttachReportService(new CaseReportService(_cases, historyService, _mediaInfoService, _reports));
