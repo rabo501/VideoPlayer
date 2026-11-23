@@ -101,3 +101,13 @@ Wymagane testy Windows: zamknięcie i ponowne uruchomienie z zapamiętanym rozmi
 - takie przepinanie uchwytów okiennych mogło zatrzymać odświeżanie strumienia Live po powrocie;
 - pełny ekran działa teraz przez maksymalizację głównego okna i ukrycie panelu narzędzi oraz dolnych pasków, bez zmiany rodzica kontrolki renderującej obraz;
 - zachowano ten sam host i kontekst SDK/MPV przez cały czas przełączania.
+
+
+## Dziesiąty zakres — skalowanie Dahua Live
+- wybór dopasowania, wypełnienia i powiększeń 125–200% działa również w głównym podglądzie Dahua Live;
+- SDK renderuje bezpośrednio do uchwytu okna PictureBox, dlatego skalowanie realizowane jest przez zmianę rozmiaru i położenia tego samego PictureBox wewnątrz przycinanego panelu;
+- uchwyt HWND przekazany do SDK pozostaje niezmienny, a zmiana skali nie restartuje strumienia;
+- reset widoku przywraca dopasowanie również dla Dahua;
+- bazowe proporcje obrazu przyjęto jako 16:9; tryb wypełnienia i większe powiększenia mogą przycinać krawędzie.
+
+Wymagane testy: wszystkie tryby skali podczas Live, zmiana kanałów, przełączanie Player/Dahua, reset widoku oraz płynność obrazu. Należy ponownie sprawdzić dotychczasowe skalowanie mpv.
