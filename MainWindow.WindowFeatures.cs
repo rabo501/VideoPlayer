@@ -56,7 +56,12 @@ namespace VideoPlayer
                 if (_windowSettings.ToolsVisible && ToolsColumn != null)
                     ToolsColumn.Width = new GridLength(_toolsWidth);
                 if (ToolsTabs != null)
-                    ToolsTabs.SelectedIndex = Math.Clamp(_windowSettings.SelectedTabIndex, 0, Math.Max(0, ToolsTabs.Items.Count - 1));
+                {
+                    int savedTab = Math.Clamp(_windowSettings.SelectedTabIndex, 0, Math.Max(0, ToolsTabs.Items.Count - 1));
+                    // Widok Dahua nie jest przywracany automatycznie: po starcie
+                    // zawsze pokazujemy Odtwarzacz i jego właściwy panel narzędzi.
+                    ToolsTabs.SelectedIndex = savedTab == 3 ? 0 : savedTab;
+                }
                 if (SpeedBox != null && SpeedBox.Items.Count > 0)
                     SpeedBox.SelectedIndex = Math.Clamp(_windowSettings.SpeedIndex, 0, SpeedBox.Items.Count - 1);
                 if (VideoScaleBox != null && VideoScaleBox.Items.Count > 0)
