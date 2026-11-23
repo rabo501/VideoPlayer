@@ -125,3 +125,14 @@ Poprzednia implementacja skalowała tylko `_dahuaPrimaryPictureBox`, podczas gdy
 - status Live pokazuje liczbę uruchomionych kanałów oraz opis błędu SDK, jeśli nie wszystkie strumienie wystartują.
 
 Wymagany test: uruchomić program, przejść bezpośrednio do trybu Dahua, kliknąć „Połącz” i sprawdzić obraz bez wcześniejszego otwierania archiwum. Następnie sprawdzić zmianę kanału, zmianę układu, ponowne połączenie oraz uruchomienie archiwum.
+
+
+## Automatyczne proporcje obrazu Dahua Live
+- podgląd Live pobiera szerokość i wysokość klatki ze struktury `tagVideoFrameParam` przekazywanej przez `CLIENT_SetRealDataCallBackEx2`;
+- proporcje są ustalane osobno dla każdego kanału i aktualizowane bez restartowania strumienia;
+- tryb Fit pokazuje cały obraz z zachowaniem proporcji, a Fill wypełnia pole podglądu i przycina nadmiar;
+- jeżeli urządzenie/SDK nie udostępnia wymiarów klatki (w szczególności gdy `size` nie ma wartości 255), pozostaje proporcja awaryjna 16:9;
+- callback tylko odczytuje metadane na wątku SDK, a zmianę rozmiaru kontrolki wykonuje Dispatcher w wątku UI;
+- lokalny odtwarzacz MPV i jego skalowanie pozostają bez zmian.
+
+Wymagana weryfikacja: podgląd kanału 4:3 oraz 16:9, zmiana Fit/Fill, zmiana układu wielokanałowego, przełączenie kanału i zatrzymanie Live. Należy sprawdzić także działanie przy SDK, które nie zwraca metadanych rozdzielczości.
