@@ -7,7 +7,7 @@ Przeniesienie walidacji i zapisu konfiguracji urządzeń Dahua z okna WPF do `Da
 - `DahuaViewModel.TryValidateDeviceConfiguration` waliduje nazwę, adres hosta, port SDK, port HTTP i dane logowania.
 - Parsowanie portów odbywa się z użyciem `InvariantCulture`, niezależnie od ustawień regionalnych Windows.
 - `DahuaViewModel.SaveDeviceConfiguration` aktualizuje wybrany wpis, zapisuje konfigurację przez dotychczasowy `DahuaConfigService` i aktualizuje komunikat statusu.
-- `MainWindow.Dahua.cs` pozostawia sobie prezentację komunikatów, potwierdzenie usunięcia oraz wymagane czynności UI przy rozłączaniu, ale nie zmienia już bezpośrednio właściwości urządzenia ani nie zapisuje samodzielnie konfiguracji.
+- `MainWindow.Dahua.cs` pozostawia sobie prezentację komunikatów, potwierdzenie usunięcia oraz wymagane czynności UI przy rozłączaniu, ale formularz konfiguracji nie zmienia już bezpośrednio właściwości urządzenia ani nie zapisuje samodzielnie jego danych. Odrębny zapis nazw kanałów i presetów odczytanych z rejestratora pozostaje bez zmian.
 - Dodano testy poprawnej konfiguracji i odrzucania nieprawidłowych danych.
 
 ## Bezpieczeństwo i zgodność
