@@ -2,8 +2,8 @@
         xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="VideoPlayer.MainWindow"
-        Title="VideoPlayer 1.8.0 — analiza nagrań"
-        Width="1360" Height="820" MinWidth="960" MinHeight="620"
+        Title="VideoPlayer 1.9.0 — analiza nagrań"
+        Width="1540" Height="940" MinWidth="1120" MinHeight="720"
         Background="#111318" Foreground="#F1F3F5"
         FontFamily="Segoe UI" FontSize="13"
         Loaded="Window_Loaded" Closing="Window_Closing"
@@ -585,7 +585,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="10">
+    <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" MinHeight="180" />
@@ -596,6 +596,17 @@
 
         <!-- Pasek górny: menu i przełącznik trybów w jednym oknie -->
         <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="True">
+            <Border DockPanel.Dock="Left" Background="#1B1F27" BorderBrush="#343B48" BorderThickness="1" CornerRadius="8" Padding="13,7" Margin="0,0,10,0" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="32" Height="32" CornerRadius="7" Background="#3478F6" Margin="0,0,10,0">
+                        <TextBlock Text="▶" FontSize="15" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="VIDEOPLAYER" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                        <TextBlock Text="ANALIZA NAGRAŃ  •  1.9" FontSize="9" FontWeight="SemiBold" Foreground="#93A4BC" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <Border Background="#1B1F27" BorderBrush="#343B48" BorderThickness="1" CornerRadius="7" Padding="3" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
@@ -674,9 +685,9 @@
         <!-- Główny obszar roboczy: duży podgląd po lewej + rozwijany/zmienialny panel po prawej -->
         <Grid Grid.Row="1" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="320" />
-                <ColumnDefinition x:Name="ToolsSplitterColumn" Width="7" />
-                <ColumnDefinition x:Name="ToolsColumn" Width="390" MinWidth="320" />
+                <ColumnDefinition Width="*" MinWidth="480" />
+                <ColumnDefinition x:Name="ToolsSplitterColumn" Width="8" />
+                <ColumnDefinition x:Name="ToolsColumn" Width="420" MinWidth="340" />
             </Grid.ColumnDefinitions>
 
             <!-- LEWA STREFA: Duży obszar podglądu (przełączane warstwy bez dodatkowych okien) -->
@@ -824,7 +835,7 @@
             <GridSplitter x:Name="ToolsSplitter" Grid.Column="1" Width="7" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#292F3A" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ShowsPreview="True" ToolTip="Przeciągnij, żeby zmienić szerokość panelu" />
 
             <!-- PRAWA STREFA: Wszystkie narzędzia w jednym panelu zakładek -->
-            <Border x:Name="ToolsPanel" Grid.Column="2" Background="#20242C" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" Padding="3">
+            <Border x:Name="ToolsPanel" Grid.Column="2" Background="#20242C" BorderBrush="#343B48" BorderThickness="1" CornerRadius="8" Padding="5">
                 <TabControl x:Name="ToolsTabs" SelectedIndex="0" Background="#20242C" BorderThickness="0" Padding="6" SelectionChanged="ToolsTabs_SelectionChanged">
 
                     <!-- ZAKŁADKA 0: Fragmenty -->
@@ -1476,7 +1487,7 @@
         </Grid>
 
         <!-- Dolna oś czasu odtwarzacza mpv (chowana tylko w trybie Dahua, który ma własną oś archiwum) -->
-        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="74" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" Padding="10,5" Margin="0,0,0,0">
+        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="82" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,0,0,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="20" />
@@ -1507,7 +1518,7 @@
         </Border>
 
         <!-- Pasek transportu odtwarzacza mpv -->
-        <Grid x:Name="PlayerTransportGrid" Grid.Row="3" Height="46" Margin="0,6,0,6">
+        <Grid x:Name="PlayerTransportGrid" Grid.Row="3" Height="52" Margin="0,8,0,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -1536,7 +1547,7 @@
         </Grid>
 
         <!-- Stały pasek statusu i postępu eksportu -->
-        <Border Grid.Row="4" Background="#191D25" CornerRadius="5" Padding="8,5">
+        <Border Grid.Row="4" Background="#191D25" BorderBrush="#343B48" BorderThickness="1" CornerRadius="7" Padding="10,6">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="20" />
