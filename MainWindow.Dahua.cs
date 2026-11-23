@@ -14,6 +14,7 @@ using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 using FormsIntegration = System.Windows.Forms.Integration;
 using Calendar = System.Windows.Controls.Calendar;
+using VideoPlayer.ViewModels;
 
 namespace VideoPlayer
 {
