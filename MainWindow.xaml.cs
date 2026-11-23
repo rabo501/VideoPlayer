@@ -41,7 +41,6 @@ namespace VideoPlayer
         private double _zoom, _panX, _panY, _panscan;
         private Task? _operationTask;
         private Task? _motionTask;
-        private CancellationTokenSource? _mediaInfoCts;
         private TaskCompletionSource<bool>? _fileLoaded;
 
         public MainWindow()
