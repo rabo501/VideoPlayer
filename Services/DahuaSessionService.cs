@@ -876,8 +876,8 @@ namespace VideoPlayer
             string targetFilePath = Path.Combine(outputDir, fileStem + ".mp4");
 
             return await DownloadArchiveAsync(
-                device, channel, start, end, targetFilePath, convertToMp4: true,
-                ffmpegPath, statusProgress, ct).ConfigureAwait(false);
+                device, channel, start, end, targetFilePath,
+                convertToMp4: true, ffmpegPath: ffmpegPath, statusProgress: statusProgress, ct: ct).ConfigureAwait(false);
         }
 
         private static async Task ConvertRecordingToMp4Async(string ffmpegPath, string inputPath, string outputPath, CancellationToken ct)
