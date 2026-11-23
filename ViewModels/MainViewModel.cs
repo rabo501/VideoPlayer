@@ -16,7 +16,8 @@ namespace VideoPlayer.ViewModels
             ExportViewModel? export = null,
             PlateSearchViewModel? plateSearch = null,
             CaseArchiveViewModel? cases = null,
-            HistoryViewModel? history = null)
+            HistoryViewModel? history = null,
+            ReviewSessionViewModel? reviewSession = null)
         {
             PlateOcr = plateOcr ?? new PlateOcrViewModel();
             Dahua = dahua ?? new DahuaViewModel();
@@ -26,6 +27,7 @@ namespace VideoPlayer.ViewModels
             PlateSearch = plateSearch ?? new PlateSearchViewModel();
             Cases = cases ?? new CaseArchiveViewModel();
             History = history ?? new HistoryViewModel();
+            ReviewSession = reviewSession ?? new ReviewSessionViewModel();
 
             Export.IsMotionRunning = Motion.IsRunning;
             Motion.PropertyChanged += OnMotionPropertyChanged;
@@ -39,6 +41,7 @@ namespace VideoPlayer.ViewModels
         public PlateSearchViewModel PlateSearch { get; }
         public CaseArchiveViewModel Cases { get; }
         public HistoryViewModel History { get; }
+        public ReviewSessionViewModel ReviewSession { get; }
 
         [ObservableProperty]
         private string _statusMessage = "Uruchamianie odtwarzacza…";
