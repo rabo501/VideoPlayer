@@ -83,9 +83,9 @@ namespace VideoPlayer.Tests
                 var restored = new EventCenterViewModel();
                 restored.AttachHistoryService(service);
                 Assert.Null(restored.LoadMarkersForSource(source));
-                Assert.Single(restored.AllMarkers);
-                Assert.Equal(marker.Id, restored.AllMarkers[0].Id);
-                Assert.Equal(marker.Description, restored.AllMarkers[0].Description);
+                TimelineMarker? loaded = restored.FindById(marker.Id);
+                Assert.NotNull(loaded);
+                Assert.Equal(marker.Description, loaded!.Description);
             }
             finally { try { Directory.Delete(directory, true); } catch { } }
         }

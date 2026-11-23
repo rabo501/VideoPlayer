@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using VideoPlayer.ViewModels;
 using Xunit;
 
@@ -113,7 +114,7 @@ namespace VideoPlayer.Tests
             List<TimelineMarker> markers = MotionDetectionViewModel.CreateMarkers(events, 10);
             Assert.Single(markers);
             Assert.Equal(8.5, markers[0].Seconds);
-            Assert.Equal(10, markers[0].EndSeconds);
+            Assert.Equal(10d, markers[0].EndSeconds!.Value);
             Assert.Equal(0.1, markers[0].MotionX);
             Assert.Contains("14.2%", markers[0].Description);
         }

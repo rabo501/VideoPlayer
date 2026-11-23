@@ -12,7 +12,7 @@ namespace VideoPlayer.ViewModels
     {
         private CancellationTokenSource? _cts;
 
-        public MotionDetectionService Service { get; } = new();
+        private readonly MotionDetectionService _service = new();
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CanStart))]
@@ -44,7 +44,7 @@ namespace VideoPlayer.ViewModels
             double pixelDifferenceThreshold, double changedAreaPercent,
             double minimumEventDurationSeconds, MotionDetectionService.MotionRegion region,
             IProgress<double>? progress, CancellationToken cancellationToken) =>
-            Service.AnalyzeAsync(ffmpegPath, sourcePath, durationSeconds,
+            _service.AnalyzeAsync(ffmpegPath, sourcePath, durationSeconds,
                 pixelDifferenceThreshold, changedAreaPercent, minimumEventDurationSeconds,
                 region, progress, cancellationToken);
 
