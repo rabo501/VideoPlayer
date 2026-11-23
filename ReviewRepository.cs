@@ -28,9 +28,11 @@ namespace VideoPlayer
     internal sealed class ReviewRepository
     {
         private readonly string _cs;
-        public ReviewRepository()
+        public ReviewRepository(string? directoryPath = null)
         {
-            _cs=new SqliteConnectionStringBuilder {DataSource=Path.Combine(AppContext.BaseDirectory,"VideoPlayer.db")}.ToString();
+            string dataDirectory = directoryPath ?? AppContext.BaseDirectory;
+            Directory.CreateDirectory(dataDirectory);
+            _cs=new SqliteConnectionStringBuilder {DataSource=Path.Combine(dataDirectory,"VideoPlayer.db")}.ToString();
             using var c=Open(); using var q=c.CreateCommand();
             q.CommandText="CREATE TABLE IF NOT EXISTS ReviewSessions (SourcePath TEXT PRIMARY KEY, Payload TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);";
             q.ExecuteNonQuery();
