@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 
@@ -18,8 +17,14 @@ namespace VideoPlayer
             "VideoPlayer", "window-settings.json");
         private readonly DispatcherTimer _windowSettingsTimer = new() { Interval = TimeSpan.FromSeconds(1) };
         private WindowUiSettings _windowSettings = new();
-        private Window? _previewWindow;
         private bool _restoringWindowSettings;
+        private bool _previewFullscreen;
+        private WindowStyle _fullscreenPreviousWindowStyle;
+        private ResizeMode _fullscreenPreviousResizeMode;
+        private WindowState _fullscreenPreviousWindowState;
+        private bool _fullscreenPreviousToolsVisible;
+        private Visibility _fullscreenPreviousTimelineVisibility;
+        private Visibility _fullscreenPreviousTransportVisibility;
 
         private void InitializeWindowFeatures()
         {
@@ -43,9 +48,7 @@ namespace VideoPlayer
                 WindowStartupLocation = WindowStartupLocation.Manual;
                 var bounds = new System.Drawing.Rectangle((int)Left, (int)Top, (int)Width, (int)Height);
                 if (!Forms.Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(bounds)))
-                {
                     WindowStartupLocation = WindowStartupLocation.CenterScreen;
-                }
                 if (_windowSettings.IsMaximized) WindowState = WindowState.Maximized;
 
                 _toolsWidth = Math.Clamp(_windowSettings.ToolsWidth, 320, 1100);
@@ -71,12 +74,12 @@ namespace VideoPlayer
 
         private void QueueWindowSettingsSave()
         {
-            if (!_restoringWindowSettings && IsLoaded) SaveWindowSettings();
+            if (!_restoringWindowSettings && IsLoaded && !_previewFullscreen) SaveWindowSettings();
         }
 
         private void SaveWindowSettings()
         {
-            if (_restoringWindowSettings || !IsInitialized) return;
+            if (_restoringWindowSettings || !IsInitialized || _previewFullscreen) return;
             try
             {
                 if (WindowState == WindowState.Normal)
@@ -108,88 +111,56 @@ namespace VideoPlayer
         }
 
         private void TogglePreviewWindow_Click(object sender, RoutedEventArgs e) => TogglePreviewWindow();
-
         private void ReturnPreviewWindow_Click(object sender, RoutedEventArgs e) => ReturnPreviewWindow();
 
+        // Hosty natywne pozostają w tym samym oknie. Ich przenoszenie między HWND
+        // zatrzymywało odświeżanie strumienia Dahua Live po powrocie z pełnego ekranu.
         private void TogglePreviewWindow()
         {
-            if (_previewWindow != null)
+            if (_previewFullscreen)
             {
                 ReturnPreviewWindow();
                 return;
             }
-            if (_opening || _shutdownRequested || VideoHostContainer == null) return;
+            if (_opening || _shutdownRequested) return;
 
-            SetWorkspaceMode(WorkspaceMode.Player);
-            if (!ReferenceEquals(VideoHost.Parent, VideoHostContainer)) return;
+            _previewFullscreen = true;
+            _fullscreenPreviousWindowStyle = WindowStyle;
+            _fullscreenPreviousResizeMode = ResizeMode;
+            _fullscreenPreviousWindowState = WindowState;
+            _fullscreenPreviousToolsVisible = ToolsPanel.Visibility == Visibility.Visible;
+            _fullscreenPreviousTimelineVisibility = PlayerTimelineBorder.Visibility;
+            _fullscreenPreviousTransportVisibility = PlayerTransportGrid.Visibility;
 
-            var currentScreen = Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle);
-            var screens = Forms.Screen.AllScreens;
-            var target = screens.Length > 1
-                ? screens[(Array.IndexOf(screens, currentScreen) + 1) % screens.Length]
-                : currentScreen;
-
-            VideoHostContainer.Child = null;
-            var previewContent = new Grid { Background = System.Windows.Media.Brushes.Black };
-            previewContent.Children.Add(VideoHost);
-
-            var preview = new Window
-            {
-                Title = "VideoPlayer — podgląd pełnoekranowy",
-                Content = previewContent,
-                Background = System.Windows.Media.Brushes.Black,
-                WindowStyle = WindowStyle.None,
-                ResizeMode = ResizeMode.NoResize,
-                WindowStartupLocation = WindowStartupLocation.Manual,
-                Left = target.Bounds.Left,
-                Top = target.Bounds.Top,
-                Width = target.Bounds.Width,
-                Height = target.Bounds.Height,
-                WindowState = WindowState.Maximized,
-                ShowInTaskbar = true
-            };
-            _previewWindow = preview;
-            preview.KeyDown += (_, e) =>
-            {
-                if (e.Key == Key.Escape || e.Key == Key.F11)
-                {
-                    e.Handled = true;
-                    ReturnPreviewWindow();
-                }
-            };
-            preview.Closed += (_, __) =>
-            {
-                if (!ReferenceEquals(_previewWindow, preview)) return;
-                if (ReferenceEquals(preview.Content, previewContent))
-                {
-                    previewContent.Children.Remove(VideoHost);
-                    preview.Content = null;
-                    VideoHostContainer.Child = VideoHost;
-                }
-                _previewWindow = null;
-            };
-            preview.Show();
-            preview.Activate();
+            SetToolsVisible(false);
+            PlayerTimelineBorder.Visibility = Visibility.Collapsed;
+            PlayerTransportGrid.Visibility = Visibility.Collapsed;
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            WindowState = WindowState.Maximized;
+            Activate();
+            Keyboard.ClearFocus();
         }
 
         private void ReturnPreviewWindow()
         {
-            var preview = _previewWindow;
-            if (preview == null) return;
-            _previewWindow = null;
-            if (preview.Content is Grid content && content.Children.Contains(VideoHost))
-            {
-                content.Children.Remove(VideoHost);
-                preview.Content = null;
-                VideoHostContainer.Child = VideoHost;
-            }
-            preview.Close();
+            if (!_previewFullscreen) return;
+
+            WindowState = WindowState.Normal;
+            WindowStyle = _fullscreenPreviousWindowStyle;
+            ResizeMode = _fullscreenPreviousResizeMode;
+            WindowState = _fullscreenPreviousWindowState;
+            PlayerTimelineBorder.Visibility = _fullscreenPreviousTimelineVisibility;
+            PlayerTransportGrid.Visibility = _fullscreenPreviousTransportVisibility;
+            SetToolsVisible(_fullscreenPreviousToolsVisible);
+            _previewFullscreen = false;
+            SaveWindowSettings();
+            Activate();
         }
 
         private void CloseDetachedPreview()
         {
-            if (_previewWindow == null) return;
-            ReturnPreviewWindow();
+            if (_previewFullscreen) ReturnPreviewWindow();
         }
     }
 }
