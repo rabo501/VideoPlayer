@@ -131,7 +131,7 @@ Wymagany test: uruchomić program, przejść bezpośrednio do trybu Dahua, klikn
 - podgląd Live pobiera szerokość i wysokość klatki ze struktury `tagVideoFrameParam` przekazywanej przez `CLIENT_SetRealDataCallBackEx2`;
 - proporcje są ustalane osobno dla każdego kanału i aktualizowane bez restartowania strumienia;
 - tryb Fit pokazuje cały obraz z zachowaniem proporcji, a Fill wypełnia pole podglądu i przycina nadmiar;
-- jeżeli urządzenie/SDK nie udostępnia wymiarów klatki (w szczególności gdy `size` nie ma wartości 255), pozostaje proporcja awaryjna 16:9;
+- wymiary są pobierane bezpośrednio dla `size = 255`; dla standardowych profili 720p i 1080p rozdzielczość jest odtwarzana z kodu profilu; przy nieobsługiwanym profilu pozostaje proporcja awaryjna 16:9;
 - callback tylko odczytuje metadane na wątku SDK, a zmianę rozmiaru kontrolki wykonuje Dispatcher w wątku UI;
 - lokalny odtwarzacz MPV i jego skalowanie pozostają bez zmian.
 
