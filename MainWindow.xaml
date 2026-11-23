@@ -656,6 +656,8 @@
                                 </StackPanel>
                             </MenuItem.Header>
                             <MenuItem Header="Panel narzędzi" x:Name="ToolsPanelMenuItem" IsCheckable="True" IsChecked="True" Click="ToggleTools_Click" />
+                            <MenuItem Header="Pełny ekran podglądu (F11)" Click="TogglePreviewWindow_Click" />
+                            <MenuItem Header="Przywróć podgląd do głównego okna" Click="ReturnPreviewWindow_Click" />
                             <Separator />
                             <MenuItem Header="Dopasuj cały obraz" Tag="fit" Click="MenuScale_Click" />
                             <MenuItem Header="Wypełnij okno" Tag="fill" Click="MenuScale_Click" />
@@ -735,13 +737,19 @@
                                 <TextBlock Text="ODTWARZACZ LOKALNY"
                                            Foreground="#F1F5F9" FontSize="11"
                                            FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Content="Pełny ekran / drugi monitor  •  F11"
+                                        Click="TogglePreviewWindow_Click"
+                                        DockPanel.Dock="Right"
+                                        Margin="8,0,0,0" Padding="9,4"
+                                        FontSize="10"
+                                        ToolTip="Odłącz podgląd do osobnego, pełnoekranowego okna. Esc przywraca go do głównego okna." />
                                 <TextBlock Text="Podgląd nagrania"
                                            Foreground="#9EACC0" FontSize="10"
                                            HorizontalAlignment="Right" VerticalAlignment="Center" />
                             </DockPanel>
                         </Border>
 
-                        <Border Grid.Row="1" Background="#050608" ClipToBounds="True">
+                        <Border x:Name="VideoHostContainer" Grid.Row="1" Background="#050608" ClipToBounds="True">
                             <wfi:WindowsFormsHost x:Name="VideoHost" Background="#050608" />
                         </Border>
                     </Grid>
