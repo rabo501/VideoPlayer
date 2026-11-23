@@ -27,7 +27,6 @@ namespace VideoPlayer
         private MpvService _mpvService = new();
         private readonly FfmpegService _ffmpegService = new();
         private readonly MediaInfoService _mediaInfoService = new(Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"));
-        private ReviewRepository _reviews = null!;
         private ExportService _exports = null!;
         private ReportService _reports = null!;
         private CaseRepository _cases = null!;
@@ -137,10 +136,10 @@ namespace VideoPlayer
 
         private void SaveSession(bool show = false)
         {
-            if (_reviews == null || _opening || _restoring || string.IsNullOrWhiteSpace(_sourceFilePath)) return;
+            if (!ViewModel.ReviewSession.IsReady || _opening || _restoring || string.IsNullOrWhiteSpace(_sourceFilePath)) return;
             try
             {
-                _reviews.Save(_sourceFilePath, new ReviewSession
+                ViewModel.ReviewSession.Save(_sourceFilePath, new ReviewSession
                 {
                     Position = PositionSlider.Value,
                     Speed = GetSelectedSpeed(),
