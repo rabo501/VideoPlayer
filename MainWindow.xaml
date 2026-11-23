@@ -865,7 +865,7 @@
                     </TabItem>
 
                     <!-- ZAKŁADKA 1: Zdarzenia, OCR tablic, Wyszukiwarka, Raporty -->
-                    <TabItem Header="Zdarzenia">
+                    <TabItem Header="Zdarzenia / OCR" ToolTip="Ręczne i automatyczne zdarzenia, rozpoznawanie oraz wyszukiwanie tablic">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Zapisz zdarzenie w bieżącej pozycji filmu. Dwuklik na liście przenosi do wskazanego czasu." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
@@ -1006,49 +1006,19 @@
                                 </Expander>
 
                                 <!-- Wbudowane dane sprawy do raportu PDF -->
-                                <Expander x:Name="ReportDetailsExpander" Header="Dane sprawy do raportu PDF (opcjonalne)" Margin="0,2,0,8" Foreground="#D8DCE4">
-                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="Numer sprawy / referencyjny" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportCaseNumberBox" Text="{Binding Cases.CaseNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
-                                            <TextBlock Text="Tytuł sprawy" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportCaseTitleBox" Text="{Binding Cases.CaseTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
-                                            <TextBlock Text="Miejsce zdarzenia" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportLocationBox" Text="{Binding Cases.Location, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
-                                            <TextBlock Text="Uwagi / opis sprawy" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportNotesBox" Text="{Binding Cases.Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" MinHeight="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
-                                        </StackPanel>
-                                    </Border>
-                                </Expander>
+                                
 
-                                <Expander x:Name="CaseArchiveExpander" Header="Archiwum spraw" Margin="0,2,0,8" Foreground="#D8DCE4" IsExpanded="True">
-                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="Zapisane sprawy" FontSize="11" Margin="0,0,0,4" />
-                                            <ComboBox x:Name="ReportCasesBox" ItemsSource="{Binding Cases.Cases}" SelectedItem="{Binding Cases.SelectedCase, Mode=TwoWay}" Margin="0,0,0,8" MinWidth="180" ToolTip="Wybierz sprawę; jej dane zostaną wczytane automatycznie" />
-                                            <WrapPanel>
-                                                <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
-                                                <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
-                                                <Button x:Name="ClearCaseSelectionButton" Content="Bieżące nagranie" Command="{Binding Cases.ClearSelectionCommand}" ToolTip="Wyczyść wybór sprawy i raportuj aktualnie otwarty plik" />
-                                                <Button x:Name="DeleteCaseButton" Content="Usuń sprawę" Click="DeleteCase_Click" />
-                                            </WrapPanel>
-                                            <TextBlock x:Name="CaseArchiveStatusText" Text="{Binding Cases.StatusText}" TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
-                                        </StackPanel>
-                                    </Border>
-                                </Expander>
+                                
 
-                                <TextBlock Text="Raport wybranej sprawy lub bieżącego nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="{Binding Cases.IncludeThumbnails, Mode=TwoWay}" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
-                                <WrapPanel>
-                                    <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" IsEnabled="{Binding Export.CanStartOperation}" />
-                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding Export.CanStartOperation}" />
-                                </WrapPanel>
+                                
+                                
+                                
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
                     <!-- ZAKŁADKA 2: Eksport -->
-                    <TabItem Header="Eksport">
+                    <TabItem Header="Eksport" ToolTip="Eksport zaznaczonych fragmentów i przetwarzanie nagrania">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Bieżące zaznaczenie" FontWeight="SemiBold" Margin="0,4,0,6" />
@@ -1072,7 +1042,7 @@
                     </TabItem>
 
                     <!-- ZAKŁADKA 3: Kamery Dahua IP (Podgląd & PTZ, Archiwum NVR, Konfiguracja urządzeń) -->
-                    <TabItem x:Name="DahuaTab" Header="Dahua IP">
+                    <TabItem x:Name="DahuaTab" Header="Kamery Dahua" ToolTip="Podgląd na żywo, archiwum NVR, pobieranie i konfiguracja urządzeń">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -1417,7 +1387,7 @@
                     </TabItem>
 
                     <!-- ZAKŁADKA 4: Pliki, MediaInfo, Sesja, Obsługa i O programie -->
-                    <TabItem Header="Pliki">
+                    <TabItem Header="Pliki i sesja" ToolTip="Ostatnie nagrania, zrzuty klatek, informacje o pliku i ustawienia sesji">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Ostatnie nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
@@ -1482,7 +1452,56 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
-                </TabControl>
+                
+                    <!-- ZAKŁADKA 5: Raporty i archiwum spraw -->
+                    <TabItem x:Name="ReportsTab" Header="Raporty" ToolTip="Dane sprawy, archiwum oraz generowanie raportów CSV i PDF">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
+                            <StackPanel>
+                                <Border Background="#17263A" BorderBrush="#365D9B" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="RAPORTOWANIE SPRAWY" FontSize="11" FontWeight="Bold" Foreground="#93C5FD" Margin="0,0,0,4" />
+                                        <TextBlock Text="Uzupełnij dane sprawy, wybierz zapisane materiały i wygeneruj raport. Raport można utworzyć także dla sprawy obejmującej wiele nagrań, bez otwierania pliku w odtwarzaczu." FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Expander x:Name="ReportDetailsExpander" Header="Dane sprawy do raportu PDF (opcjonalne)" Margin="0,2,0,8" Foreground="#D8DCE4">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Numer sprawy / referencyjny" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportCaseNumberBox" Text="{Binding Cases.CaseNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Tytuł sprawy" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportCaseTitleBox" Text="{Binding Cases.CaseTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Miejsce zdarzenia" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportLocationBox" Text="{Binding Cases.Location, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Uwagi / opis sprawy" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportNotesBox" Text="{Binding Cases.Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" MinHeight="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+                                <Expander x:Name="CaseArchiveExpander" Header="Archiwum spraw" Margin="0,2,0,8" Foreground="#D8DCE4" IsExpanded="True">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Zapisane sprawy" FontSize="11" Margin="0,0,0,4" />
+                                            <ComboBox x:Name="ReportCasesBox" ItemsSource="{Binding Cases.Cases}" SelectedItem="{Binding Cases.SelectedCase, Mode=TwoWay}" Margin="0,0,0,8" MinWidth="180" ToolTip="Wybierz sprawę; jej dane zostaną wczytane automatycznie" />
+                                            <WrapPanel>
+                                                <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
+                                                <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
+                                                <Button x:Name="ClearCaseSelectionButton" Content="Bieżące nagranie" Command="{Binding Cases.ClearSelectionCommand}" ToolTip="Wyczyść wybór sprawy i raportuj aktualnie otwarty plik" />
+                                                <Button x:Name="DeleteCaseButton" Content="Usuń sprawę" Click="DeleteCase_Click" />
+                                            </WrapPanel>
+                                            <TextBlock x:Name="CaseArchiveStatusText" Text="{Binding Cases.StatusText}" TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+                                <TextBlock Text="Raport wybranej sprawy lub bieżącego nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
+                                <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="{Binding Cases.IncludeThumbnails, Mode=TwoWay}" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                <WrapPanel>
+                                    <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" IsEnabled="{Binding Export.CanStartOperation}" />
+                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding Export.CanStartOperation}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+</TabControl>
             </Border>
         </Grid>
 
