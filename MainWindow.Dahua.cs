@@ -1877,7 +1877,7 @@ namespace VideoPlayer
                 MessageBox.Show(this, "Wskaż kliknięciem zielony fragment nagrania albo zaznacz go przeciągnięciem.", "Brak nagrania", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            if (end == null || end <= start) end = record.EndTime;
+            if (end == null || end.Value <= start.Value) end = record.EndTime;
             DahuaStartDatePicker.SelectedDate = start.Value.Date;
             DahuaStartTimeBox.Text = start.Value.ToString("HH:mm:ss");
             DahuaEndDatePicker.SelectedDate = end.Value.Date;
