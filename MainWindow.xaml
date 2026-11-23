@@ -782,12 +782,15 @@
                                         PreviewMouseLeftButtonUp="DahuaPlaybackSlider_MouseLeftButtonUp"
                                         LostMouseCapture="DahuaPlaybackSlider_LostMouseCapture"
                                         TickFrequency="1" IsSnapToTickEnabled="False" />
+                                <TextBlock Text="ZIELONY PASEK = NAGRANIE  •  Kliknij = ustaw czas / przewiń  •  Przeciągnij = zaznacz fragment  •  Kółko = przybliżenie  •  Prawy klik = reset"
+                                           Foreground="#94A3B8" FontSize="10" Margin="2,2,0,3" />
                                 <Border Background="#101722" BorderBrush="#344155" BorderThickness="1" CornerRadius="4" Padding="5,3" Margin="0,4,0,4">
                                     <Canvas x:Name="DahuaRecordingTimelineCanvas" Height="42" ClipToBounds="True" Background="Transparent"
                                             SizeChanged="DahuaRecordingTimelineCanvas_SizeChanged"
                                             PreviewMouseLeftButtonDown="DahuaRecordingTimelineCanvas_MouseLeftButtonDown"
                                             PreviewMouseMove="DahuaRecordingTimelineCanvas_MouseMove"
                                             PreviewMouseLeftButtonUp="DahuaRecordingTimelineCanvas_MouseLeftButtonUp"
+                                            LostMouseCapture="DahuaRecordingTimelineCanvas_LostMouseCapture"
                                             MouseWheel="DahuaRecordingTimelineCanvas_MouseWheel"
                                             MouseRightButtonDown="DahuaRecordingTimelineCanvas_ResetZoom" />
                                 </Border>
@@ -806,7 +809,7 @@
                                             <ComboBoxItem Content="16×" Tag="16" />
                                             <ComboBoxItem Content="32×" Tag="32" />
                                         </ComboBox>
-                                        <Button x:Name="DahuaTimelineSelectionButton" Content="Zaznacz fragment" Click="DahuaToggleTimelineSelection_Click" Padding="8,4" Margin="0,0,5,0" />
+                                        <Button Content="▶ Odtwórz od wskazanego" Click="DahuaPlayFromTimeline_Click" Padding="8,4" Margin="0,0,5,0" ToolTip="Odtwórz od klikniętego czasu lub zaznaczony fragment" />
                                         <Button x:Name="DahuaDownloadTimelineSelectionButton" Content="Pobierz zaznaczony" Click="DahuaDownloadTimelineSelection_Click" Padding="8,4" Margin="0,0,5,0" />
                                         <Button x:Name="DahuaCancelDownloadButton" Content="Anuluj pobieranie" Click="DahuaCancelDownload_Click" Padding="8,4" IsEnabled="False" />
                                     </StackPanel>
