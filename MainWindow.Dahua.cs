@@ -2401,6 +2401,8 @@ namespace VideoPlayer
             _dahuaArchiveDownloadCts = new CancellationTokenSource();
             ViewModel.Dahua.IsDownloadBusy = true;
             DahuaCancelDownloadButton.IsEnabled = true;
+            DahuaDownloadTimelineSelectionButton.IsEnabled = false;
+            DahuaTimelineSelectionButton.IsEnabled = false;
 
             try
             {
@@ -2434,6 +2436,8 @@ namespace VideoPlayer
             {
                 ViewModel.Dahua.IsDownloadBusy = false;
                 DahuaCancelDownloadButton.IsEnabled = false;
+                DahuaDownloadTimelineSelectionButton.IsEnabled = true;
+                DahuaTimelineSelectionButton.IsEnabled = true;
                 _dahuaArchiveDownloadCts?.Dispose();
                 _dahuaArchiveDownloadCts = null;
             }
@@ -2511,7 +2515,7 @@ namespace VideoPlayer
                     ffmpegPath, progress, token);
 
                 ViewModel.Dahua.DownloadStatusText =
-                    $"Zapisano {Path.GetFileName(savedPath)} ({(end - start).ToString(@"hh\\:mm\\:ss")}).";
+                    $"Zapisano {Path.GetFileName(savedPath)} ({(end - start).ToString(@"hh\:mm\:ss")}).";
                 ViewModel.Dahua.StatusText = $"Pobrano archiwum kanału {channel}: {start:HH:mm:ss}–{end:HH:mm:ss}.";
             }
             catch (OperationCanceledException)
