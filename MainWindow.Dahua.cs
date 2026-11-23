@@ -1645,8 +1645,21 @@ namespace VideoPlayer
                     // 0x2 = REALDATA_FLAG_DATA_WITH_FRAME_INFO.
                     // Jeśli firmware/SDK nie obsługuje callbacku, Live pozostaje aktywny
                     // i zachowuje bezpieczne proporcje domyślne do czasu kolejnego odczytu.
-                    if (!DahuaNetSdk.CLIENT_SetRealDataCallBackEx2(
-                        slot.StreamHandle, slot.FrameInfoCallback, IntPtr.Zero, 0x00000002))
+                    try
+                    {
+                        if (!DahuaNetSdk.CLIENT_SetRealDataCallBackEx2(
+                            slot.StreamHandle, slot.FrameInfoCallback, IntPtr.Zero, 0x00000002))
+                        {
+                            slot.FrameInfoCallback = null;
+                        }
+                    }
+                    catch (EntryPointNotFoundException)
+                    {
+                        // Starszy wariant NetSDK może nie eksportować Ex2.
+                        // Nie przerywamy z tego powodu działającego podglądu Live.
+                        slot.FrameInfoCallback = null;
+                    }
+                    catch (DllNotFoundException)
                     {
                         slot.FrameInfoCallback = null;
                     }
