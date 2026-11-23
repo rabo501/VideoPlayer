@@ -88,11 +88,17 @@ namespace VideoPlayer
 
         private async void VideoScaleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!_ready || _closing || _opening || _restoring || _changingScale || VideoScaleBox.SelectedItem is not ComboBoxItem item) return;
+            if (_closing || _opening || _restoring || _changingScale || VideoScaleBox.SelectedItem is not ComboBoxItem item) return;
+            string mode = item.Tag?.ToString() ?? "fit";
+            if (_workspaceMode == WorkspaceMode.Dahua)
+            {
+                SetDahuaPrimaryScale(mode);
+                return;
+            }
+            if (!_ready) return;
             _changingScale = true;
             try
             {
-                string mode = item.Tag?.ToString() ?? "fit";
                 double z = 0, p = mode == "fill" ? 1 : 0;
                 if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1) z = Math.Log(factor, 2);
                 await SetViewAsync(z, 0, 0, p);
@@ -116,7 +122,15 @@ namespace VideoPlayer
 
         private async void ResetView_Click(object sender, RoutedEventArgs e)
         {
-            if (!_ready || _opening) return;
+            if (_opening) return;
+            if (_workspaceMode == WorkspaceMode.Dahua)
+            {
+                _restoring = true;
+                try { SetDahuaPrimaryScale("fit"); VideoScaleBox.SelectedIndex = 0; }
+                finally { _restoring = false; }
+                return;
+            }
+            if (!_ready) return;
             try
             {
                 await SetViewAsync(0, 0, 0, 0);
