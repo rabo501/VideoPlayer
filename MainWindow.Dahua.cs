@@ -1462,43 +1462,56 @@ namespace VideoPlayer
 
         private double GetDahuaPlaybackDurationSeconds() => Math.Max(1, (_dahuaPlaybackRangeEnd - _dahuaPlaybackRangeStart).TotalSeconds);
 
+        private double GetDahuaPlaybackElapsedSeconds()
+        {
+            double elapsed = _dahuaPlaybackElapsedBeforePause;
+            if (!_dahuaSynchronizedPlaybackPaused)
+                elapsed += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
+            return Math.Clamp(elapsed, 0, GetDahuaPlaybackDurationSeconds());
+        }
+
         private void UpdateDahuaPlaybackSliderRange(bool keepPlayheadVisible)
         {
             if (DahuaPlaybackPositionSlider == null || DahuaMultiPlaybackHandles.Count == 0) return;
 
             double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
+            DateTime selectedDay = (DahuaStartDatePicker.SelectedDate ?? _dahuaPlaybackRangeStart.Date).Date;
             double viewStartHour = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
             double viewEndHour = viewStartHour + visibleHours;
-            double playbackStartHour = (_dahuaPlaybackRangeStart - _dahuaPlaybackRangeStart.Date).TotalHours;
+            double elapsed = GetDahuaPlaybackElapsedSeconds();
+            DateTime playheadTime = _dahuaPlaybackRangeStart.AddSeconds(elapsed);
+
+            // Oś godzin i suwak muszą korzystać z tej samej daty kalendarzowej.
+            if (keepPlayheadVisible && playheadTime.Date != selectedDay)
+            {
+                selectedDay = playheadTime.Date;
+                DahuaStartDatePicker.SelectedDate = selectedDay;
+            }
 
             if (keepPlayheadVisible)
             {
-                double elapsed = _dahuaPlaybackElapsedBeforePause;
-                if (!_dahuaSynchronizedPlaybackPaused)
-                    elapsed += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
-
-                double playheadHour = playbackStartHour + elapsed / 3600.0;
+                double playheadHour = (playheadTime - selectedDay).TotalHours;
                 if (playheadHour < viewStartHour || playheadHour > viewEndHour)
                 {
-                    _dahuaRecordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+                    _dahuaRecordingTimelineStartHour = Math.Clamp(
+                        playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
                     viewStartHour = _dahuaRecordingTimelineStartHour;
                     viewEndHour = viewStartHour + visibleHours;
                     RefreshDahuaRecordingTimeline();
                 }
             }
 
-            double minOffset = (viewStartHour - playbackStartHour) * 3600.0;
-            double maxOffset = (viewEndHour - playbackStartHour) * 3600.0;
+            // Wartość suwaka to sekundy od początku odtwarzania, a jego zakres
+            // odpowiada dokładnie widocznemu przedziałowi osi godzin.
+            DateTime visibleStart = selectedDay.AddHours(viewStartHour);
+            DateTime visibleEnd = selectedDay.AddHours(viewEndHour);
+            double minOffset = (visibleStart - _dahuaPlaybackRangeStart).TotalSeconds;
+            double maxOffset = (visibleEnd - _dahuaPlaybackRangeStart).TotalSeconds;
             if (maxOffset <= minOffset) maxOffset = minOffset + 1;
 
             DahuaPlaybackPositionSlider.Minimum = minOffset;
             DahuaPlaybackPositionSlider.Maximum = maxOffset;
-
-            double currentOffset = _dahuaPlaybackElapsedBeforePause;
-            if (!_dahuaSynchronizedPlaybackPaused)
-                currentOffset += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
-
-            DahuaPlaybackPositionSlider.Value = Math.Clamp(currentOffset, minOffset, maxOffset);
+            DahuaPlaybackPositionSlider.Value = Math.Clamp(elapsed, minOffset, maxOffset);
         }
 
         private void RefreshDahuaArchiveSelectedChannelsSummary()
@@ -1567,6 +1580,7 @@ namespace VideoPlayer
 
             _dahuaPlaybackRangeStart = start!.Value;
             _dahuaPlaybackRangeEnd = end!.Value;
+            DahuaStartDatePicker.SelectedDate = _dahuaPlaybackRangeStart.Date;
             _dahuaPlaybackElapsedBeforePause = 0;
             _dahuaPlaybackSegmentStartedAt = DateTime.Now;
             _dahuaSynchronizedPlaybackPaused = false;
@@ -1578,7 +1592,8 @@ namespace VideoPlayer
             DahuaPlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
             DahuaPlaybackPositionSlider.Value = 0;
             DahuaPlaybackPositionSlider.IsEnabled = true;
-            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
+            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: true);
+            RefreshDahuaRecordingTimeline();
 
             try
             {
@@ -1703,6 +1718,46 @@ namespace VideoPlayer
             }
 
             DrawDahuaTimelineSelection(selectedDay, viewStartHour, viewEndHour, xForHour);
+            DrawDahuaPlaybackPlayhead(selectedDay, viewStartHour, viewEndHour, xForHour);
+        }
+
+        private void DrawDahuaPlaybackPlayhead(
+            DateTime selectedDay,
+            double viewStartHour,
+            double viewEndHour,
+            Func<double, double> xForHour)
+        {
+            if (DahuaMultiPlaybackHandles.Count == 0) return;
+
+            DateTime playheadTime = _dahuaPlaybackRangeStart.AddSeconds(GetDahuaPlaybackElapsedSeconds());
+            if (playheadTime.Date != selectedDay) return;
+
+            double hour = playheadTime.TimeOfDay.TotalHours;
+            if (hour < viewStartHour || hour > viewEndHour) return;
+
+            double x = xForHour(hour);
+            DahuaRecordingTimelineCanvas.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = x, X2 = x,
+                Y1 = 0, Y2 = Math.Max(30, DahuaRecordingTimelineCanvas.ActualHeight),
+                Stroke = new SolidColorBrush(Color.FromRgb(248, 113, 113)),
+                StrokeThickness = 2,
+                IsHitTestVisible = false
+            });
+
+            var label = new TextBlock
+            {
+                Text = $"▶ {playheadTime:HH:mm:ss}",
+                Foreground = new SolidColorBrush(Color.FromRgb(254, 202, 202)),
+                Background = new SolidColorBrush(Color.FromArgb(220, 127, 29, 29)),
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
+                Padding = new Thickness(3, 1, 3, 1),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, Math.Clamp(x + 4, 0, Math.Max(0, DahuaRecordingTimelineCanvas.ActualWidth - 72)));
+            Canvas.SetTop(label, 22);
+            DahuaRecordingTimelineCanvas.Children.Add(label);
         }
 
         private void DrawDahuaTimelineSelection(
@@ -1815,6 +1870,7 @@ namespace VideoPlayer
             {
                 DahuaStartDatePicker.SelectedDate = releaseTime.Date;
                 DahuaStartTimeBox.Text = releaseTime.ToString("HH:mm:ss");
+                UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
                 _dahuaTimelineSelectionStart = null;
                 _dahuaTimelineSelectionEnd = null;
                 RefreshDahuaRecordingTimeline();
@@ -1850,6 +1906,7 @@ namespace VideoPlayer
             DahuaStartDatePicker.SelectedDate = start.Date;
             DahuaStartTimeBox.Text = start.ToString("HH:mm:ss");
             DahuaEndDatePicker.SelectedDate = finish.Date;
+            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
             DahuaEndTimeBox.Text = finish.ToString("HH:mm:ss");
             ViewModel.Dahua.PlaybackSyncStatusText = $"Zaznaczono {start:HH:mm:ss} – {finish:HH:mm:ss} ({(finish-start).TotalMinutes:0.0} min). Możesz odtworzyć lub pobrać fragment.";
             RefreshDahuaRecordingTimeline();
@@ -1980,7 +2037,30 @@ namespace VideoPlayer
             UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: true);
             DahuaPlaybackPositionSlider.Value = Math.Clamp(offsetSeconds, DahuaPlaybackPositionSlider.Minimum, DahuaPlaybackPositionSlider.Maximum);
             ViewModel.Dahua.PlaybackPositionText = $"{_dahuaPlaybackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+            RefreshDahuaRecordingTimeline();
             ViewModel.Dahua.PlaybackSyncStatusText = $"Przewinięto kanały: {succeeded}/{DahuaMultiPlaybackHandles.Count}";
+        }
+
+        private void DahuaPlaybackPositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_dahuaIsSeekingPlayback || DahuaMultiPlaybackHandles.Count == 0) return;
+
+            double offset = Math.Clamp(e.NewValue, 0, GetDahuaPlaybackDurationSeconds());
+            DateTime previewTime = _dahuaPlaybackRangeStart.AddSeconds(offset);
+            ViewModel.Dahua.PlaybackPositionText = $"{previewTime:HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+
+            DateTime selectedDay = (DahuaStartDatePicker.SelectedDate ?? previewTime.Date).Date;
+            if (previewTime.Date != selectedDay)
+                DahuaStartDatePicker.SelectedDate = previewTime.Date;
+
+            double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
+            double hour = previewTime.TimeOfDay.TotalHours;
+            double viewStart = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
+            if (hour < viewStart || hour > viewStart + visibleHours)
+                _dahuaRecordingTimelineStartHour = Math.Clamp(
+                    hour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+
+            RefreshDahuaRecordingTimeline();
         }
 
         private void DahuaPlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -2007,19 +2087,26 @@ namespace VideoPlayer
         private void DahuaPlaybackUiTimer_Tick(object? sender, EventArgs e)
         {
             if (_dahuaIsSeekingPlayback || _dahuaSynchronizedPlaybackPaused || DahuaMultiPlaybackHandles.Count == 0) return;
-            double elapsed = _dahuaPlaybackElapsedBeforePause + (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
-            elapsed = Math.Clamp(elapsed, 0, GetDahuaPlaybackDurationSeconds());
-            double playheadHour = (_dahuaPlaybackRangeStart.AddSeconds(elapsed) - _dahuaPlaybackRangeStart.Date).TotalHours;
+            double elapsed = GetDahuaPlaybackElapsedSeconds();
+            DateTime playheadTime = _dahuaPlaybackRangeStart.AddSeconds(elapsed);
+            DateTime selectedDay = (DahuaStartDatePicker.SelectedDate ?? _dahuaPlaybackRangeStart.Date).Date;
+            if (playheadTime.Date != selectedDay)
+            {
+                selectedDay = playheadTime.Date;
+                DahuaStartDatePicker.SelectedDate = selectedDay;
+            }
+
             double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
+            double playheadHour = (playheadTime - selectedDay).TotalHours;
             double viewStart = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
             if (playheadHour < viewStart || playheadHour > viewStart + visibleHours)
-            {
-                _dahuaRecordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
-                RefreshDahuaRecordingTimeline();
-                UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
-            }
+                _dahuaRecordingTimelineStartHour = Math.Clamp(
+                    playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+
+            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
             DahuaPlaybackPositionSlider.Value = Math.Clamp(elapsed, DahuaPlaybackPositionSlider.Minimum, DahuaPlaybackPositionSlider.Maximum);
-            ViewModel.Dahua.PlaybackPositionText = $"{_dahuaPlaybackRangeStart.AddSeconds(elapsed):HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+            ViewModel.Dahua.PlaybackPositionText = $"{playheadTime:HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+            RefreshDahuaRecordingTimeline();
             if (elapsed >= GetDahuaPlaybackDurationSeconds())
             {
                 _dahuaPlaybackUiTimer.Stop();
@@ -2079,6 +2166,7 @@ namespace VideoPlayer
                 DahuaPlaybackPositionSlider.Value = 0;
             }
             ViewModel.Dahua.PlaybackPositionText = "00:00:00 / 00:00:00";
+            RefreshDahuaRecordingTimeline();
         }
 
         private void DahuaStopSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
