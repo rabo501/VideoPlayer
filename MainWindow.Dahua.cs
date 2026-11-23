@@ -398,70 +398,45 @@ namespace VideoPlayer
 
             try
             {
-                DahuaSessionService.WriteDiagnostic("Manual device read started.");
-                int channelCount = DahuaSession.DeviceChannelCount > 0
-                    ? DahuaSession.DeviceChannelCount
-                    : _currentDahuaDevice.Channels.Count;
-                if (channelCount > 0) _currentDahuaDevice.EnsureDefaultChannels(channelCount);
+                DahuaDeviceItem device = _currentDahuaDevice;
+                int channel = _dahuaCurrentChannel;
+                DahuaDeviceStateReadResult result =
+                    await ViewModel.Dahua.ReadDeviceStateAsync(device, channel);
 
-                List<DahuaChannelInfo> remoteNames = await DahuaSession.QueryChannelNamesAsync(channelCount);
-                if (_closing || _currentDahuaDevice == null) return;
+                if (_closing || !ReferenceEquals(_currentDahuaDevice, device)) return;
+
+                List<DahuaChannelNameChange> changes =
+                    DahuaViewModel.GetChannelNameChanges(device, result.RemoteChannels);
                 int appliedNames = 0;
-                if (remoteNames.Count > 0)
+                if (changes.Count > 0)
                 {
-                    var changes = remoteNames
-                        .Where(remote => !string.IsNullOrWhiteSpace(remote.Name))
-                        .Select(remote => new
-                        {
-                            remote.Number,
-                            RemoteName = remote.Name.Trim(),
-                            LocalName = _currentDahuaDevice.GetChannelName(remote.Number)
-                        })
-                        .Where(x => !string.Equals(x.LocalName, x.RemoteName, StringComparison.Ordinal))
-                        .ToList();
+                    string preview = string.Join(Environment.NewLine,
+                        changes.Take(20).Select(change =>
+                            $"CH {change.Number}: \"{change.LocalName}\"  →  \"{change.RemoteName}\""));
+                    if (changes.Count > 20)
+                        preview += Environment.NewLine + $"… oraz {changes.Count - 20} kolejnych zmian.";
 
-                    if (changes.Count > 0)
-                    {
-                        string preview = string.Join(Environment.NewLine,
-                            changes.Take(20).Select(x => $"CH {x.Number}: \"{x.LocalName}\"  →  \"{x.RemoteName}\""));
-                        if (changes.Count > 20) preview += Environment.NewLine + $"… oraz {changes.Count - 20} kolejnych zmian.";
+                    var decision = MessageBox.Show(this,
+                        $"Rejestrator zwrócił {result.RemoteChannels.Count} nazw kanałów. Wykryto {changes.Count} różnic względem konfiguracji lokalnej.\n\n" +
+                        preview + "\n\nCzy zastosować nazwy z rejestratora?\nIdentyfikatory kanałów pozostaną bez zmian.",
+                        "Porównanie nazw kanałów Dahua",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question);
 
-                        var decision = MessageBox.Show(this,
-                            $"Rejestrator zwrócił {remoteNames.Count} nazw kanałów. Wykryto {changes.Count} różnic względem konfiguracji lokalnej.\n\n" +
-                            preview + "\n\nCzy zastosować nazwy z rejestratora?\nIdentyfikatory kanałów pozostaną bez zmian.",
-                            "Porównanie nazw kanałów Dahua",
-                            MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                        if (decision == MessageBoxResult.Yes)
-                        {
-                            foreach (var change in changes)
-                                _currentDahuaDevice.SetChannelName(change.Number, change.RemoteName);
-                            appliedNames = changes.Count;
-                        }
-                    }
+                    if (decision == MessageBoxResult.Yes)
+                        appliedNames = ViewModel.Dahua.ApplyDeviceChannelNames(device, result.RemoteChannels);
                 }
 
-                int presetCount = -1;
-                try
-                {
-                    var remotePresets = await DahuaSessionService.QueryPresetsAsync(_currentDahuaDevice, _dahuaCurrentChannel);
-                    _currentDahuaDevice.UpdateFromDevicePresets(remotePresets);
-                    presetCount = remotePresets.Count;
-                }
-                catch (Exception presetError)
-                {
-                    DahuaSessionService.WriteDiagnostic($"PTZ preset read failed; local list preserved. {presetError}");
-                }
+                if (result.PresetCount.HasValue)
+                    ViewModel.Dahua.SaveDevices();
 
-                ViewModel.Dahua.SaveDevices();
                 RefreshDahuaChannelLists();
                 RefreshDahuaPresetsList();
 
-                string channelMessage = remoteNames.Count > 0
-                    ? $"Nazwy kanałów: odczytano {remoteNames.Count}, zastosowano {appliedNames} zmian."
-                    : $"Nazwy kanałów: odczyt nieudany; zachowano lokalne etykiety (kanałów: {channelCount}).";
-                string presetMessage = presetCount >= 0
-                    ? $"Presety PTZ: odczytano {presetCount} pozycji."
+                string channelMessage = result.RemoteChannels.Count > 0
+                    ? $"Nazwy kanałów: odczytano {result.RemoteChannels.Count}, zastosowano {appliedNames} zmian."
+                    : $"Nazwy kanałów: odczyt nieudany; zachowano lokalne etykiety (kanałów: {result.ChannelCount}).";
+                string presetMessage = result.PresetCount.HasValue
+                    ? $"Presety PTZ: odczytano {result.PresetCount.Value} pozycji."
                     : "Presety PTZ: odczyt nieudany; zachowano dotychczasową listę.";
                 string msg = channelMessage + Environment.NewLine + presetMessage;
 
@@ -597,8 +572,7 @@ namespace VideoPlayer
             string newName = DahuaChannelNameEditBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(newName)) return;
 
-            _currentDahuaDevice.SetChannelName(_dahuaCurrentChannel, newName);
-            ViewModel.Dahua.SaveDevices();
+            ViewModel.Dahua.SaveChannelName(_currentDahuaDevice, _dahuaCurrentChannel, newName);
             RefreshDahuaChannelLists();
             BuildDahuaModernChannelChecks();
 
@@ -704,33 +678,15 @@ namespace VideoPlayer
             {
                 DahuaDeviceItem device = _currentDahuaDevice;
                 int channel = _dahuaCurrentChannel;
-                await DahuaSessionService.SetPresetPositionAsync(device, channel, presetNumber);
+                DahuaPresetPositionSaveResult saveResult =
+                    await ViewModel.Dahua.SavePresetPositionAsync(device, channel, presetNumber, presetName);
 
-                bool nameSaved = true;
-                string nameError = string.Empty;
-                try
-                {
-                    await DahuaSessionService.SetPresetNameAsync(device, channel, presetNumber, presetName);
-                }
-                catch (Exception ex) { nameSaved = false; nameError = ex.Message; }
-
-                string effectiveName = nameSaved ? presetName : $"Preset {presetNumber}";
-                var existing = device.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
-                if (existing != null) existing.Name = effectiveName;
-                else device.Presets.Add(new DahuaPresetItem { PresetNumber = presetNumber, Name = effectiveName });
-
-                ViewModel.Dahua.SaveDevices();
                 RefreshDahuaPresetsList();
                 DahuaPresetsComboBox.SelectedItem = DahuaPresetsComboBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => i.Tag is int n && n == presetNumber);
 
-                if (nameSaved)
+                if (!saveResult.NameSaved)
                 {
-                    ViewModel.Dahua.StatusText = $"Zapisano preset {presetNumber}: {presetName}.";
-                }
-                else
-                {
-                    ViewModel.Dahua.StatusText = $"Pozycja presetu {presetNumber} została zapisana, ale nie udało się ustawić nazwy.";
-                    MessageBox.Show(this, $"Pozycja PTZ została zapisana, ale zmiana nazwy nie powiodła się.\n\n{nameError}", "Częściowy zapis presetu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(this, $"Pozycja PTZ została zapisana, ale zmiana nazwy nie powiodła się.\n\n{saveResult.NameError}", "Częściowy zapis presetu", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
@@ -757,13 +713,8 @@ namespace VideoPlayer
             try
             {
                 DahuaDeviceItem device = _currentDahuaDevice;
-                await DahuaSessionService.SetPresetNameAsync(device, _dahuaCurrentChannel, presetNumber, newName);
-
-                var preset = device.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
-                if (preset != null) preset.Name = newName;
-                ViewModel.Dahua.SaveDevices();
+                await ViewModel.Dahua.RenamePresetAsync(device, _dahuaCurrentChannel, presetNumber, newName);
                 RefreshDahuaPresetsList();
-                ViewModel.Dahua.StatusText = $"Zmieniono nazwę presetu {presetNumber} na '{newName}'.";
             }
             catch (Exception ex)
             {
@@ -783,11 +734,8 @@ namespace VideoPlayer
             try
             {
                 DahuaDeviceItem device = _currentDahuaDevice;
-                var remotePresets = await DahuaSessionService.QueryPresetsAsync(device, _dahuaCurrentChannel);
-                device.UpdateFromDevicePresets(remotePresets);
-                ViewModel.Dahua.SaveDevices();
+                await ViewModel.Dahua.RefreshPresetsFromDeviceAsync(device, _dahuaCurrentChannel);
                 RefreshDahuaPresetsList();
-                ViewModel.Dahua.StatusText = $"Odczytano {remotePresets.Count} presetów dla kanału {_dahuaCurrentChannel}.";
             }
             catch (Exception ex)
             {
@@ -809,11 +757,8 @@ namespace VideoPlayer
             try
             {
                 DahuaDeviceItem device = _currentDahuaDevice;
-                await DahuaSessionService.DeletePresetAsync(device, _dahuaCurrentChannel, presetNumber);
-                device.Presets.RemoveAll(p => p.PresetNumber == presetNumber);
-                ViewModel.Dahua.SaveDevices();
+                await ViewModel.Dahua.DeletePresetAsync(device, _dahuaCurrentChannel, presetNumber);
                 RefreshDahuaPresetsList();
-                ViewModel.Dahua.StatusText = $"Usunięto preset {presetNumber} z urządzenia.";
             }
             catch (Exception ex)
             {
