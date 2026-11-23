@@ -1275,7 +1275,8 @@ namespace VideoPlayer
                     Size = new System.Drawing.Size(640, 360)
                 };
                 viewport.Controls.Add(picture);
-                picture.CreateControl();
+                // HWND PictureBox powstaje dopiero po osadzeniu WindowsFormsHost
+                // w widocznym drzewie WPF — wcześniej nie tworzymy natywnego uchwytu.
                 viewport.MouseWheel += (_, args) => HandleDahuaSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
                 picture.MouseWheel += (_, args) => HandleDahuaSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
                 viewport.MouseDown += (_, args) => BeginDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
