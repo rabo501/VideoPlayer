@@ -53,3 +53,11 @@ Ten zakres wymaga kompilacji i sprawdzenia w Windows przy typowej oraz minimalne
 - zachowanie wszystkich nazw kontrolek, bindingów i komend anulowania.
 
 Wymagana jest kompilacja i test w Windows: przewijanie suwaka, synchronizacja czasu, zaznaczanie fragmentu uchwytami, znaczniki zdarzeń oraz prezentacja postępu i anulowania eksportu.
+
+## Szósty zakres zmian — lewy panel podglądu wideo
+- uporządkowanie warstwy lokalnego odtwarzacza przez dodanie dyskretnej etykiety „PODGLĄD WIDEO” w górnym lewym narożniku;
+- etykieta jest wyłącznie informacyjna i nie przechwytuje myszy ani klawiatury, więc nie blokuje sterowania osadzonym odtwarzaczem;
+- zachowanie PlayerViewportLayer, VideoHost i istniejącego hostowania mpv bez zmian;
+- bez ingerencji w przełączanie warstw OCR/Dahua, ich nakładki, obsługę strumieni, skalowanie i logikę odtwarzania.
+
+Wymagana jest kompilacja i kontrola w Windows: otwarcie lokalnego nagrania, sterowanie odtwarzaniem, zmiana skali obrazu oraz sprawdzenie, czy etykieta nie utrudnia obsługi obrazu.
