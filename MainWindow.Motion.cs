@@ -77,7 +77,7 @@ namespace VideoPlayer
 
                 if (_closing || !string.Equals(source, _sourceFilePath, StringComparison.OrdinalIgnoreCase)) return;
 
-                List<TimelineMarker> addedMarkers = ViewModel.Motion.CreateMarkers(found, PositionSlider.Maximum);
+                List<TimelineMarker> addedMarkers = MotionDetectionViewModel.CreateMarkers(found, PositionSlider.Maximum);
 
                 ViewModel.EventCenter.AddMarkers(addedMarkers);
                 SaveTimelineMarkers();
