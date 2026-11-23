@@ -64,35 +64,6 @@ namespace VideoPlayer
             }
         }
 
-        private async Task<List<CaseReportSource>> BuildCaseReportSourcesAsync(CaseRecord record, CancellationToken ct)
-        {
-            List<string> paths = _cases.LoadSources(record.Id);
-            if (paths.Count == 0)
-                throw new InvalidOperationException("Wybrana sprawa nie ma przypisanych nagrań. Otwórz nagranie i użyj opcji „Zapisz / aktualizuj sprawę”.");
-
-            var result = new List<CaseReportSource>();
-            for (int i = 0; i < paths.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-                string path = paths[i];
-                MediaInfoData? info = null;
-                if (File.Exists(path))
-                {
-                    try { info = await _mediaInfoService.ReadAsync(path, ct).ConfigureAwait(false); }
-                    catch (OperationCanceledException) { throw; }
-                    catch { /* A technical-info error for one source must not block the case report. */ }
-                }
-                result.Add(new CaseReportSource
-                {
-                    Path = path,
-                    Markers = _historyService.LoadMarkers(path),
-                    Exports = _historyService.LoadExports(path),
-                    MediaInfo = info
-                });
-            }
-            return result;
-        }
-
         private ClipRange? RangeError(string text)
         {
             ViewModel.StatusMessage = text;
@@ -232,12 +203,9 @@ namespace VideoPlayer
             {
                 if (selectedCase != null)
                 {
-                    CaseRecord record = _cases.Load(selectedCase.Id)
-                        ?? throw new InvalidOperationException("Wybrana sprawa nie istnieje już w archiwum.");
-                    List<CaseReportSource> sources = await BuildCaseReportSourcesAsync(record, ct).ConfigureAwait(false);
-                    await _reports.CsvCaseAsync(sources, output, CaseArchiveViewModel.ToReportMetadata(record), ct).ConfigureAwait(false);
-                    int eventCount = sources.Sum(s => s.Markers.Count);
-                    return $"Zapisano raport sprawy {record.CaseNumber}: {sources.Count} nagrania, {eventCount} zdarzeń.";
+                    return await ViewModel.Cases.GenerateCaseReportAsync(
+                        selectedCase.Id, pdf: false, output, includeThumbnails: false,
+                        progress: null, cancellationToken: ct).ConfigureAwait(false);
                 }
 
                 string source = _sourceFilePath!;
@@ -276,13 +244,9 @@ namespace VideoPlayer
                 IProgress<ExportProgress> progress = OperationProgress(ct);
                 if (selectedCase != null)
                 {
-                    CaseRecord record = _cases.Load(selectedCase.Id)
-                        ?? throw new InvalidOperationException("Wybrana sprawa nie istnieje już w archiwum.");
-                    List<CaseReportSource> sources = await BuildCaseReportSourcesAsync(record, ct).ConfigureAwait(false);
-                    await _reports.PdfCaseAsync(sources, output, images, CaseArchiveViewModel.ToReportMetadata(record),
+                    return await ViewModel.Cases.GenerateCaseReportAsync(
+                        selectedCase.Id, pdf: true, output, images,
                         progress, ct).ConfigureAwait(false);
-                    int eventCount = sources.Sum(s => s.Markers.Count);
-                    return $"Zapisano raport sprawy {record.CaseNumber}: {sources.Count} nagrania, {eventCount} zdarzeń.";
                 }
 
                 string source = _sourceFilePath!;

@@ -36,6 +36,45 @@ namespace VideoPlayer.Tests
             return path;
         }
 
+
+        [Fact]
+        public async Task CaseArchiveViewModel_GeneratesCsvForAllLinkedSourcesWithoutActivePlayerFile()
+        {
+            var repository = new CaseRepository(_tempDir);
+            var history = new HistoryService(_tempDir);
+            string first = CreateDummyFile("evidence_camera_1.mp4");
+            string second = CreateDummyFile("evidence_camera_2.mp4");
+
+            CaseRecord saved = repository.Save(new ReportMetadata
+            {
+                CaseNumber = "MVVM-CASE-5",
+                CaseTitle = "Raport wielonagraniowy"
+            }, first);
+            saved = repository.Save(new ReportMetadata
+            {
+                CaseNumber = "MVVM-CASE-5",
+                CaseTitle = "Raport wielonagraniowy"
+            }, second);
+
+            var reportService = new ReportService(new ExportService(new FfmpegService(_tempDir)));
+            var caseReportService = new VideoPlayer.Services.CaseReportService(
+                repository, history, new MediaInfoService(Path.Combine(_tempDir, "missing-ffmpeg.exe")), reportService);
+            var vm = new CaseArchiveViewModel();
+            vm.AttachRepository(repository);
+            vm.AttachReportService(caseReportService);
+
+            string output = Path.Combine(_tempDir, "case-report.csv");
+            string result = await vm.GenerateCaseReportAsync(
+                saved.Id, pdf: false, output, includeThumbnails: false, progress: null, CancellationToken.None);
+
+            Assert.True(File.Exists(output));
+            string csv = File.ReadAllText(output);
+            Assert.Contains(first, csv);
+            Assert.Contains(second, csv);
+            Assert.Contains("MVVM-CASE-5", csv);
+            Assert.Contains("2 nagrania", result);
+        }
+
         [Fact]
         public void CaseRepository_SaveLinkMultipleSourcesReloadAndDelete_PreservesSourceFiles()
         {

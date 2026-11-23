@@ -21,6 +21,7 @@ namespace VideoPlayer
                 _reviews = new ReviewRepository();
                 _exports = new ExportService(_ffmpegService);
                 _reports = new ReportService(_exports);
+                ViewModel.Cases.AttachReportService(new CaseReportService(_cases, _historyService, _mediaInfoService, _reports));
                 ViewModel.History.AttachService(_historyService);
                 LoadDahuaDeviceList();
                 await StartPlayerAsync();

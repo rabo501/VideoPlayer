@@ -3,14 +3,18 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using VideoPlayer.Services;
 
 namespace VideoPlayer.ViewModels
 {
     internal sealed partial class CaseArchiveViewModel : ObservableObject
     {
         private CaseRepository? _repository;
+        private CaseReportService? _reportService;
         private bool _applyingSelection;
 
         public CaseArchiveViewModel(CaseRepository? repository = null)
@@ -45,6 +49,33 @@ namespace VideoPlayer.ViewModels
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             LoadAll();
+        }
+
+        public void AttachReportService(CaseReportService reportService)
+        {
+            _reportService = reportService ?? throw new ArgumentNullException(nameof(reportService));
+        }
+
+        /// <summary>
+        /// Generates a report for the complete case archive. The case and its linked source
+        /// recordings are resolved here, not in the WPF view. No active player file is required.
+        /// </summary>
+        public async Task<string> GenerateCaseReportAsync(
+            Guid caseId,
+            bool pdf,
+            string outputPath,
+            bool includeThumbnails,
+            IProgress<ExportProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            if (_reportService == null)
+                throw new InvalidOperationException("Usługa raportów spraw nie została zainicjalizowana.");
+
+            StatusText = "Przygotowywanie raportu sprawy…";
+            string result = await _reportService.GenerateAsync(
+                caseId, pdf, outputPath, includeThumbnails, progress, cancellationToken).ConfigureAwait(true);
+            StatusText = result;
+            return result;
         }
 
         public void LoadAll(Guid? selectId = null)
