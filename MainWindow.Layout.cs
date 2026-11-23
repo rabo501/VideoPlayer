@@ -163,7 +163,7 @@ namespace VideoPlayer
             }
         }
 
-        private void VideoPanel_MouseUp(object? sender, Forms.MouseEventArgs e)
+        private void VideoPanel_MouseUp(object? sender, System.Windows.Forms.MouseEventArgs e)
         {
             if (e.Button == Forms.MouseButtons.Right && _workspaceMode == WorkspaceMode.Player)
             {
