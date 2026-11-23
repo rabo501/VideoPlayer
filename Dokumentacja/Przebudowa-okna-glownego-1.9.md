@@ -111,3 +111,7 @@ Wymagane testy Windows: zamknięcie i ponowne uruchomienie z zapamiętanym rozmi
 - bazowe proporcje obrazu przyjęto jako 16:9; tryb wypełnienia i większe powiększenia mogą przycinać krawędzie.
 
 Wymagane testy: wszystkie tryby skali podczas Live, zmiana kanałów, przełączanie Player/Dahua, reset widoku oraz płynność obrazu. Należy ponownie sprawdzić dotychczasowe skalowanie mpv.
+
+
+### Korekta skalowania — właściwe okna renderujące Dahua
+Poprzednia implementacja skalowała tylko `_dahuaPrimaryPictureBox`, podczas gdy standardowy podgląd Live jest uruchamiany w dynamicznych slotach `DahuaMultiViewSlot`. SDK otrzymuje uchwyt `slot.PictureBox`, dlatego poprzednia zmiana nie wpływała na widoczny strumień. Skorygowano `SetDahuaPrimaryScale`: skala jest teraz stosowana bezpośrednio do wszystkich aktywnych slotów, a ich PictureBox jest powiększany i przesuwany wewnątrz panelu przycinającego. Reset ustawia powiększenie 1× i zeruje przesunięcie. Tryb wypełnienia uwzględnia proporcje 16:9.
