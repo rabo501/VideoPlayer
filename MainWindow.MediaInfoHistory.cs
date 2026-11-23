@@ -19,37 +19,8 @@ namespace VideoPlayer
 {
     public partial class MainWindow
     {
-        private async Task UpdateMediaInfoAsync(string sourcePath)
-        {
-            _mediaInfoCts?.Cancel();
-            _mediaInfoCts?.Dispose();
-            var cts = new CancellationTokenSource();
-            _mediaInfoCts = cts;
-            CancellationToken token = cts.Token;
-
-            try
-            {
-                MediaInfoData info = await _mediaInfoService.ReadAsync(sourcePath, token);
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    if (_closing || token.IsCancellationRequested || !string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase))
-                        return;
-                    ViewModel.Export.SetMediaInfo(info, sourcePath);
-                });
-            }
-            catch (OperationCanceledException)
-            {
-                // Replaced by a newer file open or shutdown.
-            }
-            catch (Exception ex)
-            {
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    if (!_closing && !token.IsCancellationRequested && string.Equals(_sourceFilePath, sourcePath, StringComparison.OrdinalIgnoreCase))
-                        ViewModel.Export.SetMediaInfoError(ex.Message);
-                });
-            }
-        }
+        private Task UpdateMediaInfoAsync(string sourcePath) =>
+            ViewModel.Export.LoadMediaInfoAsync(sourcePath);
 
         private void RecordRecentFile(string path)
         {
