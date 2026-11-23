@@ -51,7 +51,8 @@ namespace VideoPlayer
                     WindowStartupLocation = WindowStartupLocation.CenterScreen;
                 if (_windowSettings.IsMaximized) WindowState = WindowState.Maximized;
 
-                _toolsWidth = Math.Clamp(_windowSettings.ToolsWidth, 320, 1100);
+                // Ogranicz szeroki, wcześniej zapamiętany panel, aby odzyskać miejsce na podgląd.
+                _toolsWidth = Math.Clamp(_windowSettings.ToolsWidth, 300, 360);
                 if (_windowSettings.ToolsVisible && ToolsColumn != null)
                     ToolsColumn.Width = new GridLength(_toolsWidth);
                 if (ToolsTabs != null)
