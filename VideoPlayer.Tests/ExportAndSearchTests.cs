@@ -107,6 +107,40 @@ namespace VideoPlayer.Tests
         }
 
         [Fact]
+        public async Task ExportViewModel_LoadMediaInfoAsync_IgnoresLateResultFromPreviousRecording()
+        {
+            var first = new TaskCompletionSource<MediaInfoData>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var second = new TaskCompletionSource<MediaInfoData>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reader = new ControlledMediaInfoReader(first, second);
+            using var vm = new ExportViewModel();
+            vm.AttachMediaInfoReader(reader);
+
+            Task firstLoad = vm.LoadMediaInfoAsync("first.mp4");
+            Task secondLoad = vm.LoadMediaInfoAsync("second.mp4");
+
+            second.SetResult(new MediaInfoData { VideoCodec = "h265" });
+            await secondLoad;
+
+            first.SetResult(new MediaInfoData { VideoCodec = "h264" });
+            await firstLoad;
+
+            Assert.Equal("h265", vm.CurrentMediaInfo?.VideoCodec);
+        }
+
+        private sealed class ControlledMediaInfoReader : IMediaInfoReader
+        {
+            private readonly Queue<TaskCompletionSource<MediaInfoData>> _responses;
+
+            public ControlledMediaInfoReader(params TaskCompletionSource<MediaInfoData>[] responses)
+            {
+                _responses = new Queue<TaskCompletionSource<MediaInfoData>>(responses);
+            }
+
+            public Task<MediaInfoData> ReadAsync(string sourcePath, CancellationToken ct = default) =>
+                _responses.Dequeue().Task;
+        }
+
+        [Fact]
         public async Task PlateSearchViewModel_RunsProviderAsyncAndUpdatesResults()
         {
             var sample = new List<PlateSearchResult>
