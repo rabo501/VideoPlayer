@@ -1284,12 +1284,12 @@ namespace VideoPlayer
                 viewport.MouseUp += (_, args) =>
                 {
                     EndDahuaSlotSelectionOrPan(slotRef!, args);
-                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(host);
+                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(DahuaPrimaryVideoHost);
                 };
                 picture.MouseUp += (_, args) =>
                 {
                     EndDahuaSlotSelectionOrPan(slotRef!, args);
-                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(host);
+                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(DahuaPrimaryVideoHost);
                 };
 
                 var host = new FormsIntegration.WindowsFormsHost { Child = viewport, Background = Brushes.Black };
