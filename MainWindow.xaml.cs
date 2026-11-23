@@ -154,6 +154,9 @@ namespace VideoPlayer
             await _mpvService.SendAsync("set_property", "video-pan-y", y);
             await _mpvService.SendAsync("set_property", "video-align-x", 0);
             await _mpvService.SendAsync("set_property", "video-align-y", 0);
+            // Wymuś ponowne wyśrodkowanie także po wcześniejszym przesuwaniu
+            // lub zmianie zoomu, gdy obraz jest mniejszy od obszaru podglądu.
+            await _mpvService.SendAsync("set_property", "video-recenter", true);
             _zoom = zoom;
             _panX = x;
             _panY = y;
