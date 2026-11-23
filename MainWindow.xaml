@@ -711,7 +711,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="480" />
                 <ColumnDefinition x:Name="ToolsSplitterColumn" Width="8" />
-                <ColumnDefinition x:Name="ToolsColumn" Width="420" MinWidth="340" />
+                <ColumnDefinition x:Name="ToolsColumn" Width="360" MinWidth="300" />
             </Grid.ColumnDefinitions>
 
             <!-- LEWA STREFA: Duży obszar podglądu (przełączane warstwy bez dodatkowych okien) -->
