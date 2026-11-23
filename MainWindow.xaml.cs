@@ -27,7 +27,6 @@ namespace VideoPlayer
         private MpvService _mpvService = new();
         private readonly FfmpegService _ffmpegService = new();
         private readonly MediaInfoService _mediaInfoService = new(Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"));
-        private HistoryService _historyService = null!;
         private ReviewRepository _reviews = null!;
         private ExportService _exports = null!;
         private ReportService _reports = null!;

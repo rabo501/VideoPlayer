@@ -1,4 +1,5 @@
 using System;
+using VideoPlayer.ViewModels;
 using Xunit;
 
 namespace VideoPlayer.Tests
@@ -96,6 +97,25 @@ namespace VideoPlayer.Tests
             Assert.InRange(ev.MotionY, 0.099, 0.101); // 18 / 180 = 0.10
             Assert.InRange(ev.MotionX + ev.MotionWidth, 0.499, 0.501); // 160 / 320 = 0.50
             Assert.InRange(ev.MotionY + ev.MotionHeight, 0.499, 0.501); // 90 / 180 = 0.50
+        }
+
+        [Fact]
+        public void MotionDetectionViewModel_CreatesTimelineMarkersFromAnalysisResults()
+        {
+            var events = new[]
+            {
+                new MotionDetectionService.MotionEvent
+                {
+                    StartSeconds = 8.5, EndSeconds = 11.25, PeakChangedRatio = 14.2,
+                    MotionX = 0.1, MotionY = 0.2, MotionWidth = 0.3, MotionHeight = 0.4
+                }
+            };
+            List<TimelineMarker> markers = MotionDetectionViewModel.CreateMarkers(events, 10);
+            Assert.Single(markers);
+            Assert.Equal(8.5, markers[0].Seconds);
+            Assert.Equal(10, markers[0].EndSeconds);
+            Assert.Equal(0.1, markers[0].MotionX);
+            Assert.Contains("14.2%", markers[0].Description);
         }
     }
 }

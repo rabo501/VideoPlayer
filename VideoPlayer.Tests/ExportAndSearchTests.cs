@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using VideoPlayer.Services;
@@ -139,6 +140,44 @@ namespace VideoPlayer.Tests
             Assert.Equal("WA12345", vm.Results[0].PlateNumber);
             Assert.Equal("Znaleziono: 1 zdarzeń.", vm.ResultCountText);
             Assert.Contains("limit listy: 1000", PlateSearchViewModel.FormatResultCount(1000));
+        }
+
+        [Fact]
+        public void HistoryViewModel_HandlesPlateSearchAndExportHistory()
+        {
+            string directory = Path.Combine(Path.GetTempPath(), "VideoPlayer_HistoryVm_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            string source = Path.Combine(directory, "recording.mp4");
+            File.WriteAllBytes(source, Array.Empty<byte>());
+            try
+            {
+                var service = new HistoryService(directory);
+                service.SaveMarkers(source, new[]
+                {
+                    new TimelineMarker
+                    {
+                        Id = Guid.NewGuid(), Seconds = 18.25,
+                        Description = "Tablica rejestracyjna: WA12345 (numer potwierdzony ręcznie)",
+                        VehicleMake = "Toyota"
+                    }
+                });
+                var vm = new HistoryViewModel();
+                vm.AttachService(service);
+                Assert.True(vm.IsReady);
+                var results = vm.SearchMarkers("WA12345", "Toyota", "recording");
+                Assert.Single(results);
+                Assert.Equal("WA12345", results[0].PlateNumber);
+
+                var export = new ExportHistoryItem
+                {
+                    SourcePath = source, OutputPath = Path.Combine(directory, "clip.mp4"),
+                    Operation = "Eksport fragmentu", CreatedLocal = DateTime.Now, Details = "Test"
+                };
+                Assert.Null(vm.AddExport(export));
+                Assert.Single(vm.LoadExports(source));
+                Assert.Equal(export.OutputPath, vm.LoadExports(source)[0].OutputPath);
+            }
+            finally { try { Directory.Delete(directory, true); } catch { } }
         }
     }
 }

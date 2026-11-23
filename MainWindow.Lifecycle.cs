@@ -15,15 +15,16 @@ namespace VideoPlayer
         {
             try
             {
-                _historyService = new HistoryService();
-                ViewModel.PlateSearch.AttachSearchProvider((plate, make, source) => _historyService.SearchMarkers(plate, make, source));
+                var historyService = new HistoryService();
+                ViewModel.History.AttachService(historyService);
+                ViewModel.EventCenter.AttachHistoryService(historyService);
+                ViewModel.PlateSearch.AttachSearchProvider(ViewModel.History.SearchMarkers);
                 _cases = new CaseRepository();
                 ViewModel.Cases.AttachRepository(_cases);
                 _reviews = new ReviewRepository();
                 _exports = new ExportService(_ffmpegService);
                 _reports = new ReportService(_exports);
-                ViewModel.Cases.AttachReportService(new CaseReportService(_cases, _historyService, _mediaInfoService, _reports));
-                ViewModel.History.AttachService(_historyService);
+                ViewModel.Cases.AttachReportService(new CaseReportService(_cases, historyService, _mediaInfoService, _reports));
                 LoadDahuaDeviceList();
                 await StartPlayerAsync();
                 InitializeVideoMouseInput();

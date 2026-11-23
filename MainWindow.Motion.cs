@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -65,7 +64,7 @@ namespace VideoPlayer
 
             try
             {
-                List<MotionDetectionService.MotionEvent> found = await ViewModel.Motion.Service.AnalyzeAsync(
+                List<MotionDetectionService.MotionEvent> found = await ViewModel.Motion.AnalyzeAsync(
                     Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe"),
                     source,
                     duration,
@@ -78,17 +77,7 @@ namespace VideoPlayer
 
                 if (_closing || !string.Equals(source, _sourceFilePath, StringComparison.OrdinalIgnoreCase)) return;
 
-                var addedMarkers = found.Select(item => new TimelineMarker
-                {
-                    Id = Guid.NewGuid(),
-                    Seconds = Math.Clamp(item.StartSeconds, 0, PositionSlider.Maximum),
-                    EndSeconds = Math.Clamp(item.EndSeconds, 0, PositionSlider.Maximum),
-                    MotionX = item.MotionX,
-                    MotionY = item.MotionY,
-                    MotionWidth = item.MotionWidth,
-                    MotionHeight = item.MotionHeight,
-                    Description = $"Ruch ({item.PeakChangedRatio:0.0}% zaznaczonego obszaru)"
-                }).ToList();
+                List<TimelineMarker> addedMarkers = ViewModel.Motion.CreateMarkers(found, PositionSlider.Maximum);
 
                 ViewModel.EventCenter.AddMarkers(addedMarkers);
                 SaveTimelineMarkers();
@@ -137,7 +126,7 @@ namespace VideoPlayer
             try
             {
                 string ffmpeg = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-                byte[] bmpBytes = await MotionDetectionService.ExtractPreviewBmpAsync(ffmpeg, _sourceFilePath, marker.Seconds);
+                byte[] bmpBytes = await ViewModel.Motion.ExtractPreviewBmpAsync(ffmpeg, _sourceFilePath, marker.Seconds);
                 if (_closing) return;
                 new MotionEventPreviewWindow(bmpBytes, x, y, w, h) { Owner = this }.ShowDialog();
             }

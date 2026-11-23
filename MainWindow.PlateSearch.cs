@@ -12,7 +12,7 @@ namespace VideoPlayer
 
         private async void PlateSearch_Click(object sender, RoutedEventArgs e)
         {
-            if (_historyService == null)
+            if (!ViewModel.History.IsReady)
             {
                 MessageBox.Show(this, "Historia nie została jeszcze zainicjalizowana.", "Wyszukiwarka tablic");
                 return;
@@ -28,7 +28,7 @@ namespace VideoPlayer
 
         private async void PlateSearchExpander_Expanded(object sender, RoutedEventArgs e)
         {
-            if (_historyService != null && !_plateSearchLoadedOnce)
+            if (ViewModel.History.IsReady && !_plateSearchLoadedOnce)
             {
                 _plateSearchLoadedOnce = true;
                 await ViewModel.PlateSearch.SearchAsync();

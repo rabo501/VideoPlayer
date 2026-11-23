@@ -220,25 +220,17 @@ namespace VideoPlayer
 
         private void LoadTimelineMarkers()
         {
-            if (!string.IsNullOrWhiteSpace(_sourceFilePath) && File.Exists(_sourceFilePath))
-                ViewModel.EventCenter.SetMarkers(_historyService.LoadMarkers(_sourceFilePath));
-            else
-                ViewModel.EventCenter.SetMarkers(Array.Empty<TimelineMarker>());
+            string? error = ViewModel.EventCenter.LoadMarkersForSource(_sourceFilePath);
+            if (!string.IsNullOrWhiteSpace(error))
+                ViewModel.StatusMessage = "Nie udało się wczytać znaczników: " + error;
             UpdateTimelineOverlay();
         }
 
         private void SaveTimelineMarkers()
         {
-            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
-                return;
-            try
-            {
-                _historyService.SaveMarkers(_sourceFilePath, ViewModel.EventCenter.AllMarkers);
-            }
-            catch (Exception ex)
-            {
-                ViewModel.StatusMessage = "Nie udało się zapisać znaczników: " + ex.Message;
-            }
+            string? error = ViewModel.EventCenter.SaveMarkersForSource(_sourceFilePath);
+            if (!string.IsNullOrWhiteSpace(error))
+                ViewModel.StatusMessage = "Nie udało się zapisać znaczników: " + error;
         }
 
         private void AddMarker_Click(object sender, RoutedEventArgs e)

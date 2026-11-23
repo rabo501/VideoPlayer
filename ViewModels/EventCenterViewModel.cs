@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,8 +11,34 @@ namespace VideoPlayer.ViewModels
     internal sealed partial class EventCenterViewModel : ObservableObject
     {
         private readonly List<TimelineMarker> _allMarkers = new();
+        private HistoryService? _historyService;
 
         public ObservableCollection<TimelineMarker> VisibleMarkers { get; } = new();
+
+        public void AttachHistoryService(HistoryService historyService)
+        {
+            _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
+        }
+
+        public string? LoadMarkersForSource(string? sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                SetMarkers(Array.Empty<TimelineMarker>());
+                return null;
+            }
+            if (_historyService == null) return "Historia znaczników nie została zainicjalizowana.";
+            try { SetMarkers(_historyService.LoadMarkers(sourcePath)); return null; }
+            catch (Exception ex) { SetMarkers(Array.Empty<TimelineMarker>()); return ex.Message; }
+        }
+
+        public string? SaveMarkersForSource(string? sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath)) return null;
+            if (_historyService == null) return "Historia znaczników nie została zainicjalizowana.";
+            try { _historyService.SaveMarkers(sourcePath, _allMarkers); return null; }
+            catch (Exception ex) { return ex.Message; }
+        }
 
         public IReadOnlyList<TimelineMarker> AllMarkers => _allMarkers;
 

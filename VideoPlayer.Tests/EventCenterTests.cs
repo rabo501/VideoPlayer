@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using VideoPlayer.ViewModels;
 using Xunit;
 
@@ -61,6 +62,32 @@ namespace VideoPlayer.Tests
 
             Assert.Same(marker, vm.SelectedMarker);
             Assert.Equal("Dostawa paczki", vm.MarkerDescription);
+        }
+
+        [Fact]
+        public void EventCenterViewModel_PersistsMarkersThroughHistoryService()
+        {
+            string directory = Path.Combine(Path.GetTempPath(), "VideoPlayer_EventCenter_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            string source = Path.Combine(directory, "recording.mp4");
+            File.WriteAllBytes(source, Array.Empty<byte>());
+            try
+            {
+                var service = new HistoryService(directory);
+                var vm = new EventCenterViewModel();
+                vm.AttachHistoryService(service);
+                var marker = new TimelineMarker { Id = Guid.NewGuid(), Seconds = 12.5, Description = "Wejście osoby" };
+                vm.AddMarker(marker);
+                Assert.Null(vm.SaveMarkersForSource(source));
+
+                var restored = new EventCenterViewModel();
+                restored.AttachHistoryService(service);
+                Assert.Null(restored.LoadMarkersForSource(source));
+                Assert.Single(restored.AllMarkers);
+                Assert.Equal(marker.Id, restored.AllMarkers[0].Id);
+                Assert.Equal(marker.Description, restored.AllMarkers[0].Description);
+            }
+            finally { try { Directory.Delete(directory, true); } catch { } }
         }
     }
 }

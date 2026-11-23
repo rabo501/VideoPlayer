@@ -20,6 +20,7 @@ namespace VideoPlayer.ViewModels
 
         public ObservableCollection<RecentMediaEntry> RecentFiles { get; } = new();
         public ObservableCollection<RecentMediaEntry> RecentScreenshots { get; } = new();
+        public bool IsReady => _historyService != null;
 
         [ObservableProperty]
         private RecentMediaEntry? _selectedRecentFile;
@@ -55,6 +56,25 @@ namespace VideoPlayer.ViewModels
             InsertUnique(RecentScreenshots, path, 30);
             SelectedRecentScreenshot = RecentScreenshots.FirstOrDefault();
             return TrySave();
+        }
+
+        public List<PlateSearchResult> SearchMarkers(string plate, string make, string source)
+        {
+            if (_historyService == null) throw new InvalidOperationException("Historia nie została jeszcze zainicjalizowana.");
+            return _historyService.SearchMarkers(plate, make, source);
+        }
+
+        public List<ExportHistoryItem> LoadExports(string sourcePath)
+        {
+            if (_historyService == null) throw new InvalidOperationException("Historia nie została jeszcze zainicjalizowana.");
+            return _historyService.LoadExports(sourcePath);
+        }
+
+        public string? AddExport(ExportHistoryItem item)
+        {
+            if (_historyService == null) return "Historia nie została jeszcze zainicjalizowana.";
+            try { _historyService.AddExport(item); return null; }
+            catch (Exception ex) { return ex.Message; }
         }
 
         private string? TrySave()

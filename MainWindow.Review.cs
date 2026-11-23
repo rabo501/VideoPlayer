@@ -160,7 +160,7 @@ namespace VideoPlayer
         {
             try
             {
-                _historyService.AddExport(new ExportHistoryItem
+                string? historyError = ViewModel.History.AddExport(new ExportHistoryItem
                 {
                     SourcePath = source,
                     OutputPath = output,
@@ -170,6 +170,8 @@ namespace VideoPlayer
                     CreatedLocal = DateTime.Now,
                     Details = details
                 });
+                if (!string.IsNullOrWhiteSpace(historyError))
+                    ViewModel.StatusMessage = "Plik został utworzony, ale nie udało się zapisać historii eksportu: " + historyError;
             }
             catch (Exception ex)
             {
@@ -210,7 +212,7 @@ namespace VideoPlayer
 
                 string source = _sourceFilePath!;
                 await _reports.CsvAsync(source, MarkerSnapshot(), output, ViewModel.Cases.ToReportMetadata(),
-                    ViewModel.Export.CurrentMediaInfo, _historyService.LoadExports(source), ct).ConfigureAwait(false);
+                    ViewModel.Export.CurrentMediaInfo, ViewModel.History.LoadExports(source), ct).ConfigureAwait(false);
                 return "Zapisano raport CSV: " + output;
             }, requireSource: selectedCase == null);
         }
@@ -251,7 +253,7 @@ namespace VideoPlayer
 
                 string source = _sourceFilePath!;
                 await _reports.PdfAsync(source, MarkerSnapshot(), output, images, ViewModel.Cases.ToReportMetadata(),
-                    ViewModel.Export.CurrentMediaInfo, _historyService.LoadExports(source), progress, ct).ConfigureAwait(false);
+                    ViewModel.Export.CurrentMediaInfo, ViewModel.History.LoadExports(source), progress, ct).ConfigureAwait(false);
                 return "Zapisano raport PDF: " + output;
             }, requireSource: selectedCase == null);
         }
