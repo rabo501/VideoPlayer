@@ -1359,15 +1359,17 @@ namespace VideoPlayer
             int width = Math.Max(1, (int)Math.Round(baseWidth * slot.Zoom));
             int height = Math.Max(1, (int)Math.Round(baseHeight * slot.Zoom));
 
-            // Przy pierwszym dopasowaniu wyśrodkuj obraz (zarówno Fit, jak i Fill).
-            if (slot.PanX == 0 && slot.PanY == 0)
-            {
+            // Każdą oś centruj niezależnie. Wymiary źródła mogą zostać
+            // zaktualizowane dopiero po odebraniu pierwszej klatki z rejestratora;
+            // wtedy jedna oś może już mieć wyliczone przesunięcie, a druga nadal zero.
+            // Zero oznacza pozycję początkową — wyznaczamy dla niej środek obrazu.
+            if (slot.PanX == 0)
                 slot.PanX = (int)Math.Round((viewportWidth - width) / 2.0);
+            if (slot.PanY == 0)
                 slot.PanY = (int)Math.Round((viewportHeight - height) / 2.0);
-            }
-            // Gdy obraz jest mniejszy od viewportu, pozycja musi być dodatnia,
-            // aby pozostawić go na środku. Gdy obraz jest większy, zakres przesuwania
-            // pozostaje ujemny lub równy zero, aby nie odsłaniać pustych krawędzi.
+
+            // Gdy obraz jest mniejszy od viewportu, pozycja może być dodatnia.
+            // Gdy jest większy, ograniczamy przesunięcie do zakresu bez pustych krawędzi.
             int minPanX = Math.Min(0, viewportWidth - width);
             int maxPanX = Math.Max(0, viewportWidth - width);
             int minPanY = Math.Min(0, viewportHeight - height);
