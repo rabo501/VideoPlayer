@@ -1292,29 +1292,54 @@
                                                 <TextBlock Text="Pobierz nagranie wg kanału i czasu, aby wczytać je bezpośrednio do głównego odtwarzacza (klatkowanie, OCR, cięcie i eksport MP4/PDF)." Foreground="#DCFCE7" FontSize="11" TextWrapping="Wrap" />
                                             </Border>
 
-                                            <TextBlock Text="POJEDYNCZY KANAŁ — WYSZUKIWANIE / POBIERANIE" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,3" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
-                                            <TextBlock Text="Ten wybór dotyczy wyszukiwania i pobierania jednego nagrania. Nie zmienia listy kanałów odtwarzanych równocześnie w głównym oknie." Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,9" />
+                                            <Border Background="#171F2B" BorderBrush="#3B4A60" BorderThickness="1"
+                                                    CornerRadius="7" Padding="9" Margin="0,0,0,9">
+                                                <StackPanel>
+                                                    <TextBlock Text="WYSZUKIWANIE POJEDYNCZEGO NAGRANIA"
+                                                               Foreground="#BFDBFE" FontSize="11" FontWeight="Bold"
+                                                               Margin="0,0,0,8" />
+                                                    <TextBlock Text="KANAŁ KAMERY" Style="{StaticResource DahuaFieldLabel}" />
+                                                    <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,4"
+                                                              IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                              SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
+                                                    <TextBlock Text="Wybór dotyczy wyszukiwania i pobierania jednego nagrania. Nie zmienia listy kanałów odtwarzanych równocześnie."
+                                                               Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap"
+                                                               Margin="0,0,0,9" />
 
-                                            <TextBlock Text="POCZĄTEK (OD)" Style="{StaticResource DahuaFieldLabel}" />
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.4*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <DatePicker x:Name="DahuaStartDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
-                                                <TextBox x:Name="DahuaStartTimeBox" Grid.Column="1" Text="12:00:00" FontWeight="Bold" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" />
-                                            </Grid>
-
-                                            <TextBlock Text="KONIEC (DO)" Style="{StaticResource DahuaFieldLabel}" />
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.4*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <DatePicker x:Name="DahuaEndDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
-                                                <TextBox x:Name="DahuaEndTimeBox" Grid.Column="1" Text="12:15:00" FontWeight="Bold" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" />
-                                            </Grid>
+                                                    <Grid Margin="0,0,0,7">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="POCZĄTEK (OD)" Style="{StaticResource DahuaFieldLabel}" />
+                                                        <TextBlock Grid.Column="1" Text="KONIEC (DO)" Style="{StaticResource DahuaFieldLabel}" />
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="1.4*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <DatePicker x:Name="DahuaStartDatePicker" Style="{StaticResource DahuaDatePickerStyle}"
+                                                                    Grid.Column="0" Margin="0,0,6,0"
+                                                                    IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                                    CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
+                                                        <TextBox x:Name="DahuaStartTimeBox" Grid.Column="1" Text="12:00:00"
+                                                                 FontWeight="Bold" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="1.4*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <DatePicker x:Name="DahuaEndDatePicker" Style="{StaticResource DahuaDatePickerStyle}"
+                                                                    Grid.Column="0" Margin="0,0,6,0"
+                                                                    IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                                    CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
+                                                        <TextBox x:Name="DahuaEndTimeBox" Grid.Column="1" Text="12:15:00"
+                                                                 FontWeight="Bold" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
 
                                             <Border Background="#14243A" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,2,0,8">
                                                 <StackPanel>
@@ -1347,9 +1372,13 @@
                                             </WrapPanel>
                                             <TextBlock x:Name="DahuaCalendarAvailabilityStatusText" Text="{Binding Dahua.CalendarAvailabilityStatusText}" Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6" />
 
-                                            <Button x:Name="DahuaSearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="DahuaSearchArchive_Click" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" Style="{StaticResource DahuaBlueButton}" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+                                            <Button x:Name="DahuaSearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze"
+                                                    Click="DahuaSearchArchive_Click" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                    Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch"
+                                                    Margin="0,0,0,8" />
 
-                                            <DataGrid x:Name="DahuaArchiveRecordsGrid" Height="165" AutoGenerateColumns="False"
+                                            <TextBlock Text="WYNIKI WYSZUKIWANIA" Style="{StaticResource DahuaFieldLabel}" Margin="0,2,0,6" />
+                                            <DataGrid x:Name="DahuaArchiveRecordsGrid" Height="185" AutoGenerateColumns="False"
                                                       ItemsSource="{Binding Dahua.ArchiveRecords}"
                                                       IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
                                                       CanUserAddRows="False" CanUserDeleteRows="False"
