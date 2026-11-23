@@ -1,10 +1,43 @@
 using System;
+using VideoPlayer.ViewModels;
 using Xunit;
 
 namespace VideoPlayer.Tests
 {
     public sealed class DahuaSessionServiceTests
     {
+        [Fact]
+        public void DahuaViewModel_ValidatesDeviceConfigurationAndParsesPortsInvariantly()
+        {
+            bool valid = DahuaViewModel.TryValidateDeviceConfiguration(
+                "Rejestrator", "192.168.55.30", "37777", "80", "admin", "secret",
+                out ushort port, out ushort httpPort, out string error);
+
+            Assert.True(valid);
+            Assert.Equal((ushort)37777, port);
+            Assert.Equal((ushort)80, httpPort);
+            Assert.Equal(string.Empty, error);
+        }
+
+        [Theory]
+        [InlineData("", "192.168.55.30", "37777", "80", "admin", "secret")]
+        [InlineData("NVR", "", "37777", "80", "admin", "secret")]
+        [InlineData("NVR", "192.168.55.30", "0", "80", "admin", "secret")]
+        [InlineData("NVR", "192.168.55.30", "37777", "0", "admin", "secret")]
+        [InlineData("NVR", "192.168.55.30", "37777", "65536", "admin", "secret")]
+        [InlineData("NVR", "192.168.55.30", "37777", "80", "", "secret")]
+        [InlineData("NVR", "192.168.55.30", "37777", "80", "admin", "")]
+        public void DahuaViewModel_RejectsInvalidDeviceConfiguration(
+            string name, string address, string sdkPort, string httpPort, string username, string password)
+        {
+            bool valid = DahuaViewModel.TryValidateDeviceConfiguration(
+                name, address, sdkPort, httpPort, username, password,
+                out _, out _, out string error);
+
+            Assert.False(valid);
+            Assert.False(string.IsNullOrWhiteSpace(error));
+        }
+
         [Theory]
         [InlineData("192.168.1.108", "37777", true, 37777)]
         [InlineData("nvr.local", "8000", true, 8000)]
