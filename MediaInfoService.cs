@@ -8,7 +8,12 @@ using System.Threading.Tasks;
 
 namespace VideoPlayer
 {
-    internal sealed class MediaInfoService
+    internal interface IMediaInfoReader
+    {
+        Task<MediaInfoData> ReadAsync(string sourcePath, CancellationToken ct = default);
+    }
+
+    internal sealed class MediaInfoService : IMediaInfoReader
     {
         private readonly string _ffmpegPath;
         public MediaInfoService(string ffmpegPath) => _ffmpegPath = ffmpegPath;
