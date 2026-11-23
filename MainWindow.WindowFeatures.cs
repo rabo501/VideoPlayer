@@ -49,6 +49,8 @@ namespace VideoPlayer
                 if (_windowSettings.IsMaximized) WindowState = WindowState.Maximized;
 
                 _toolsWidth = Math.Clamp(_windowSettings.ToolsWidth, 320, 1100);
+                if (_windowSettings.ToolsVisible && ToolsColumn != null)
+                    ToolsColumn.Width = new GridLength(_toolsWidth);
                 if (ToolsTabs != null)
                     ToolsTabs.SelectedIndex = Math.Clamp(_windowSettings.SelectedTabIndex, 0, Math.Max(0, ToolsTabs.Items.Count - 1));
                 if (SpeedBox != null && SpeedBox.Items.Count > 0)
