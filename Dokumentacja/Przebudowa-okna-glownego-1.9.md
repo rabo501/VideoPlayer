@@ -88,9 +88,16 @@ Wymagana jest kompilacja i test w Windows: wybór kanału, dat i godzin, wyszuka
 ## Dziewiąty zakres zmian — konfigurowalny układ, pełny ekran i monitory
 - dodanie zapisu ustawień interfejsu w profilu użytkownika Windows (LocalAppData): rozmiar i położenie okna, stan maksymalizacji, szerokość i widoczność panelu narzędzi, wybrana zakładka, prędkość odtwarzania i skala obrazu;
 - odtwarzanie zapisanej geometrii z kontrolą, czy okno pozostaje na dostępnym ekranie; ustawienia nie są zapisywane w katalogu programu ani w bazie spraw;
-- możliwość odłączenia hosta mpv do osobnego, pełnoekranowego okna; przy wielu monitorach okno podglądu jest umieszczane na następnym ekranie, a klawisz Esc przywraca podgląd do głównego okna;
-- przycisk oraz pozycje menu do otwierania i przywracania podglądu; główny panel narzędzi pozostaje w oknie roboczym;
-- skróty: F11 — odłącz/pełny ekran podglądu, Esc — powrót z odłączonego podglądu, Spacja — pauza/odtwarzanie, strzałki lewo/prawo — klatka, I/O — początek/koniec fragmentu, S — zrzut klatki, R — reset widoku, Ctrl+O — otwarcie pliku, Ctrl+D — tryb Dahua;
+- pełny ekran realizowany w tym samym oknie i na tym samym natywnym hoście wideo; ukrywane są panele narzędzi oraz dolne paski, a okno jest maksymalizowane bez przenoszenia hostów `WindowsFormsHost`/`PictureBox` między oknami;
+- przycisk oraz pozycje menu do włączania i wyłączania pełnego ekranu; po wyjściu przywracana jest poprzednia widoczność panelu, pasków i stan okna;
+- skróty: F11 — pełny ekran podglądu, Esc — powrót do zwykłego układu, Spacja — pauza/odtwarzanie, strzałki lewo/prawo — klatka, I/O — początek/koniec fragmentu, S — zrzut klatki, R — reset widoku, Ctrl+O — otwarcie pliku, Ctrl+D — tryb Dahua;
 - bez zmian w komunikacji IPC z mpv, odtwarzaniu, synchronizacji suwaka, eksporcie, OCR i obsłudze SDK Dahua.
 
 Wymagane testy Windows: zamknięcie i ponowne uruchomienie z zapamiętanym rozmiarem/położeniem; zmiana szerokości i ukrywanie panelu; odłączenie podglądu na jednym i dwóch monitorach; powrót klawiszem Esc; skróty podczas odtwarzania i podczas edycji pól tekstowych.
+
+
+### Korekta dziewiątego zakresu — stabilność podglądu Live
+- zrezygnowano z przenoszenia natywnych hostów `WindowsFormsHost`/mpv oraz `PictureBox` Dahua do osobnego okna;
+- takie przepinanie uchwytów okiennych mogło zatrzymać odświeżanie strumienia Live po powrocie;
+- pełny ekran działa teraz przez maksymalizację głównego okna i ukrycie panelu narzędzi oraz dolnych pasków, bez zmiany rodzica kontrolki renderującej obraz;
+- zachowano ten sam host i kontekst SDK/MPV przez cały czas przełączania.
