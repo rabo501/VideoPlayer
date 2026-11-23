@@ -366,14 +366,14 @@ namespace VideoPlayer.ViewModels
                 device.EnsureDefaultChannels(channelCount);
 
             List<DahuaChannelInfo> remoteChannels =
-                await Session.QueryChannelNamesAsync(channelCount, ct).ConfigureAwait(false);
+                await Session.QueryChannelNamesAsync(channelCount, ct);
 
             int? presetCount = null;
             string? presetError = null;
             try
             {
                 List<DahuaPresetItem> remotePresets =
-                    await DahuaSessionService.QueryPresetsAsync(device, channel, ct).ConfigureAwait(false);
+                    await DahuaSessionService.QueryPresetsAsync(device, channel, ct);
                 device.UpdateFromDevicePresets(remotePresets);
                 presetCount = remotePresets.Count;
             }
@@ -427,13 +427,13 @@ namespace VideoPlayer.ViewModels
             if (presetNumber < 1 || presetNumber > 255)
                 throw new ArgumentOutOfRangeException(nameof(presetNumber));
 
-            await DahuaSessionService.SetPresetPositionAsync(device, channel, presetNumber, ct).ConfigureAwait(false);
+            await DahuaSessionService.SetPresetPositionAsync(device, channel, presetNumber, ct);
 
             bool nameSaved = true;
             string nameError = string.Empty;
             try
             {
-                await DahuaSessionService.SetPresetNameAsync(device, channel, presetNumber, presetName, ct).ConfigureAwait(false);
+                await DahuaSessionService.SetPresetNameAsync(device, channel, presetNumber, presetName, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -462,7 +462,7 @@ namespace VideoPlayer.ViewModels
             if (string.IsNullOrWhiteSpace(newName))
                 throw new ArgumentException("Nazwa presetu nie może być pusta.", nameof(newName));
 
-            await DahuaSessionService.SetPresetNameAsync(device, channel, presetNumber, newName.Trim(), ct).ConfigureAwait(false);
+            await DahuaSessionService.SetPresetNameAsync(device, channel, presetNumber, newName.Trim(), ct);
             var preset = device.Presets.FirstOrDefault(item => item.PresetNumber == presetNumber);
             if (preset != null)
                 preset.Name = newName.Trim();
@@ -476,7 +476,7 @@ namespace VideoPlayer.ViewModels
         {
             EnsureConnectedDevice(device);
             List<DahuaPresetItem> remotePresets =
-                await DahuaSessionService.QueryPresetsAsync(device, channel, ct).ConfigureAwait(false);
+                await DahuaSessionService.QueryPresetsAsync(device, channel, ct);
             device.UpdateFromDevicePresets(remotePresets);
             SaveDevices();
             StatusText = $"Odczytano {remotePresets.Count} presetów dla kanału {channel}.";
@@ -486,7 +486,7 @@ namespace VideoPlayer.ViewModels
             DahuaDeviceItem device, int channel, int presetNumber, CancellationToken ct = default)
         {
             EnsureConnectedDevice(device);
-            await DahuaSessionService.DeletePresetAsync(device, channel, presetNumber, ct).ConfigureAwait(false);
+            await DahuaSessionService.DeletePresetAsync(device, channel, presetNumber, ct);
             device.Presets.RemoveAll(preset => preset.PresetNumber == presetNumber);
             SaveDevices();
             StatusText = $"Usunięto preset {presetNumber} z urządzenia.";
