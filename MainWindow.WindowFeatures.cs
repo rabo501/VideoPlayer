@@ -74,7 +74,7 @@ namespace VideoPlayer
 
         private void SaveWindowSettings()
         {
-            if (_restoringWindowSettings || !IsInitialized || _closing) return;
+            if (_restoringWindowSettings || !IsInitialized) return;
             try
             {
                 if (WindowState == WindowState.Normal)
