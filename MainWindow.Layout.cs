@@ -15,14 +15,14 @@ namespace VideoPlayer
             Dahua
         }
 
-        private double _toolsWidth = 390;
+        private double _toolsWidth = 350;
         private WorkspaceMode _workspaceMode = WorkspaceMode.Player;
         private bool _switchingWorkspace;
 
         private void ConstrainToolsWidth()
         {
             if (ToolsColumn == null || ActualWidth <= 0) return;
-            ToolsColumn.MaxWidth = Math.Max(320, (ActualWidth - 40) * 0.55);
+            ToolsColumn.MaxWidth = Math.Max(300, (ActualWidth - 40) * 0.55);
         }
 
         private void ToggleTools_Click(object sender, RoutedEventArgs e)
@@ -35,8 +35,8 @@ namespace VideoPlayer
             if (visible)
             {
                 ConstrainToolsWidth();
-                ToolsColumn.MinWidth = 320;
-                ToolsColumn.Width = new GridLength(Math.Max(320, _toolsWidth));
+                ToolsColumn.MinWidth = 300;
+                ToolsColumn.Width = new GridLength(Math.Max(300, _toolsWidth));
                 ToolsSplitterColumn.Width = new GridLength(7);
                 ToolsPanel.Visibility = Visibility.Visible;
                 ToolsSplitter.Visibility = Visibility.Visible;
