@@ -10,6 +10,8 @@ namespace VideoPlayer.ViewModels
     internal sealed partial class ExportViewModel : ObservableObject, IDisposable
     {
         private CancellationTokenSource? _operationCts;
+        private CancellationTokenSource? _mediaInfoCts;
+        private IMediaInfoReader? _mediaInfoReader;
 
         public ObservableCollection<ClipRange> Clips { get; } = new();
 
@@ -66,6 +68,63 @@ namespace VideoPlayer.ViewModels
         private string? _lastExportSummary;
 
         public bool CanStartOperation => !IsBusy && !IsMotionRunning;
+
+        public void AttachMediaInfoReader(IMediaInfoReader reader)
+        {
+            _mediaInfoReader = reader ?? throw new ArgumentNullException(nameof(reader));
+        }
+
+        public async Task LoadMediaInfoAsync(string sourcePath)
+        {
+            if (_mediaInfoReader == null)
+            {
+                SetMediaInfoError("Odczyt parametrów nagrania nie został zainicjalizowany.");
+                return;
+            }
+
+            CancelMediaInfoLoad();
+            var cts = new CancellationTokenSource();
+            _mediaInfoCts = cts;
+            _currentSourcePath = sourcePath;
+            _currentMediaInfo = null;
+            MediaInfoText = "Odczytywanie parametrów…";
+
+            try
+            {
+                MediaInfoData info = await _mediaInfoReader.ReadAsync(sourcePath, cts.Token);
+                if (!IsCurrentMediaInfoRequest(cts, sourcePath))
+                    return;
+
+                SetMediaInfo(info, sourcePath);
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+                // A newer recording was opened or the application is closing.
+            }
+            catch (Exception ex)
+            {
+                if (IsCurrentMediaInfoRequest(cts, sourcePath))
+                    SetMediaInfoError(ex.Message);
+            }
+            finally
+            {
+                if (ReferenceEquals(_mediaInfoCts, cts))
+                    _mediaInfoCts = null;
+                cts.Dispose();
+            }
+        }
+
+        public void CancelMediaInfoLoad()
+        {
+            CancellationTokenSource? cts = _mediaInfoCts;
+            _mediaInfoCts = null;
+            cts?.Cancel();
+        }
+
+        private bool IsCurrentMediaInfoRequest(CancellationTokenSource cts, string sourcePath) =>
+            ReferenceEquals(_mediaInfoCts, cts) &&
+            !cts.IsCancellationRequested &&
+            string.Equals(_currentSourcePath, sourcePath, StringComparison.OrdinalIgnoreCase);
 
         public bool HasValidRange => ExportWorkspaceService.HasValidRange(ClipStart, ClipEnd);
 
@@ -146,6 +205,7 @@ namespace VideoPlayer.ViewModels
 
         public void ResetForNewMedia(string? sourcePath)
         {
+            CancelMediaInfoLoad();
             _currentSourcePath = sourcePath;
             _currentMediaInfo = null;
             _lastExportSummary = null;
@@ -230,6 +290,7 @@ namespace VideoPlayer.ViewModels
 
         public void Dispose()
         {
+            CancelMediaInfoLoad();
             _operationCts?.Cancel();
             _operationCts?.Dispose();
             _operationCts = null;
