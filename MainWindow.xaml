@@ -716,8 +716,20 @@
             <Border Grid.Column="0" Background="#050608" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
                 <Grid>
                     <!-- 1. Odtwarzacz lokalny mpv -->
-                    <Grid x:Name="PlayerViewportLayer" Visibility="Visible">
+                    <Grid x:Name="PlayerViewportLayer" Visibility="Visible" Background="#050608" ClipToBounds="True">
                         <wfi:WindowsFormsHost x:Name="VideoHost" Background="#050608" />
+
+                        <!-- Dyskretna etykieta warstwy podglądu; nie przechwytuje myszy ani klawiatury -->
+                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
+                                Background="#B8141A24" BorderBrush="#465367" BorderThickness="1"
+                                CornerRadius="5" Padding="9,5" IsHitTestVisible="False">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="6" Height="6" Fill="#60A5FA"
+                                         VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="PODGLĄD WIDEO" Foreground="#E2E8F0"
+                                           FontSize="10" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
 
                     <!-- 2. Wbudowany moduł lokalnego rozpoznawania tablic (OCR) na dużym podglądzie -->
