@@ -426,8 +426,7 @@ namespace VideoPlayer
                         appliedNames = ViewModel.Dahua.ApplyDeviceChannelNames(device, result.RemoteChannels);
                 }
 
-                if (result.PresetCount.HasValue)
-                    ViewModel.Dahua.SaveDevices();
+                ViewModel.Dahua.SaveDevices();
 
                 RefreshDahuaChannelLists();
                 RefreshDahuaPresetsList();
