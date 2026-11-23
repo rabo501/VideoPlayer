@@ -17,7 +17,7 @@ namespace VideoPlayer.Services
                 size /= 1024;
                 unit++;
             }
-            return $"{size:0.##} {units[unit]}";
+            return $"{size.ToString("0.##", CultureInfo.InvariantCulture)} {units[unit]}";
         }
 
         public static string FormatClipTime(double seconds)
