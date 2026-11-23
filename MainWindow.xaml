@@ -1615,20 +1615,20 @@
         </Grid>
 
         <!-- Dolna oś czasu odtwarzacza mpv — układ wizualny bez zmian w mechanice suwaka -->
-        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="86" Background="#1B2029"
-                BorderBrush="#3A4658" BorderThickness="1" CornerRadius="8"
-                Padding="12,7" Margin="0,0,0,0">
+        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="66" Background="#1B2029"
+                BorderBrush="#343B48" BorderThickness="1" CornerRadius="7"
+                Padding="8,4" Margin="0,0,0,4">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="22" />
+                    <RowDefinition Height="17" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <DockPanel LastChildFill="True">
                     <Border DockPanel.Dock="Left" Background="#26364D" CornerRadius="4" Padding="7,2" Margin="0,0,9,0">
-                        <TextBlock Text="OŚ CZASU" FontSize="10" FontWeight="Bold" Foreground="#C8DCFA" />
+                        <TextBlock Text="OŚ CZASU" FontSize="9" FontWeight="Bold" Foreground="#C8DCFA" />
                     </Border>
-                    <TextBlock Text="I / O — zaznaczanie fragmentu   •   Znaczniki — kliknij punkt, aby przejść do zdarzenia"
-                               FontSize="10" Foreground="#909DB1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="I / O — fragment  •  Znaczniki — przejście do zdarzenia"
+                               FontSize="9" Foreground="#909DB1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
@@ -1658,32 +1658,25 @@
 
         <!-- Responsywny pasek sterowania odtwarzaczem mpv -->
         <Border Grid.Row="3" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1"
-                CornerRadius="8" Padding="10,7" Margin="0,8,0,8">
-            <DockPanel LastChildFill="True">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2,0,0,6">
-                    <TextBlock Text="STEROWANIE ODTWARZANIEM" FontSize="10" FontWeight="Bold"
-                               Foreground="#8FA4C2" VerticalAlignment="Center" />
-                    <TextBlock Text="  •  klatki, odtwarzanie i analiza" FontSize="10"
-                               Foreground="#77869B" VerticalAlignment="Center" />
-                </StackPanel>
-                <Grid x:Name="PlayerTransportGrid" MinHeight="42">
+                CornerRadius="7" Padding="7,3" Margin="0,0,0,4">
+            <Grid x:Name="PlayerTransportGrid" MinHeight="38">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <WrapPanel Grid.Column="0" VerticalAlignment="Center">
-                        <Button Content="◀ Klatka" Click="PreviousFrame_Click" Margin="0,0,6,4" Padding="10,8" />
-                        <Button x:Name="PlayButton" Content="Play / Pauza" Style="{StaticResource PlayButtonStyle}" Click="PlayPause_Click" Margin="0,0,6,4" MinWidth="100" Padding="14,8" />
-                        <Button Content="Klatka ▶" Click="NextFrame_Click" Margin="0,0,14,4" Padding="10,8" />
-                        <Button x:Name="ScreenshotButton" Content="Zapisz klatkę (S)" Click="Screenshot_Click" Margin="0,0,6,4" Padding="10,8" />
-                        <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" IsEnabled="{Binding Motion.CanStart}" Margin="0,0,6,4" Padding="10,8" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
-                        <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Command="{Binding Motion.CancelCommand}" Visibility="{Binding Motion.IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,0,0,4" Padding="10,8" />
+                        <Button Content="◀ Klatka" Click="PreviousFrame_Click" Margin="0,0,5,0" Padding="8,5" />
+                        <Button x:Name="PlayButton" Content="Play / Pauza" Style="{StaticResource PlayButtonStyle}" Click="PlayPause_Click" Margin="0,0,5,0" MinWidth="94" Padding="10,5" />
+                        <Button Content="Klatka ▶" Click="NextFrame_Click" Margin="0,0,8,0" Padding="8,5" />
+                        <Button x:Name="ScreenshotButton" Content="Zapisz klatkę" Click="Screenshot_Click" Margin="0,0,5,0" Padding="8,5" />
+                        <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" IsEnabled="{Binding Motion.CanStart}" Margin="0,0,5,0" Padding="8,5" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
+                        <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Command="{Binding Motion.CancelCommand}" Visibility="{Binding Motion.IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0" Padding="8,5" />
                     </WrapPanel>
                     <Border Grid.Column="1" Background="#151A23" BorderBrush="#343B48" BorderThickness="1"
                             CornerRadius="6" Padding="8,3" Margin="8,0,0,4" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Prędkość" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#AEB9CA" FontSize="11" />
-                            <ComboBox x:Name="SpeedBox" Width="85" Margin="0" SelectedIndex="2" SelectionChanged="Speed_Changed" Height="34">
+                            <TextBlock Text="Tempo" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#AEB9CA" FontSize="10" />
+                            <ComboBox x:Name="SpeedBox" Width="76" Margin="0" SelectedIndex="2" SelectionChanged="Speed_Changed" Height="29">
                                 <ComboBoxItem Content="0,25×" Tag="0.25" />
                                 <ComboBoxItem Content="0,5×" Tag="0.5" />
                                 <ComboBoxItem Content="1×" Tag="1" />
@@ -1696,16 +1689,15 @@
                         </StackPanel>
                     </Border>
                 </Grid>
-            </DockPanel>
         </Border>
 
-        <!-- Stały pasek komunikatów i postępu operacji -->
-        <Border Grid.Row="4" Background="#171C25" BorderBrush="#3A4658" BorderThickness="1"
-                CornerRadius="8" Padding="11,7">
+        <!-- Zwarty pasek statusu i postępu — bez osobnego panelu narzędziowego -->
+        <Border Grid.Row="4" Background="#171C25" BorderBrush="#343B48" BorderThickness="0,1,0,0"
+                CornerRadius="0" Padding="7,3">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="18" />
                     <RowDefinition Height="21" />
-                    <RowDefinition Height="32" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -1714,7 +1706,7 @@
                 </Grid.ColumnDefinitions>
                 <DockPanel Grid.Row="0" Grid.ColumnSpan="3" LastChildFill="True">
                     <Border DockPanel.Dock="Left" Background="#26364D" CornerRadius="4" Padding="6,2" Margin="0,0,9,0">
-                        <TextBlock Text="STATUS" FontSize="9" FontWeight="Bold" Foreground="#C8DCFA" />
+                        <TextBlock Text="STATUS" FontSize="8" FontWeight="Bold" Foreground="#C8DCFA" />
                     </Border>
                     <Ellipse x:Name="StatusIndicator" Width="7" Height="7" Fill="#687386"
                              Margin="0,0,8,0" VerticalAlignment="Center" />
@@ -1733,7 +1725,7 @@
                 <Border Grid.Row="1" Grid.Column="1" Background="#242B38" CornerRadius="4"
                         Padding="2" VerticalAlignment="Center" Margin="0,0,10,0">
                     <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100"
-                                 Value="{Binding Export.ProgressPercent}" Height="8"
+                                 Value="{Binding Export.ProgressPercent}" Height="5"
                                  Background="#242B38" Foreground="#3478F6" BorderThickness="0" />
                 </Border>
                 <Button x:Name="CancelExportButton" Content="Anuluj" Padding="10,5" Margin="0"
