@@ -1013,7 +1013,9 @@
                                 
                                 
                                 
-                            </StackPanel>
+                            
+                                <Button Content="Przejdź do raportów →" Click="SelectReportsTab_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,10,0,4" ToolTip="Otwórz dane sprawy, archiwum i generowanie raportów CSV/PDF" />
+</StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
