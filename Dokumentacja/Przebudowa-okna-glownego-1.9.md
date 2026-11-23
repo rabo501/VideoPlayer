@@ -72,3 +72,14 @@ Wymagana jest kompilacja i kontrola w Windows: otwarcie lokalnego nagrania, ster
 - bez zmian w SDK, PTZ, presetach, podglądzie Live, archiwum i pobieraniu nagrań.
 
 Wymagana jest kompilacja i kontrola w Windows: status SDK po uruchomieniu, połączenie/rozłączenie z NVR, odczyt danych z urządzenia oraz przełączanie podzakładek Live/PTZ i Archiwum NVR.
+
+
+## Ósmy zakres zmian — formularz archiwum NVR
+- zgrupowanie wyszukiwania pojedynczego nagrania w odrębnym panelu: wybór kanału oraz zakres dat i godzin;
+- uporządkowanie etykiet początku i końca zakresu w jednym wierszu, przy zachowaniu osobnych pól daty i czasu;
+- wyróżnienie głównego przycisku wyszukiwania oraz dodanie czytelnego nagłówka wyników;
+- niewielkie zwiększenie wysokości tabeli wyników;
+- zachowanie nazw kontrolek, bindingów, zdarzeń kalendarza, wyboru kanału, odtwarzania, pobierania i synchronizacji wielokanałowej;
+- bez zmian w zapytaniach do NVR, formacie czasu, pobieraniu nagrań i logice archiwum.
+
+Wymagana jest kompilacja i test w Windows: wybór kanału, dat i godzin, wyszukanie nagrań, zaznaczenie wyniku, odtworzenie oraz wczytanie nagrania do głównego odtwarzacza. Należy też sprawdzić osobno odtwarzanie synchroniczne wielu kanałów.
