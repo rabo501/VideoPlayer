@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using VideoPlayer.ViewModels;
-using VideoPlayer.Services;
 
 namespace VideoPlayer
 {
