@@ -115,3 +115,13 @@ Wymagane testy: wszystkie tryby skali podczas Live, zmiana kanałów, przełącz
 
 ### Korekta skalowania — właściwe okna renderujące Dahua
 Poprzednia implementacja skalowała tylko `_dahuaPrimaryPictureBox`, podczas gdy standardowy podgląd Live jest uruchamiany w dynamicznych slotach `DahuaMultiViewSlot`. SDK otrzymuje uchwyt `slot.PictureBox`, dlatego poprzednia zmiana nie wpływała na widoczny strumień. Skorygowano `SetDahuaPrimaryScale`: skala jest teraz stosowana bezpośrednio do wszystkich aktywnych slotów, a ich PictureBox jest powiększany i przesuwany wewnątrz panelu przycinającego. Reset ustawia powiększenie 1× i zeruje przesunięcie. Tryb wypełnienia uwzględnia proporcje 16:9.
+
+
+### Korekta uruchamiania Live przy pierwszym połączeniu
+- uruchamianie strumieni Live zostało rozdzielone od samego tworzenia slotów podglądu;
+- po utworzeniu kafelków aplikacja wymusza zakończenie układu WPF/WindowsFormsHost, a dopiero potem pobiera uchwyty HWND kontrolek PictureBox i przekazuje je do Dahua NetSDK;
+- zapobiega to próbie rozpoczęcia renderowania, zanim host podglądu zostanie osadzony i ułożony w widocznym obszarze okna;
+- kolejne żądanie zmiany kanału/układu unieważnia poprzednie oczekujące uruchomienie, aby nie uruchamiać strumieni do nieaktualnych kontrolek;
+- status Live pokazuje liczbę uruchomionych kanałów oraz opis błędu SDK, jeśli nie wszystkie strumienie wystartują.
+
+Wymagany test: uruchomić program, przejść bezpośrednio do trybu Dahua, kliknąć „Połącz” i sprawdzić obraz bez wcześniejszego otwierania archiwum. Następnie sprawdzić zmianę kanału, zmianę układu, ponowne połączenie oraz uruchomienie archiwum.
