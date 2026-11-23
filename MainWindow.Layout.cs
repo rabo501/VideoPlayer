@@ -52,6 +52,7 @@ namespace VideoPlayer
             }
             ToolsPanelMenuItem.IsChecked = visible;
             PanelToggleButton.Content = visible ? "Ukryj panel ▶" : "◀ Pokaż panel";
+            SaveWindowSettings();
         }
 
         private void SetWorkspaceMode(WorkspaceMode mode, int? preferredTabIndex = null)
@@ -129,6 +130,7 @@ namespace VideoPlayer
         private void ToolsTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_switchingWorkspace || !IsLoaded || !ReferenceEquals(e.Source, ToolsTabs)) return;
+            SaveWindowSettings();
 
             if (ToolsTabs.SelectedIndex == 3)
             {
