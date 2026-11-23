@@ -207,6 +207,12 @@ namespace VideoPlayer
 
         private void ExitMenu_Click(object sender, RoutedEventArgs e) => Close();
 
+        private void SelectReportsTab_Click(object sender, RoutedEventArgs e)
+        {
+            SetToolsVisible(true);
+            ToolsTabs.SelectedIndex = 5;
+        }
+
         private void BasicHelp_Click(object sender, RoutedEventArgs e)
         {
             SetToolsVisible(true);
