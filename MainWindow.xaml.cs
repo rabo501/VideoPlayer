@@ -59,6 +59,7 @@ namespace VideoPlayer
             AboutAuthorVersionText.Text = $"Autor: Rafał Bonna  •  Wydanie: {productVersion}  •  Architektura: {RuntimeInformation.ProcessArchitecture}  •  © {DateTime.Now.Year}";
 
             VideoHost.Child = _videoPanel;
+            _videoPanel.MouseUp += VideoPanel_MouseUp;
             InitializeDahuaHost();
             InitializeOcrOverlayHandles();
             PreviewKeyDown += OnPreviewKeyDown;
@@ -114,6 +115,8 @@ namespace VideoPlayer
             await _mpvService.SendAsync("set_property", "video-zoom", zoom);
             await _mpvService.SendAsync("set_property", "video-pan-x", x);
             await _mpvService.SendAsync("set_property", "video-pan-y", y);
+            await _mpvService.SendAsync("set_property", "video-align-x", 0);
+            await _mpvService.SendAsync("set_property", "video-align-y", 0);
             _zoom = zoom;
             _panX = x;
             _panY = y;
