@@ -104,6 +104,8 @@ namespace VideoPlayer
             _dahuaPrimaryViewport.Controls.Add(_dahuaPrimaryPictureBox);
             _dahuaPrimaryPictureBox.CreateControl();
             DahuaPrimaryVideoHost.Child = _dahuaPrimaryViewport;
+            _dahuaPrimaryViewport.MouseUp += DahuaVideoSurface_MouseUp;
+            _dahuaPrimaryPictureBox.MouseUp += DahuaVideoSurface_MouseUp;
             _dahuaPrimaryViewport.Resize += (_, __) => ApplyDahuaPrimaryScale();
             ApplyDahuaPrimaryScale();
             InitializeDahuaDatePickers();
@@ -1279,8 +1281,16 @@ namespace VideoPlayer
                 picture.MouseDown += (_, args) => BeginDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
                 viewport.MouseMove += (_, args) => UpdateDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
                 picture.MouseMove += (_, args) => UpdateDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
-                viewport.MouseUp += (_, args) => EndDahuaSlotSelectionOrPan(slotRef!, args);
-                picture.MouseUp += (_, args) => EndDahuaSlotSelectionOrPan(slotRef!, args);
+                viewport.MouseUp += (_, args) =>
+                {
+                    EndDahuaSlotSelectionOrPan(slotRef!, args);
+                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(host);
+                };
+                picture.MouseUp += (_, args) =>
+                {
+                    EndDahuaSlotSelectionOrPan(slotRef!, args);
+                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(host);
+                };
 
                 var host = new FormsIntegration.WindowsFormsHost { Child = viewport, Background = Brushes.Black };
                 var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
