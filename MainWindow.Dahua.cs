@@ -2407,7 +2407,11 @@ namespace VideoPlayer
             try
             {
                 string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-                var progress = new Progress<string>(status => ViewModel.Dahua.DownloadStatusText = status);
+                var progress = new Progress<string>(status =>
+                {
+                    ViewModel.Dahua.DownloadStatusText = status;
+                    ViewModel.Dahua.PlaybackSyncStatusText = status;
+                });
 
                 string? targetFilePath = await DahuaSession.DownloadAndConvertToMp4Async(
                     _currentDahuaDevice, channel, start!.Value, end!.Value, ffmpegPath, progress,
@@ -2509,13 +2513,18 @@ namespace VideoPlayer
             try
             {
                 string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-                var progress = new Progress<string>(status => ViewModel.Dahua.DownloadStatusText = status);
+                var progress = new Progress<string>(status =>
+                {
+                    ViewModel.Dahua.DownloadStatusText = status;
+                    ViewModel.Dahua.PlaybackSyncStatusText = status;
+                });
                 string savedPath = await DahuaSession.DownloadArchiveAsync(
                     _currentDahuaDevice, channel, start, end, targetPath, convertToMp4,
                     ffmpegPath, progress, token);
 
                 ViewModel.Dahua.DownloadStatusText =
                     $"Zapisano {Path.GetFileName(savedPath)} ({(end - start).ToString(@"hh\:mm\:ss")}).";
+                ViewModel.Dahua.PlaybackSyncStatusText = ViewModel.Dahua.DownloadStatusText;
                 ViewModel.Dahua.StatusText = $"Pobrano archiwum kanału {channel}: {start:HH:mm:ss}–{end:HH:mm:ss}.";
             }
             catch (OperationCanceledException)
