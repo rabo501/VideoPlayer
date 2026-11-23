@@ -7,6 +7,31 @@ namespace VideoPlayer.Tests
     public sealed class DahuaSessionServiceTests
     {
         [Fact]
+        public void DahuaViewModel_GetChannelNameChanges_ReturnsOnlyChangedNamedChannels()
+        {
+            var device = new DahuaDeviceItem();
+            device.SetChannelName(1, "Wejście");
+            device.SetChannelName(2, "Parking");
+
+            var remote = new System.Collections.Generic.List<DahuaChannelInfo>
+            {
+                new DahuaChannelInfo { Number = 1, Name = "Wejście" },
+                new DahuaChannelInfo { Number = 2, Name = "Parking główny" },
+                new DahuaChannelInfo { Number = 3, Name = "Brama" },
+                new DahuaChannelInfo { Number = 4, Name = " " }
+            };
+
+            var changes = DahuaViewModel.GetChannelNameChanges(device, remote);
+
+            Assert.Equal(2, changes.Count);
+            Assert.Equal(2, changes[0].Number);
+            Assert.Equal("Parking", changes[0].LocalName);
+            Assert.Equal("Parking główny", changes[0].RemoteName);
+            Assert.Equal(3, changes[1].Number);
+            Assert.Equal("Kanał 3", changes[1].LocalName);
+        }
+
+        [Fact]
         public void DahuaViewModel_ValidatesDeviceConfigurationAndParsesPortsInvariantly()
         {
             bool valid = DahuaViewModel.TryValidateDeviceConfiguration(
