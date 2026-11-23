@@ -163,6 +163,14 @@ namespace VideoPlayer
             }
         }
 
+        private void VideoPanel_MouseUp(object? sender, Forms.MouseEventArgs e)
+        {
+            if (e.Button == Forms.MouseButtons.Right && _workspaceMode == WorkspaceMode.Player)
+            {
+                ShowVideoContextMenu();
+            }
+        }
+
         private void ShowVideoContextMenu()
         {
             var menu = new ContextMenu { PlacementTarget = VideoHost, Placement = PlacementMode.MousePoint };
@@ -172,6 +180,27 @@ namespace VideoPlayer
                 item.Click += action;
                 menu.Items.Add(item);
             }
+            var scaleMenu = new MenuItem { Header = "Skalowanie obrazu" };
+            string selectedScale = (VideoScaleBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "fit";
+            void AddScale(string label, string tag)
+            {
+                var scaleItem = new MenuItem
+                {
+                    Header = label,
+                    Tag = tag,
+                    IsCheckable = true,
+                    IsChecked = string.Equals(selectedScale, tag, StringComparison.Ordinal)
+                };
+                scaleItem.Click += MenuScale_Click;
+                scaleMenu.Items.Add(scaleItem);
+            }
+            AddScale("Dopasuj cały obraz", "fit");
+            AddScale("Wypełnij okno", "fill");
+            AddScale("Powiększenie 125%", "1.25");
+            AddScale("Powiększenie 150%", "1.5");
+            AddScale("Powiększenie 200%", "2");
+            menu.Items.Add(scaleMenu);
+            menu.Items.Add(new Separator());
             Add("Ustaw początek (I)", MarkStart_Click);
             Add("Ustaw koniec (O)", MarkEnd_Click);
             menu.Items.Add(new Separator());
