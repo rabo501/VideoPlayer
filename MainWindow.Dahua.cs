@@ -130,6 +130,34 @@ namespace VideoPlayer
             _dahuaViewScaleFactor = 1.0;
             if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1.0)
                 _dahuaViewScaleFactor = factor;
+
+            // Właściwy podgląd Live jest uruchamiany w slotach wielokanałowych:
+            // SDK otrzymuje HWND slot.PictureBox, a nie główny _dahuaPrimaryPictureBox.
+            // Dlatego skalę trzeba zastosować do wszystkich aktualnych slotów.
+            if (_dahuaMultiViewSlots.Count > 0)
+            {
+                const double sourceAspect = 16.0 / 9.0;
+                foreach (DahuaMultiViewSlot slot in _dahuaMultiViewSlots)
+                {
+                    int width = Math.Max(1, slot.Viewport.ClientSize.Width);
+                    int height = Math.Max(1, slot.Viewport.ClientSize.Height);
+                    double fillZoom = 1.0;
+
+                    if (string.Equals(mode, "fill", StringComparison.OrdinalIgnoreCase))
+                    {
+                        double viewportAspect = (double)width / height;
+                        fillZoom = Math.Max(viewportAspect / sourceAspect, sourceAspect / viewportAspect);
+                    }
+
+                    slot.Zoom = Math.Max(1.0, fillZoom * _dahuaViewScaleFactor);
+                    slot.PanX = 0;
+                    slot.PanY = 0;
+                    ApplyDahuaSlotViewport(slot);
+                }
+                return;
+            }
+
+            // Zapasowa ścieżka dla pojedynczego hosta, jeśli zostanie użyty bez slotów.
             ApplyDahuaPrimaryScale();
         }
 
