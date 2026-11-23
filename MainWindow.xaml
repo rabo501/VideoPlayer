@@ -594,93 +594,115 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Pasek górny: menu i przełącznik trybów w jednym oknie -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="True">
-            <Border DockPanel.Dock="Left" Background="#1B1F27" BorderBrush="#343B48" BorderThickness="1" CornerRadius="8" Padding="13,7" Margin="0,0,10,0" VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="32" Height="32" CornerRadius="7" Background="#3478F6" Margin="0,0,10,0">
-                        <TextBlock Text="▶" FontSize="15" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <!-- Pasek górny: marka, menu główne i szybkie akcje -->
+        <Border Grid.Row="0" Background="#171B23" BorderBrush="#343B48" BorderThickness="1"
+                CornerRadius="9" Padding="9,7" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Marka aplikacji -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="3,0,18,0">
+                    <Border Width="34" Height="34" CornerRadius="8" Background="#3478F6" Margin="0,0,10,0">
+                        <TextBlock Text="▶" FontSize="15" FontWeight="Bold" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="VIDEOPLAYER" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
                         <TextBlock Text="ANALIZA NAGRAŃ  •  1.9" FontSize="9" FontWeight="SemiBold" Foreground="#93A4BC" />
                     </StackPanel>
                 </StackPanel>
-            </Border>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Background="#1B1F27" BorderBrush="#343B48" BorderThickness="1" CornerRadius="7" Padding="3" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="ModePlayerButton" Content="Odtwarzacz" Click="SwitchToPlayerMode_Click" Background="#3478F6" BorderBrush="#3478F6" Foreground="#FFFFFF" Margin="0,0,3,0" Padding="11,6" />
-                        <Button x:Name="ModeDahuaButton" Content="Kamery Dahua IP" Click="DahuaStream_Click" Background="Transparent" BorderBrush="Transparent" Foreground="#D8DCE4" Margin="0" Padding="11,6" ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua (Ctrl+D)" />
-                    </StackPanel>
-                </Border>
-                <Button x:Name="OcrReturnTopButton" Content="Powrót do wideo (OCR)" Click="OcrCancel_Click" Visibility="Collapsed" Background="#B45309" BorderBrush="#D97706" Foreground="#FFFFFF" Margin="0,0,8,0" Padding="11,7" />
-                <Button Content="Otwórz nagranie" Click="Open_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="12,7" />
-                <Button x:Name="PanelToggleButton" Content="Ukryj panel ▶" Click="ToggleTools_Click" Margin="0" Padding="12,7" ToolTip="Pokaż lub ukryj prawy panel narzędzi" />
-            </StackPanel>
 
-            <Border Background="#171E29" BorderBrush="#344256" BorderThickness="1" CornerRadius="9"
-                    Padding="4,3" Margin="0,0,10,0" VerticalAlignment="Center">
-                <Menu Background="Transparent" Padding="0" VerticalAlignment="Center"
-                      ItemContainerStyle="{StaticResource MainMenuTopItemStyle}">
-                    <MenuItem>
-                        <MenuItem.Header>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
-                                <TextBlock Text="Plik" />
-                            </StackPanel>
-                        </MenuItem.Header>
-                        <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                <!-- Menu główne -->
+                <Border Grid.Column="1" Background="#202735" BorderBrush="#344256" BorderThickness="1"
+                        CornerRadius="8" Padding="4,3" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <Menu Background="Transparent" Padding="0" VerticalAlignment="Center"
+                          ItemContainerStyle="{StaticResource MainMenuTopItemStyle}">
+                        <MenuItem>
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                    <TextBlock Text="Plik" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                            <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Tryb odtwarzacza nagrań" Click="SwitchToPlayerMode_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Tryb kamer Dahua IP (Live &amp; Archiwum)" InputGestureText="Ctrl+D" Click="DahuaStream_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Wyszukaj tablicę / pojazd" Click="PlateSearch_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Zapisz sesję" Click="SaveSession_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="Zakończ" Click="ExitMenu_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" Foreground="#FCA5A5" /></MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
-                        <MenuItem Header="Tryb odtwarzacza nagrań" Click="SwitchToPlayerMode_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        <MenuItem>
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                    <TextBlock Text="Widok" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                            <MenuItem Header="Panel narzędzi" x:Name="ToolsPanelMenuItem" IsCheckable="True" IsChecked="True" Click="ToggleTools_Click" />
+                            <Separator />
+                            <MenuItem Header="Dopasuj cały obraz" Tag="fit" Click="MenuScale_Click" />
+                            <MenuItem Header="Wypełnij okno" Tag="fill" Click="MenuScale_Click" />
+                            <MenuItem Header="Powiększenie 125%" Tag="1.25" Click="MenuScale_Click" />
+                            <MenuItem Header="Powiększenie 150%" Tag="1.5" Click="MenuScale_Click" />
+                            <MenuItem Header="Powiększenie 200%" Tag="2" Click="MenuScale_Click" />
+                            <MenuItem Header="Resetuj widok" InputGestureText="R" Click="ResetView_Click" />
                         </MenuItem>
-                        <MenuItem Header="Tryb kamer Dahua IP (Live &amp; Archiwum)" InputGestureText="Ctrl+D" Click="DahuaStream_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        <MenuItem>
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                    <TextBlock Text="Pomoc" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                            <MenuItem Header="Obsługa i skróty" Click="BasicHelp_Click" />
+                            <MenuItem Header="Uruchom ponownie mpv" Click="RestartMpv_Click" />
+                            <Separator />
+                            <MenuItem Header="Informacje o programie" Click="About_Click" />
                         </MenuItem>
-                        <MenuItem Header="Wyszukaj tablicę / pojazd" Click="PlateSearch_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
-                        </MenuItem>
-                        <MenuItem Header="Zapisz sesję" Click="SaveSession_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
-                        </MenuItem>
-                        <Separator />
-                        <MenuItem Header="Zakończ" Click="ExitMenu_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" Foreground="#FCA5A5" /></MenuItem.Icon>
-                        </MenuItem>
-                    </MenuItem>
-                    <MenuItem>
-                        <MenuItem.Header>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
-                                <TextBlock Text="Widok" />
-                            </StackPanel>
-                        </MenuItem.Header>
-                        <MenuItem Header="Panel narzędzi" x:Name="ToolsPanelMenuItem" IsCheckable="True" IsChecked="True" Click="ToggleTools_Click" />
-                        <Separator />
-                        <MenuItem Header="Dopasuj cały obraz" Tag="fit" Click="MenuScale_Click" />
-                        <MenuItem Header="Wypełnij okno" Tag="fill" Click="MenuScale_Click" />
-                        <MenuItem Header="Powiększenie 125%" Tag="1.25" Click="MenuScale_Click" />
-                        <MenuItem Header="Powiększenie 150%" Tag="1.5" Click="MenuScale_Click" />
-                        <MenuItem Header="Powiększenie 200%" Tag="2" Click="MenuScale_Click" />
-                        <MenuItem Header="Resetuj widok" InputGestureText="R" Click="ResetView_Click" />
-                    </MenuItem>
-                    <MenuItem>
-                        <MenuItem.Header>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
-                                <TextBlock Text="Pomoc" />
-                            </StackPanel>
-                        </MenuItem.Header>
-                        <MenuItem Header="Obsługa i skróty" Click="BasicHelp_Click" />
-                        <MenuItem Header="Uruchom ponownie mpv" Click="RestartMpv_Click" />
-                        <Separator />
-                        <MenuItem Header="Informacje o programie" Click="About_Click" />
-                    </MenuItem>
-                </Menu>
-            </Border>
-        </DockPanel>
+                    </Menu>
+                </Border>
+
+                <!-- Tryb pracy i najczęściej używane polecenia -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,2,0">
+                    <Border Background="#202735" BorderBrush="#344256" BorderThickness="1" CornerRadius="8"
+                            Padding="3" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="ModePlayerButton" Content="Odtwarzacz" Click="SwitchToPlayerMode_Click"
+                                    Background="#3478F6" BorderBrush="#3478F6" Foreground="#FFFFFF"
+                                    Margin="0,0,3,0" Padding="11,6" />
+                            <Button x:Name="ModeDahuaButton" Content="Kamery Dahua IP" Click="DahuaStream_Click"
+                                    Background="Transparent" BorderBrush="Transparent" Foreground="#D8DCE4"
+                                    Margin="0" Padding="11,6"
+                                    ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua (Ctrl+D)" />
+                        </StackPanel>
+                    </Border>
+                    <Button x:Name="OcrReturnTopButton" Content="Powrót do wideo (OCR)" Click="OcrCancel_Click"
+                            Visibility="Collapsed" Background="#B45309" BorderBrush="#D97706" Foreground="#FFFFFF"
+                            Margin="0,0,8,0" Padding="11,7" />
+                    <Button Content="Otwórz nagranie" Click="Open_Click" Style="{StaticResource PrimaryButton}"
+                            Margin="0,0,8,0" Padding="12,7" />
+                    <Button x:Name="PanelToggleButton" Content="Ukryj panel ▶" Click="ToggleTools_Click"
+                            Margin="0" Padding="12,7" ToolTip="Pokaż lub ukryj prawy panel narzędzi" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <!-- Główny obszar roboczy: duży podgląd po lewej + rozwijany/zmienialny panel po prawej -->
         <Grid Grid.Row="1" Margin="0,0,0,8">
