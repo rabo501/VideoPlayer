@@ -33,7 +33,7 @@ namespace VideoPlayer
         private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(3) };
         private readonly List<Button> _markerButtons = new();
         private readonly List<Border> _motionRangeBands = new();
-        private readonly string _displayVersion = "1.8.0";
+        private readonly string _displayVersion = "1.9.0";
         private bool _ready, _closing, _dragging, _updatingSlider, _eofReached, _paused = true, _opening, _restoring, _shutdownRequested, _allowClose;
         private bool _screenshotBusy, _changingScale;
         private string _fileName = "";
@@ -49,7 +49,7 @@ namespace VideoPlayer
             DataContext = ViewModel;
             Assembly assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
             Version? appVersion = assembly.GetName().Version;
-            _displayVersion = appVersion == null ? "1.8.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
+            _displayVersion = appVersion == null ? "1.9.0" : $"{appVersion.Major}.{appVersion.Minor}.{Math.Max(0, appVersion.Build)}";
             AssemblyInformationalVersionAttribute? informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
             string productVersion = !string.IsNullOrWhiteSpace(informational?.InformationalVersion) ? informational!.InformationalVersion : _displayVersion;
 
