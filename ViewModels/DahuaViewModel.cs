@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -95,6 +96,71 @@ namespace VideoPlayer.ViewModels
         public void SaveDevices()
         {
             DahuaConfigService.SaveDevices(Devices.ToList());
+        }
+
+        public static bool TryValidateDeviceConfiguration(
+            string? name,
+            string? address,
+            string? portText,
+            string? httpPortText,
+            string? username,
+            string? password,
+            out ushort port,
+            out ushort httpPort,
+            out string error)
+        {
+            port = 0;
+            httpPort = 0;
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                error = "Podaj nazwę urządzenia.";
+                return false;
+            }
+
+            if (!DahuaSessionService.IsValidEndpoint(address, portText, out port, out error))
+                return false;
+
+            if (!ushort.TryParse(httpPortText?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out httpPort) ||
+                httpPort == 0)
+            {
+                error = "Port HTTP musi mieścić się w zakresie 1–65535.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            {
+                error = "Wpisz nazwę użytkownika i hasło. Puste hasło nie zostanie zapisane.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        public void SaveDeviceConfiguration(
+            DahuaDeviceItem device,
+            string name,
+            string address,
+            ushort port,
+            ushort httpPort,
+            string username,
+            string password)
+        {
+            if (!Devices.Contains(device))
+                throw new InvalidOperationException("Wybrane urządzenie nie znajduje się na liście konfiguracji.");
+
+            if (Session.IsConnectedTo(device))
+                throw new InvalidOperationException("Przed zmianą konfiguracji rozłącz urządzenie.");
+
+            device.Name = name.Trim();
+            device.IpAddress = address.Trim();
+            device.Port = port;
+            device.HttpPort = httpPort;
+            device.SetCredentials(username.Trim(), password);
+            SaveDevices();
+
+            StatusText = $"Zapisano urządzenie: '{device.Name}' ({device.IpAddress}:{device.Port})";
         }
 
         public DahuaDeviceItem AddNewDevice()
