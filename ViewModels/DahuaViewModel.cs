@@ -9,6 +9,16 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace VideoPlayer.ViewModels
 {
+    internal sealed record DahuaChannelNameChange(int Number, string LocalName, string RemoteName);
+
+    internal sealed record DahuaDeviceStateReadResult(
+        int ChannelCount,
+        List<DahuaChannelInfo> RemoteChannels,
+        int? PresetCount,
+        string? PresetError);
+
+    internal sealed record DahuaPresetPositionSaveResult(bool NameSaved, string NameError);
+
     internal sealed partial class DahuaViewModel : ObservableObject, IDisposable
     {
         public DahuaViewModel(DahuaSessionService? sessionService = null)
@@ -321,6 +331,182 @@ namespace VideoPlayer.ViewModels
                 return false;
             }
         }
+
+        public static List<DahuaChannelNameChange> GetChannelNameChanges(
+            DahuaDeviceItem device,
+            IEnumerable<DahuaChannelInfo> remoteChannels)
+        {
+            ArgumentNullException.ThrowIfNull(device);
+            ArgumentNullException.ThrowIfNull(remoteChannels);
+
+            return remoteChannels
+                .Where(channel => channel.Number > 0 && !string.IsNullOrWhiteSpace(channel.Name))
+                .Select(channel => new DahuaChannelNameChange(
+                    channel.Number,
+                    device.GetChannelName(channel.Number),
+                    channel.Name.Trim()))
+                .Where(change => !string.Equals(change.LocalName, change.RemoteName, StringComparison.Ordinal))
+                .ToList();
+        }
+
+        public async Task<DahuaDeviceStateReadResult> ReadDeviceStateAsync(
+            DahuaDeviceItem device,
+            int channel,
+            CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(device);
+            if (!Session.IsConnectedTo(device))
+                throw new InvalidOperationException("Brak aktywnego połączenia z wybranym rejestratorem.");
+
+            WriteDiagnostic("Manual device read started.");
+            int channelCount = Session.DeviceChannelCount > 0
+                ? Session.DeviceChannelCount
+                : device.Channels.Count;
+            if (channelCount > 0)
+                device.EnsureDefaultChannels(channelCount);
+
+            List<DahuaChannelInfo> remoteChannels =
+                await Session.QueryChannelNamesAsync(channelCount, ct).ConfigureAwait(false);
+
+            int? presetCount = null;
+            string? presetError = null;
+            try
+            {
+                List<DahuaPresetItem> remotePresets =
+                    await DahuaSessionService.QueryPresetsAsync(device, channel, ct).ConfigureAwait(false);
+                device.UpdateFromDevicePresets(remotePresets);
+                presetCount = remotePresets.Count;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                presetError = ex.Message;
+                WriteDiagnostic($"PTZ preset read failed; local list preserved. {ex}");
+            }
+
+            return new DahuaDeviceStateReadResult(channelCount, remoteChannels, presetCount, presetError);
+        }
+
+        public int ApplyDeviceChannelNames(DahuaDeviceItem device, IEnumerable<DahuaChannelInfo> remoteChannels)
+        {
+            EnsureManagedDevice(device);
+            List<DahuaChannelNameChange> changes = GetChannelNameChanges(device, remoteChannels);
+            foreach (DahuaChannelNameChange change in changes)
+                device.SetChannelName(change.Number, change.RemoteName);
+
+            if (changes.Count > 0)
+                SaveDevices();
+
+            return changes.Count;
+        }
+
+        public void SaveChannelName(DahuaDeviceItem device, int channel, string name)
+        {
+            EnsureManagedDevice(device);
+            if (channel < 1)
+                throw new ArgumentOutOfRangeException(nameof(channel));
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Nazwa kanału nie może być pusta.", nameof(name));
+
+            device.SetChannelName(channel, name);
+            SaveDevices();
+            StatusText = $"Zapisano nową nazwę dla Kanału {channel}: '{name.Trim()}'.";
+        }
+
+        public void ApplyDevicePresets(DahuaDeviceItem device, List<DahuaPresetItem> remotePresets)
+        {
+            EnsureManagedDevice(device);
+            device.UpdateFromDevicePresets(remotePresets);
+            SaveDevices();
+            StatusText = $"Odczytano {remotePresets.Count} presetów dla kanału {CurrentChannel}.";
+        }
+
+        public async Task<DahuaPresetPositionSaveResult> SavePresetPositionAsync(
+            DahuaDeviceItem device, int channel, int presetNumber, string presetName, CancellationToken ct = default)
+        {
+            EnsureConnectedDevice(device);
+            if (presetNumber < 1 || presetNumber > 255)
+                throw new ArgumentOutOfRangeException(nameof(presetNumber));
+
+            await DahuaSessionService.SetPresetPositionAsync(device, channel, presetNumber, ct).ConfigureAwait(false);
+
+            bool nameSaved = true;
+            string nameError = string.Empty;
+            try
+            {
+                await DahuaSessionService.SetPresetNameAsync(device, channel, presetNumber, presetName, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                nameSaved = false;
+                nameError = ex.Message;
+            }
+
+            string effectiveName = nameSaved ? presetName.Trim() : $"Preset {presetNumber}";
+            var existing = device.Presets.FirstOrDefault(preset => preset.PresetNumber == presetNumber);
+            if (existing != null)
+                existing.Name = effectiveName;
+            else
+                device.Presets.Add(new DahuaPresetItem { PresetNumber = presetNumber, Name = effectiveName });
+
+            SaveDevices();
+            StatusText = nameSaved
+                ? $"Zapisano preset {presetNumber}: {effectiveName}."
+                : $"Pozycja presetu {presetNumber} została zapisana, ale nie udało się ustawić nazwy.";
+            return new DahuaPresetPositionSaveResult(nameSaved, nameError);
+        }
+
+        public async Task RenamePresetAsync(
+            DahuaDeviceItem device, int channel, int presetNumber, string newName, CancellationToken ct = default)
+        {
+            EnsureConnectedDevice(device);
+            if (string.IsNullOrWhiteSpace(newName))
+                throw new ArgumentException("Nazwa presetu nie może być pusta.", nameof(newName));
+
+            await DahuaSessionService.SetPresetNameAsync(device, channel, presetNumber, newName.Trim(), ct).ConfigureAwait(false);
+            var preset = device.Presets.FirstOrDefault(item => item.PresetNumber == presetNumber);
+            if (preset != null)
+                preset.Name = newName.Trim();
+
+            SaveDevices();
+            StatusText = $"Zmieniono nazwę presetu {presetNumber} na '{newName.Trim()}'.";
+        }
+
+        public async Task RefreshPresetsFromDeviceAsync(
+            DahuaDeviceItem device, int channel, CancellationToken ct = default)
+        {
+            EnsureConnectedDevice(device);
+            List<DahuaPresetItem> remotePresets =
+                await DahuaSessionService.QueryPresetsAsync(device, channel, ct).ConfigureAwait(false);
+            device.UpdateFromDevicePresets(remotePresets);
+            SaveDevices();
+            StatusText = $"Odczytano {remotePresets.Count} presetów dla kanału {channel}.";
+        }
+
+        public async Task DeletePresetAsync(
+            DahuaDeviceItem device, int channel, int presetNumber, CancellationToken ct = default)
+        {
+            EnsureConnectedDevice(device);
+            await DahuaSessionService.DeletePresetAsync(device, channel, presetNumber, ct).ConfigureAwait(false);
+            device.Presets.RemoveAll(preset => preset.PresetNumber == presetNumber);
+            SaveDevices();
+            StatusText = $"Usunięto preset {presetNumber} z urządzenia.";
+        }
+
+        private void EnsureManagedDevice(DahuaDeviceItem device)
+        {
+            ArgumentNullException.ThrowIfNull(device);
+            if (!Devices.Contains(device))
+                throw new InvalidOperationException("Wybrane urządzenie nie znajduje się na liście konfiguracji.");
+        }
+
+        private void EnsureConnectedDevice(DahuaDeviceItem device)
+        {
+            EnsureManagedDevice(device);
+            if (!Session.IsConnectedTo(device))
+                throw new InvalidOperationException("Brak aktywnego połączenia z wybranym urządzeniem.");
+        }
+
+        private static void WriteDiagnostic(string message) => DahuaSessionService.WriteDiagnostic(message);
 
         public async Task<List<DahuaRecordItem>> SearchArchiveRecordsAsync(int channel, DateTime start, DateTime end, CancellationToken ct = default)
         {
