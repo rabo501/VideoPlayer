@@ -147,3 +147,12 @@ Wymagana weryfikacja: podgląd kanału 4:3 oraz 16:9, zmiana Fit/Fill, zmiana uk
 - zachowano istniejące nazwy kontrolek, bindingi, zdarzenia, komendy anulowania oraz mechanikę suwaka i nakładek osi czasu.
 
 Wymagane testy: kompilacja XAML, otwarcie nagrania, synchronizacja suwaka i czasu, zaznaczanie fragmentu, klatkowanie, zmiana prędkości, zapis klatki, detekcja ruchu, widoczność postępu i anulowania oraz przełączanie Player/Dahua/OCR. Należy sprawdzić również zachowanie szerokości panelu po ponownym uruchomieniu, ponieważ wcześniejsze ustawienie użytkownika może być zapisane w profilu.
+
+## Jedenasty zakres — czytelniejszy i wyśrodkowany podgląd
+- wymuszono centralne wyrównanie obrazu MPV w poziomie i pionie podczas stosowania trybów skali; pozycja obrazu nie jest przesuwana przez zmianę trybu;
+- dodano menu kontekstowe dostępne prawym przyciskiem myszy bezpośrednio na obszarze podglądu;
+- menu zawiera: Dopasuj cały obraz, Wypełnij okno oraz powiększenia 125%, 150% i 200%; aktualnie wybrany tryb jest oznaczony;
+- wybór w menu korzysta z istniejącego `VideoScaleBox_SelectionChanged`, więc zachowuje dotychczasowe ustawianie parametrów MPV i zapisywanie sesji;
+- pozostałe polecenia menu kontekstowego (początek/koniec, zdarzenie, OCR, zrzut klatki i reset) pozostają dostępne.
+
+Wymagany test: prawy przycisk myszy na obrazie i czarnym obszarze podglądu, każdy tryb skalowania, oznaczenie aktywnej opcji, reset widoku oraz zachowanie proporcji i centralnego położenia obrazu.
