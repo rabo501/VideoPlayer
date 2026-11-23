@@ -792,6 +792,7 @@
                                         PreviewMouseLeftButtonDown="DahuaPlaybackSlider_MouseLeftButtonDown"
                                         PreviewMouseLeftButtonUp="DahuaPlaybackSlider_MouseLeftButtonUp"
                                         LostMouseCapture="DahuaPlaybackSlider_LostMouseCapture"
+                                        ValueChanged="DahuaPlaybackPositionSlider_ValueChanged"
                                         TickFrequency="1" IsSnapToTickEnabled="False" />
                                 <TextBlock Text="ZIELONY PASEK = NAGRANIE  •  Kliknij = ustaw czas / przewiń  •  Przeciągnij = zaznacz fragment  •  Kółko = przybliżenie  •  Prawy klik = reset"
                                            Foreground="#94A3B8" FontSize="10" Margin="2,2,0,3" />
