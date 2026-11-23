@@ -22,6 +22,7 @@ namespace VideoPlayer
                 _cases = new CaseRepository();
                 ViewModel.Cases.AttachRepository(_cases);
                 ViewModel.ReviewSession.AttachRepository(new ReviewRepository());
+                ViewModel.Export.AttachMediaInfoReader(_mediaInfoService);
                 _exports = new ExportService(_ffmpegService);
                 _reports = new ReportService(_exports);
                 ViewModel.Cases.AttachReportService(new CaseReportService(_cases, historyService, _mediaInfoService, _reports));
@@ -87,9 +88,6 @@ namespace VideoPlayer
             SaveSession();
             _closing = true;
             ViewModel.CancelPendingOperations();
-            _mediaInfoCts?.Cancel();
-            _mediaInfoCts?.Dispose();
-            _mediaInfoCts = null;
             try { if (_operationTask != null) await _operationTask; } catch { }
             try { if (_motionTask != null) await _motionTask; } catch { }
             try { await _mpvService.DisposeAsync(); } catch { }
