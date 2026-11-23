@@ -35,3 +35,12 @@ Pierwsza iteracja głównego układu została skompilowana przez użytkownika. D
 - zachowanie istniejących nazw kontrolek, bindingów i handlerów; nie zmieniono logiki odtwarzania ani synchronizacji osi czasu.
 
 Ten zakres wymaga kompilacji i sprawdzenia układu w Windows, szczególnie przy szerokim i zwężonym oknie.
+
+
+## Czwarty zakres zmian — górny pasek narzędzi i nawigacji
+- uporządkowanie górnego paska w trzy czytelne strefy: identyfikacja aplikacji, menu główne oraz szybkie akcje i wybór trybu pracy;
+- ujednolicenie tła, obramowań, odstępów i wysokości elementów z panelem sterowania odtwarzaniem;
+- zachowanie wszystkich dotychczasowych nazw kontrolek, handlerów, skrótów klawiaturowych i poleceń menu;
+- bez zmian w logice przełączania trybów, otwierania plików, OCR, widoku, sesji i panelu narzędzi.
+
+Ten zakres wymaga kompilacji i sprawdzenia w Windows przy typowej oraz minimalnej szerokości okna. Należy zwrócić szczególną uwagę na to, czy prawa strefa szybkich akcji mieści się bez obcinania.
