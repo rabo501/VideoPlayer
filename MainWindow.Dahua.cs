@@ -583,9 +583,9 @@ namespace VideoPlayer
         {
             if (int.TryParse(DahuaCustomChannelBox.Text.Trim(), out int ch) && ch >= 1)
             {
-                if (_currentDahuaDevice != null && !_currentDahuaDevice.Channels.Any(c => c.Number == ch))
+                if (_currentDahuaDevice != null &&
+                    ViewModel.Dahua.EnsureChannelExists(_currentDahuaDevice, ch))
                 {
-                    _currentDahuaDevice.SetChannelName(ch, $"Kamera {ch}");
                     RefreshDahuaChannelLists();
                 }
                 SwitchDahuaChannel(ch);
