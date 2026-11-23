@@ -136,3 +136,14 @@ Wymagany test: uruchomić program, przejść bezpośrednio do trybu Dahua, klikn
 - lokalny odtwarzacz MPV i jego skalowanie pozostają bez zmian.
 
 Wymagana weryfikacja: podgląd kanału 4:3 oraz 16:9, zmiana Fit/Fill, zmiana układu wielokanałowego, przełączenie kanału i zatrzymanie Live. Należy sprawdzić także działanie przy SDK, które nie zwraca metadanych rozdzielczości.
+
+
+## Korekta układu głównego ekranu — ograniczenie dolnych pasków
+- zmniejszono wysokość osi czasu MPV z 86 do 66 px i uproszczono jej nagłówek;
+- usunięto osobny nagłówek „Sterowanie odtwarzaniem”; przyciski transportu, klatkowania, zrzutu klatki, detekcji ruchu i prędkości znajdują się w jednym zwartym wierszu;
+- pasek statusu i postępu ma mniejszą wysokość, nie jest już osobnym dużym panelem z ramką;
+- odzyskana przestrzeń zwiększa wysokość obszaru podglądu;
+- zmniejszono domyślną szerokość prawego panelu narzędzi z 420 do 360 px oraz szerokość zapamiętywaną przy pierwszym uruchomieniu z 390 do 350 px; minimalna szerokość panelu to 300 px;
+- zachowano istniejące nazwy kontrolek, bindingi, zdarzenia, komendy anulowania oraz mechanikę suwaka i nakładek osi czasu.
+
+Wymagane testy: kompilacja XAML, otwarcie nagrania, synchronizacja suwaka i czasu, zaznaczanie fragmentu, klatkowanie, zmiana prędkości, zapis klatki, detekcja ruchu, widoczność postępu i anulowania oraz przełączanie Player/Dahua/OCR. Należy sprawdzić również zachowanie szerokości panelu po ponownym uruchomieniu, ponieważ wcześniejsze ustawienie użytkownika może być zapisane w profilu.
