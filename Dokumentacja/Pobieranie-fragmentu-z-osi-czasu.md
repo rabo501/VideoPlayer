@@ -1,45 +1,48 @@
 # Pobieranie fragmentu archiwum z osi czasu
 
-## Zakres funkcji
+## Obsługa osi czasu
 
-W wersji 1.8 dodano możliwość zaznaczenia fragmentu archiwum NVR bezpośrednio na osi czasu w panelu Dahua.
+Po poprawkach obsługa nie wymaga przełączania trybu zaznaczania:
 
-1. Wybierz urządzenie, kanał i dzień.
-2. Wyszukaj nagrania na rejestratorze.
-3. Kliknij **Zaznacz fragment**.
-4. Przeciągnij myszą po zielonym obszarze nagrania na osi czasu.
-5. Program pokaże wybrany przedział i przepisze początek oraz koniec do pól czasu.
-6. Kliknij **Pobierz zaznaczony**.
-7. W oknie zapisu wybierz format i lokalizację.
+- **Kliknięcie zielonego paska** ustawia czas. Jeśli archiwum jest już odtwarzane, program przewija wszystkie aktywne kanały do wskazanego miejsca.
+- **Przeciągnięcie po zielonym pasku** zaznacza przedział. Zaznaczenie musi mieścić się w jednym ciągłym rekordzie nagrania.
+- **Odtwórz od wskazanego** rozpoczyna odtwarzanie od klikniętego czasu do końca ciągłego nagrania albo odtwarza dokładnie zaznaczony przedział.
+- **Pobierz zaznaczony** otwiera wybór pliku i formatu DAV/MP4.
+- Kółko myszy przybliża/o oddala oś czasu, prawy przycisk resetuje powiększenie.
 
-Zaznaczenie musi mieścić się w całości w jednym ciągłym rekordzie archiwum. Zaznaczenie obejmujące przerwę pomiędzy nagraniami jest odrzucane. Kliknięcie osi poza trybem zaznaczania nadal służy do wskazania czasu/przewinięcia odtwarzania.
+Zielone pasy oznaczają dostępne nagrania. Klikanie i przeciąganie poza zielonym pasem jest ignorowane z komunikatem w pasku statusu.
 
-## Dostępne formaty
+## Pobieranie
 
-- **MP4** – domyślny format, konwertowany przez dołączony FFmpeg.
-- **DAV** – oryginalny kontener pobierany z rejestratora przez Dahua NetSDK.
+1. Wybierz urządzenie, kanał i dzień w panelu Dahua.
+2. Wyszukaj nagrania dla wybranego kanału i dnia.
+3. Na osi czasu kliknij i przeciągnij po zielonym pasku, aby zaznaczyć interesujący przedział.
+4. Kliknij **Pobierz zaznaczony**.
+5. W oknie zapisu wybierz format i lokalizację.
 
-Zapisany zostaje tylko jeden plik wynikowy w formacie wybranym przez użytkownika. Przy wyborze MP4 NetSDK pobiera plik DAV do katalogu tymczasowego, FFmpeg konwertuje go do wskazanego MP4, a plik DAV jest usuwany w bloku `finally`, również po błędzie lub anulowaniu. Przy wyborze DAV plik jest zapisywany bezpośrednio pod wskazaną nazwą i nie powstaje dodatkowy MP4.
+Zapisany zostaje tylko jeden plik wynikowy w formacie wybranym przez użytkownika:
+- **MP4** – plik DAV jest pobierany do katalogu tymczasowego, konwertowany przez FFmpeg, a następnie usuwany.
+- **DAV** – oryginalny kontener archiwum zapisywany bezpośrednio pod wybraną nazwą.
 
-Istniejąca funkcja **Pobierz zakres do Odtwarzacza** nadal tworzy MP4 i automatycznie otwiera go w głównym odtwarzaczu.
+Nie powstaje druga kopia wynikowa. Przy konwersji MP4 plik źródłowy DAV i wynikowy MP4 istnieją równocześnie tylko na czas konwersji.
 
 ## Postęp i anulowanie
 
-- Pasek statusu osi archiwum pokazuje postęp pobierania, jeśli NetSDK udostępnia rozmiar całkowity.
-- Przycisk **Anuluj pobieranie** zatrzymuje pobieranie lub konwersję.
+- Postęp pobierania jest wyświetlany w statusie archiwum, jeśli SDK udostępnia rozmiar całkowity.
+- Przycisk **Anuluj pobieranie** przerywa pobieranie lub konwersję.
 - Nieukończony plik wynikowy jest usuwany po błędzie/anulowaniu.
 - Pobieranie ma limit czasu 30 minut.
 
-## Testy manualne po kompilacji
+## Testy manualne
 
 1. Wyszukaj nagrania na kanale, na którym są dostępne ciągłe fragmenty.
-2. Włącz zaznaczanie i przeciągnij od wcześniejszego do późniejszego czasu; sprawdź wyświetlony przedział.
-3. Powtórz zaznaczenie w przeciwnym kierunku.
-4. Spróbuj zaznaczyć przedział obejmujący przerwę pomiędzy rekordami – program powinien odmówić pobrania.
-5. Pobierz jako DAV i sprawdź, czy powstał tylko plik DAV.
-6. Pobierz jako MP4 i sprawdź, czy powstał tylko plik MP4, a plik roboczy DAV został usunięty.
-7. Anuluj pobieranie w trakcie i sprawdź, czy nie pozostał niekompletny plik.
-8. Sprawdź, czy kliknięcie osi poza trybem zaznaczania nadal przewija odtwarzanie.
-9. Sprawdź dotychczasowe wyszukiwanie, odtwarzanie wielokanałowe i przycisk **Pobierz zakres do Odtwarzacza**.
+2. Kliknij zielony pasek. Sprawdź ustawienie czasu.
+3. Uruchom odtwarzanie przyciskiem **Odtwórz od wskazanego**.
+4. Podczas odtwarzania kliknij inne miejsce zielonego paska i sprawdź przewijanie.
+5. Przeciągnij po zielonym pasku. Sprawdź podświetlenie i dokładne czasy.
+6. Spróbuj przeciągnąć przez przerwę między nagraniami – zaznaczenie powinno zostać odrzucone.
+7. Pobierz zaznaczenie jako DAV, a następnie jako MP4.
+8. Anuluj pobieranie i sprawdź, czy nie pozostał niekompletny plik.
+9. Sprawdź dotychczasowe wyszukiwanie, odtwarzanie wielokanałowe i pobieranie do głównego odtwarzacza.
 
-Testy sprzętowe z rejestratorem oraz kompilację rozwiązania należy wykonać lokalnie w Visual Studio na Windows.
+Kompilację WPF oraz testy sprzętowe należy wykonać lokalnie w Visual Studio na Windows z rejestratorem BCS/Dahua.
