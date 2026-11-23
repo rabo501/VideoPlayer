@@ -7,6 +7,7 @@ Przeniesienie operacji odczytu i zapisu nazw kanałów oraz zarządzania preseta
 - `DahuaViewModel.ReadDeviceStateAsync` koordynuje odczyt nazw kanałów i presetów z wybranego rejestratora.
 - Porównanie nazw kanałów jest dostępne jako testowalna metoda `GetChannelNameChanges`. Użytkownik nadal zatwierdza zastosowanie zmian w oknie.
 - Zapis zaakceptowanych nazw kanałów oraz ręczna zmiana nazwy kanału są wykonywane przez ViewModel.
+- Tworzenie brakującego kanału z numerem podanym ręcznie również przechodzi przez ViewModel.
 - ViewModel przejął ustawianie pozycji presetu, zmianę jego nazwy, odświeżanie listy z rejestratora i usuwanie presetu.
 - Zapis lokalnej listy presetów i nazw kanałów odbywa się w ViewModel przez dotychczasowy `DahuaConfigService`.
 - Przy niepowodzeniu odczytu presetów zachowywana jest dotychczasowa lista lokalna; błąd jest raportowany w diagnostyce i statusie.
