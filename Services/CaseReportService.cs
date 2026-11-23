@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VideoPlayer;
+using VideoPlayer.ViewModels;
 
 namespace VideoPlayer.Services
 {
