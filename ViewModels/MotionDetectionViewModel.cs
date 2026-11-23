@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,7 +63,7 @@ namespace VideoPlayer.ViewModels
                     Id = Guid.NewGuid(), Seconds = start, EndSeconds = end,
                     MotionX = item.MotionX, MotionY = item.MotionY,
                     MotionWidth = item.MotionWidth, MotionHeight = item.MotionHeight,
-                    Description = $"Ruch ({item.PeakChangedRatio:0.0}% zaznaczonego obszaru)"
+                    Description = $"Ruch ({item.PeakChangedRatio.ToString("0.0", CultureInfo.InvariantCulture)}% zaznaczonego obszaru)"
                 };
             }).ToList();
         }
