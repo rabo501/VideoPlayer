@@ -300,28 +300,21 @@ namespace VideoPlayer
         {
             name = DahuaConfigNameBox.Text.Trim();
             address = DahuaConfigAddressBox.Text.Trim();
-            port = 0;
-            httpPort = 0;
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                MessageBox.Show(this, "Podaj nazwę urządzenia.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-            if (!DahuaSessionService.IsValidEndpoint(address, DahuaConfigPortBox.Text, out port, out string error))
+            if (!DahuaViewModel.TryValidateDeviceConfiguration(
+                name,
+                address,
+                DahuaConfigPortBox.Text,
+                DahuaConfigHttpPortBox.Text,
+                DahuaConfigUsernameBox.Text,
+                DahuaConfigPasswordBox.Password,
+                out port,
+                out httpPort,
+                out string error))
             {
                 MessageBox.Show(this, error, "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
-            if (!ushort.TryParse(DahuaConfigHttpPortBox.Text.Trim(), out httpPort) || httpPort == 0)
-            {
-                MessageBox.Show(this, "Port HTTP musi mieścić się w zakresie 1–65535.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-            if (string.IsNullOrWhiteSpace(DahuaConfigUsernameBox.Text) || string.IsNullOrEmpty(DahuaConfigPasswordBox.Password))
-            {
-                MessageBox.Show(this, "Wpisz nazwę użytkownika i hasło. Puste hasło nie zostanie zapisane.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
+
             return true;
         }
 
@@ -339,17 +332,26 @@ namespace VideoPlayer
             if (DahuaSession.IsConnectedTo(_configSelectedDevice))
                 DahuaDisconnect();
 
-            _configSelectedDevice.Name = name;
-            _configSelectedDevice.IpAddress = address;
-            _configSelectedDevice.Port = port;
-            _configSelectedDevice.HttpPort = httpPort;
-            _configSelectedDevice.SetCredentials(DahuaConfigUsernameBox.Text.Trim(), DahuaConfigPasswordBox.Password);
-            ViewModel.Dahua.SaveDevices();
+            try
+            {
+                ViewModel.Dahua.SaveDeviceConfiguration(
+                    _configSelectedDevice,
+                    name,
+                    address,
+                    port,
+                    httpPort,
+                    DahuaConfigUsernameBox.Text,
+                    DahuaConfigPasswordBox.Password);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Błąd konfiguracji", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
             DahuaConfigCredentialInfo.Text = "Zapisano. Dane logowania są chronione przez Windows DPAPI.";
             DahuaConfigCredentialInfo.Foreground = Brushes.LightGreen;
             RefreshDahuaDeviceBindings(_configSelectedDevice);
-            ViewModel.Dahua.StatusText = $"Zapisano urządzenie: '{_configSelectedDevice.Name}' ({_configSelectedDevice.IpAddress}:{_configSelectedDevice.Port})";
         }
 
         private void DahuaConfigAdd_Click(object sender, RoutedEventArgs e)
