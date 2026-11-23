@@ -21,12 +21,19 @@ namespace VideoPlayer
 {
     public partial class MainWindow
     {
+        // Panel przycina obraz. PictureBox zachowuje ten sam HWND przekazany do SDK.
+        private readonly Forms.Panel _dahuaPrimaryViewport = new()
+        {
+            BackColor = System.Drawing.Color.Black,
+            Dock = Forms.DockStyle.Fill
+        };
         private readonly Forms.PictureBox _dahuaPrimaryPictureBox = new()
         {
             BackColor = System.Drawing.Color.Black,
-            Dock = Forms.DockStyle.Fill,
             SizeMode = Forms.PictureBoxSizeMode.Normal
         };
+        private string _dahuaViewScaleMode = "fit";
+        private double _dahuaViewScaleFactor = 1.0;
 
         private DahuaDeviceItem? _currentDahuaDevice;
         private DahuaDeviceItem? _configSelectedDevice;
@@ -88,8 +95,11 @@ namespace VideoPlayer
 
         private void InitializeDahuaHost()
         {
+            _dahuaPrimaryViewport.Controls.Add(_dahuaPrimaryPictureBox);
             _dahuaPrimaryPictureBox.CreateControl();
-            DahuaPrimaryVideoHost.Child = _dahuaPrimaryPictureBox;
+            DahuaPrimaryVideoHost.Child = _dahuaPrimaryViewport;
+            _dahuaPrimaryViewport.Resize += (_, __) => ApplyDahuaPrimaryScale();
+            ApplyDahuaPrimaryScale();
             InitializeDahuaDatePickers();
             _dahuaPlaybackUiTimer.Tick += DahuaPlaybackUiTimer_Tick;
 
@@ -112,6 +122,40 @@ namespace VideoPlayer
                     });
                 };
             }
+        }
+
+        private void SetDahuaPrimaryScale(string mode)
+        {
+            _dahuaViewScaleMode = mode;
+            _dahuaViewScaleFactor = 1.0;
+            if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1.0)
+                _dahuaViewScaleFactor = factor;
+            ApplyDahuaPrimaryScale();
+        }
+
+        private void ApplyDahuaPrimaryScale()
+        {
+            if (_dahuaPrimaryViewport.ClientSize.Width <= 0 || _dahuaPrimaryViewport.ClientSize.Height <= 0) return;
+            double vw = _dahuaPrimaryViewport.ClientSize.Width;
+            double vh = _dahuaPrimaryViewport.ClientSize.Height;
+            const double aspect = 16.0 / 9.0;
+            double bw, bh;
+            if (string.Equals(_dahuaViewScaleMode, "fill", StringComparison.OrdinalIgnoreCase))
+            {
+                bw = Math.Max(vw, vh * aspect);
+                bh = bw / aspect;
+                if (bh < vh) { bh = vh; bw = bh * aspect; }
+            }
+            else
+            {
+                bw = Math.Min(vw, vh * aspect);
+                bh = bw / aspect;
+            }
+            int width = Math.Max(1, (int)Math.Round(bw * _dahuaViewScaleFactor));
+            int height = Math.Max(1, (int)Math.Round(bh * _dahuaViewScaleFactor));
+            _dahuaPrimaryPictureBox.Bounds = new System.Drawing.Rectangle(
+                (int)Math.Round((vw - width) / 2.0),
+                (int)Math.Round((vh - height) / 2.0), width, height);
         }
 
         private void InitializeDahuaDatePickers()
