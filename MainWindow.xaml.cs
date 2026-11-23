@@ -46,6 +46,7 @@ namespace VideoPlayer
         public MainWindow()
         {
             InitializeComponent();
+            InitializeWindowFeatures();
             DataContext = ViewModel;
             Assembly assembly = Assembly.GetEntryAssembly() ?? typeof(MainWindow).Assembly;
             Version? appVersion = assembly.GetName().Version;
@@ -63,7 +64,7 @@ namespace VideoPlayer
             PreviewKeyDown += OnPreviewKeyDown;
             SizeChanged += (_, __) => ConstrainToolsWidth();
             _saveTimer.Tick += (_, __) => SaveSession();
-            Closed += (_, __) => { _mouseSendTimer.Stop(); _videoMouse?.Dispose(); };
+            Closed += (_, __) => { SaveWindowSettings(); CloseDetachedPreview(); _mouseSendTimer.Stop(); _videoMouse?.Dispose(); };
         }
 
         private async void RestartMpv_Click(object sender, RoutedEventArgs e)
@@ -159,6 +160,18 @@ namespace VideoPlayer
         private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (_opening || _shutdownRequested) return;
+            if (e.Key == Key.F11 && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                e.Handled = true;
+                TogglePreviewWindow();
+                return;
+            }
+            if (e.Key == Key.Escape && _previewWindow != null)
+            {
+                e.Handled = true;
+                ReturnPreviewWindow();
+                return;
+            }
             bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
             if (ctrl && e.Key == Key.O) { e.Handled = true; Open_Click(this, new RoutedEventArgs()); return; }
             if (ctrl && e.Key == Key.D) { e.Handled = true; DahuaStream_Click(this, new RoutedEventArgs()); return; }
