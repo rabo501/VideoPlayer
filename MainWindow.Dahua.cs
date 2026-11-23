@@ -1348,9 +1348,15 @@ namespace VideoPlayer
             int width = Math.Max(1, (int)Math.Round(baseWidth * slot.Zoom));
             int height = Math.Max(1, (int)Math.Round(baseHeight * slot.Zoom));
 
+            // Przy pierwszym dopasowaniu wyśrodkuj obraz (zarówno Fit, jak i Fill).
+            if (slot.PanX == 0 && slot.PanY == 0)
+            {
+                slot.PanX = (int)Math.Round((viewportWidth - width) / 2.0);
+                slot.PanY = (int)Math.Round((viewportHeight - height) / 2.0);
+            }
             slot.PanX = Math.Min(0, Math.Max(viewportWidth - width, slot.PanX));
             slot.PanY = Math.Min(0, Math.Max(viewportHeight - height, slot.PanY));
-            if (slot.Zoom <= 1.001) { slot.Zoom = 1.0; slot.PanX = 0; slot.PanY = 0; }
+            if (slot.Zoom <= 1.001) slot.Zoom = 1.0;
 
             slot.PictureBox.Size = new System.Drawing.Size(width, height);
             slot.PictureBox.Location = new System.Drawing.Point(slot.PanX, slot.PanY);
@@ -1584,10 +1590,21 @@ namespace VideoPlayer
                         {
                             DahuaNetSdk.tagVideoFrameParam frame =
                                 System.Runtime.InteropServices.Marshal.PtrToStructure<DahuaNetSdk.tagVideoFrameParam>(param);
-                            if (frame.size != 255 || frame.width == 0 || frame.height == 0)
-                                return;
+                            int sourceWidth = frame.size == 255 ? frame.width : frame.size switch
+                            {
+                                18 => 1920, // 1080
+                                17 => 1280, // 720
+                                _ => 0
+                            };
+                            int sourceHeight = frame.size == 255 ? frame.height : frame.size switch
+                            {
+                                18 => 1080,
+                                17 => 720,
+                                _ => 0
+                            };
+                            if (sourceWidth <= 0 || sourceHeight <= 0) return;
 
-                            double aspect = (double)frame.width / frame.height;
+                            double aspect = (double)sourceWidth / sourceHeight;
                             if (!double.IsFinite(aspect) || aspect <= 0.01) return;
 
                             // Nie wykonujemy operacji UI na wątku NetSDK.
@@ -1595,11 +1612,11 @@ namespace VideoPlayer
                             {
                                 if (_closing || slot.StreamHandle != handle ||
                                     !_dahuaMultiViewSlots.Contains(slot) ||
-                                    slot.SourceWidth == frame.width && slot.SourceHeight == frame.height)
+                                    slot.SourceWidth == sourceWidth && slot.SourceHeight == sourceHeight)
                                     return;
 
-                                slot.SourceWidth = frame.width;
-                                slot.SourceHeight = frame.height;
+                                slot.SourceWidth = sourceWidth;
+                                slot.SourceHeight = sourceHeight;
                                 slot.SourceAspect = aspect;
                                 ApplyDahuaSlotViewport(slot);
                             }), DispatcherPriority.Render);
