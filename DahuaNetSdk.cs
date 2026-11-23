@@ -128,6 +128,30 @@ namespace VideoPlayer
         public delegate void fHaveReConnect(IntPtr lLoginID, string pchDVRIP, int nDVRPort, IntPtr dwUser);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate void fRealDataCallBackEx2(
+            IntPtr lRealHandle,
+            uint dwDataType,
+            IntPtr pBuffer,
+            uint dwBufSize,
+            IntPtr param,
+            IntPtr dwUser);
+
+        // Układ zgodny z tagVideoFrameParam z NetSDK Programming Guide V3.5.2.
+        // width/height są wiarygodne, gdy size == 255.
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        public struct tagVideoFrameParam
+        {
+            public byte encode;
+            public byte frametype;
+            public byte format;
+            public byte size;
+            public uint fourcc;
+            public ushort width;
+            public ushort height;
+            public NET_TIME struTime;
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void fTimeDownLoadPosCallBack(
             IntPtr lPlayHandle,
             uint dwTotalSize,
@@ -216,6 +240,16 @@ namespace VideoPlayer
             int nChannelID,
             IntPtr hWnd,
             EM_RealPlayType rType);
+
+        /// <summary>
+        /// Rejestruje callback danych klatki. Flaga 0x2 oznacza dane z informacją o klatce.
+        /// </summary>
+        [DllImport(NetSdkDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "CLIENT_SetRealDataCallBackEx2")]
+        public static extern bool CLIENT_SetRealDataCallBackEx2(
+            IntPtr lRealHandle,
+            fRealDataCallBackEx2 cbRealData,
+            IntPtr dwUser,
+            uint dwFlag);
 
         /// <summary>
         /// Klasyczna funkcja RealPlay
