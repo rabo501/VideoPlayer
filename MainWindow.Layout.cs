@@ -177,26 +177,26 @@ namespace VideoPlayer
                 item.Click += action;
                 menu.Items.Add(item);
             }
-            var scaleMenu = new MenuItem { Header = "Skalowanie obrazu" };
             string selectedScale = (VideoScaleBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "fit";
-            void AddScale(string label, string tag)
+            void AddScale(string label, string mode)
             {
                 var scaleItem = new MenuItem
                 {
                     Header = label,
-                    Tag = tag,
                     IsCheckable = true,
-                    IsChecked = string.Equals(selectedScale, tag, StringComparison.Ordinal)
+                    IsChecked = string.Equals(selectedScale, mode, StringComparison.Ordinal)
                 };
-                scaleItem.Click += MenuScale_Click;
-                scaleMenu.Items.Add(scaleItem);
+                // Opcje są bezpośrednimi pozycjami menu. Unikamy zagnieżdżonego
+                // podmenu, które w połączeniu z WindowsFormsHost bywało trudne
+                // do kliknięcia i nie przekazywało wyboru do odtwarzacza.
+                scaleItem.Click += (_, __) => ApplyScaleFromContextMenu(mode);
+                menu.Items.Add(scaleItem);
             }
             AddScale("Dopasuj cały obraz", "fit");
             AddScale("Wypełnij okno", "fill");
             AddScale("Powiększenie 125%", "1.25");
             AddScale("Powiększenie 150%", "1.5");
             AddScale("Powiększenie 200%", "2");
-            menu.Items.Add(scaleMenu);
 
             if (_workspaceMode == WorkspaceMode.Player)
             {
