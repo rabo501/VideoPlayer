@@ -56,7 +56,8 @@ Wymagana jest kompilacja i test w Windows: przewijanie suwaka, synchronizacja cz
 
 ## Szósty zakres zmian — lewy panel podglądu wideo
 - uporządkowanie warstwy lokalnego odtwarzacza przez dodanie dyskretnej etykiety „PODGLĄD WIDEO” w górnym lewym narożniku;
-- etykieta jest wyłącznie informacyjna i nie przechwytuje myszy ani klawiatury, więc nie blokuje sterowania osadzonym odtwarzaczem;
+- pierwsza wersja nakładki WPF została zastąpiona nagłówkiem w osobnym wierszu nad hostem wideo, aby uniknąć ograniczenia nakładania elementów WPF na WindowsFormsHost (airspace);
+- nagłówek zawiera oznaczenie MPV i nazwę odtwarzacza; jest widocznym elementem interfejsu, a nie nakładką na obraz;
 - zachowanie PlayerViewportLayer, VideoHost i istniejącego hostowania mpv bez zmian;
 - bez ingerencji w przełączanie warstw OCR/Dahua, ich nakładki, obsługę strumieni, skalowanie i logikę odtwarzania.
 
