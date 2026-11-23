@@ -1591,18 +1591,22 @@ namespace VideoPlayer
                         {
                             DahuaNetSdk.tagVideoFrameParam frame =
                                 System.Runtime.InteropServices.Marshal.PtrToStructure<DahuaNetSdk.tagVideoFrameParam>(param);
-                            int sourceWidth = frame.size == 255 ? frame.width : frame.size switch
-                            {
-                                18 => 1920, // 1080
-                                17 => 1280, // 720
-                                _ => 0
-                            };
-                            int sourceHeight = frame.size == 255 ? frame.height : frame.size switch
-                            {
-                                18 => 1080,
-                                17 => 720,
-                                _ => 0
-                            };
+                            (int sourceWidth, int sourceHeight) = frame.size == 255
+                                ? (frame.width, frame.height)
+                                : frame.size switch
+                                {
+                                    18 => (1920, 1080), // 1080
+                                    17 => (1280, 720),  // 720
+                                    15 => (1920, 1200), // WUXGA
+                                    14 => (1600, 1200), // UXGA
+                                    12 => (1280, 1024), // SXGA
+                                    11 => (1280, 800),  // WXGA
+                                    10 => (1024, 768),  // XVGA
+                                    9 => (800, 600),    // SVGA
+                                    6 => (320, 240),    // QVGA
+                                    4 => (640, 480),    // VGA
+                                    _ => (0, 0)
+                                };
                             if (sourceWidth <= 0 || sourceHeight <= 0) return;
 
                             double aspect = (double)sourceWidth / sourceHeight;
