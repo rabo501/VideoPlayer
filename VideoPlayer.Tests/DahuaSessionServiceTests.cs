@@ -7,6 +7,18 @@ namespace VideoPlayer.Tests
     public sealed class DahuaSessionServiceTests
     {
         [Fact]
+        public void DahuaViewModel_EnsureChannelExists_AddsOnlyMissingChannel()
+        {
+            using var viewModel = new DahuaViewModel(new DahuaSessionService());
+            var device = new DahuaDeviceItem();
+            viewModel.Devices.Add(device);
+
+            Assert.True(viewModel.EnsureChannelExists(device, 17));
+            Assert.Equal("Kamera 17", device.GetChannelName(17));
+            Assert.False(viewModel.EnsureChannelExists(device, 17));
+        }
+
+        [Fact]
         public void DahuaViewModel_GetChannelNameChanges_ReturnsOnlyChangedNamedChannels()
         {
             var device = new DahuaDeviceItem();
