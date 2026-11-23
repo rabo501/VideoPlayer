@@ -733,6 +733,131 @@ namespace VideoPlayer
             }, ct).ConfigureAwait(false);
         }
 
+        public async Task<string> DownloadArchiveAsync(
+            DahuaDeviceItem device,
+            int channel,
+            DateTime start,
+            DateTime end,
+            string outputFilePath,
+            bool convertToMp4,
+            string ffmpegPath,
+            IProgress<string>? statusProgress,
+            CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(device);
+            if (string.IsNullOrWhiteSpace(outputFilePath))
+                throw new ArgumentException("Wskaż plik docelowy.", nameof(outputFilePath));
+
+            IntPtr activeLoginId = LoginId;
+            if (activeLoginId == IntPtr.Zero)
+                throw new InvalidOperationException("Brak aktywnego połączenia z rejestratorem.");
+            if (convertToMp4 && !File.Exists(ffmpegPath))
+                throw new FileNotFoundException("Nie znaleziono ffmpeg.exe.", ffmpegPath);
+            if (!ValidateArchiveRange(start, end, out string rangeError))
+                throw new ArgumentException(rangeError, nameof(end));
+
+            string finalPath = Path.GetFullPath(outputFilePath);
+            string outputDirectory = Path.GetDirectoryName(finalPath)
+                ?? throw new InvalidOperationException("Nie można ustalić katalogu docelowego.");
+            Directory.CreateDirectory(outputDirectory);
+
+            // NetSDK zapisuje archiwum w natywnym kontenerze DAV. Dla MP4 plik DAV
+            // jest wyłącznie plikiem roboczym i zawsze usuwamy go po konwersji.
+            string davFilePath = convertToMp4
+                ? Path.Combine(Path.GetTempPath(), $"VideoPlayer_Dahua_{Guid.NewGuid():N}.dav")
+                : finalPath;
+
+            if (File.Exists(finalPath)) File.Delete(finalPath);
+            if (convertToMp4 && File.Exists(davFilePath)) File.Delete(davFilePath);
+
+            string channelName = device.GetChannelName(channel);
+            statusProgress?.Report($"Przygotowanie pobierania: {channelName} (CH {channel})…");
+
+            int channelIndex = Math.Max(0, channel - 1);
+            var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start);
+            var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end);
+            bool downloadFinished = false;
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    ConfigureRecordModes(activeLoginId);
+                    using var completed = new ManualResetEventSlim(false);
+                    DahuaNetSdk.fTimeDownLoadPosCallBack progressCallback = (_, totalSize, downloadedSize, _, _, _) =>
+                    {
+                        if (downloadedSize == uint.MaxValue)
+                        {
+                            completed.Set();
+                            statusProgress?.Report("Pobieranie z rejestratora zakończone.");
+                            return;
+                        }
+
+                        if (totalSize > 0)
+                        {
+                            double percent = Math.Clamp(downloadedSize * 100.0 / totalSize, 0, 100);
+                            statusProgress?.Report($"Pobieranie z rejestratora: {percent:0}%");
+                            if (downloadedSize >= totalSize)
+                                completed.Set();
+                        }
+                        else
+                        {
+                            statusProgress?.Report("Pobieranie nagrania z rejestratora…");
+                        }
+                    };
+
+                    IntPtr downloadHandle = DahuaNetSdk.CLIENT_DownloadByTimeEx(
+                        activeLoginId, channelIndex, 0, ref tmStart, ref tmEnd, davFilePath,
+                        progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                    if (downloadHandle == IntPtr.Zero)
+                        throw new InvalidOperationException($"CLIENT_DownloadByTimeEx: {DahuaNetSdk.GetErrorDescription(DahuaNetSdk.CLIENT_GetLastError())}");
+
+                    try
+                    {
+                        bool signaled = completed.Wait(TimeSpan.FromMinutes(30), ct);
+                        if (!signaled)
+                            throw new TimeoutException("Przekroczono limit czasu pobierania nagrania z rejestratora.");
+                        if (File.Exists(davFilePath) && new FileInfo(davFilePath).Length > 0)
+                            downloadFinished = true;
+                    }
+                    finally
+                    {
+                        DahuaNetSdk.CLIENT_StopDownload(downloadHandle);
+                        GC.KeepAlive(progressCallback);
+                    }
+                }, ct).ConfigureAwait(false);
+
+                ct.ThrowIfCancellationRequested();
+                if (!downloadFinished || !File.Exists(davFilePath) || new FileInfo(davFilePath).Length == 0)
+                    throw new InvalidOperationException("NetSDK nie zakończył pobierania pliku archiwum.");
+
+                if (convertToMp4)
+                {
+                    statusProgress?.Report("Konwersja nagrania do MP4…");
+                    await ConvertRecordingToMp4Async(ffmpegPath, davFilePath, finalPath, ct).ConfigureAwait(false);
+                }
+
+                if (!File.Exists(finalPath) || new FileInfo(finalPath).Length == 0)
+                    throw new InvalidOperationException("Pobrany plik jest pusty lub nie został utworzony.");
+
+                statusProgress?.Report($"Zapisano nagranie: {finalPath}");
+                return finalPath;
+            }
+            catch
+            {
+                try { if (File.Exists(finalPath)) File.Delete(finalPath); } catch { }
+                throw;
+            }
+            finally
+            {
+                if (convertToMp4)
+                {
+                    try { if (File.Exists(davFilePath)) File.Delete(davFilePath); } catch { }
+                }
+            }
+        }
+
         public async Task<string?> DownloadAndConvertToMp4Async(
             DahuaDeviceItem device,
             int channel,
@@ -742,70 +867,17 @@ namespace VideoPlayer
             IProgress<string>? statusProgress,
             CancellationToken ct = default)
         {
-            IntPtr activeLoginId = LoginId;
-            if (activeLoginId == IntPtr.Zero)
-                throw new InvalidOperationException("Brak aktywnego połączenia z rejestratorem.");
-            if (!File.Exists(ffmpegPath))
-                throw new FileNotFoundException("Nie znaleziono ffmpeg.exe.", ffmpegPath);
-
-            string chName = device.GetChannelName(channel);
             string outputDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "VideoPlayer", "nagrania_dahua");
-            Directory.CreateDirectory(outputDir);
-            string safeChannelName = string.Concat(chName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)).Replace(' ', '_');
+            string safeChannelName = string.Concat(device.GetChannelName(channel)
+                .Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)).Replace(' ', '_');
             string fileStem = $"Dahua_{safeChannelName}_CH{channel}_{start:yyyyMMdd_HHmmss}-{end:HHmmss}";
-            string davFilePath = Path.Combine(outputDir, fileStem + ".dav");
             string targetFilePath = Path.Combine(outputDir, fileStem + ".mp4");
-            if (File.Exists(davFilePath)) File.Delete(davFilePath);
-            if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
 
-            statusProgress?.Report($"Pobieranie nagrania: {chName} (CH {channel})…");
-
-            int channelIndex = Math.Max(0, channel - 1);
-            var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start);
-            var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end);
-            bool downloadFinished = false;
-
-            await Task.Run(() =>
-            {
-                ConfigureRecordModes(activeLoginId);
-                using var completed = new ManualResetEventSlim(false);
-                DahuaNetSdk.fTimeDownLoadPosCallBack progressCallback = (_, totalSize, downloadedSize, _, _, _) =>
-                {
-                    if (downloadedSize == uint.MaxValue || (totalSize > 0 && downloadedSize >= totalSize))
-                        completed.Set();
-                };
-
-                IntPtr hDown = DahuaNetSdk.CLIENT_DownloadByTimeEx(
-                    activeLoginId, channelIndex, 0, ref tmStart, ref tmEnd, davFilePath,
-                    progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-                if (hDown == IntPtr.Zero)
-                    throw new InvalidOperationException($"CLIENT_DownloadByTimeEx: {DahuaNetSdk.GetErrorDescription(DahuaNetSdk.CLIENT_GetLastError())}");
-
-                try
-                {
-                    bool signaled = completed.Wait(TimeSpan.FromMinutes(30), ct);
-                    if (signaled && File.Exists(davFilePath) && new FileInfo(davFilePath).Length > 0)
-                        downloadFinished = true;
-                }
-                finally
-                {
-                    DahuaNetSdk.CLIENT_StopDownload(hDown);
-                    GC.KeepAlive(progressCallback);
-                }
-            }, ct).ConfigureAwait(false);
-
-            if (!downloadFinished || !File.Exists(davFilePath) || new FileInfo(davFilePath).Length == 0)
-                throw new InvalidOperationException("NetSDK nie zakończył pobierania pliku archiwum.");
-
-            statusProgress?.Report("Pobrano plik DAV. Konwersja do MP4…");
-            await ConvertRecordingToMp4Async(ffmpegPath, davFilePath, targetFilePath, ct).ConfigureAwait(false);
-
-            if (File.Exists(targetFilePath) && new FileInfo(targetFilePath).Length > 0)
-                return targetFilePath;
-
-            return null;
+            return await DownloadArchiveAsync(
+                device, channel, start, end, targetFilePath, convertToMp4: true,
+                ffmpegPath, statusProgress, ct).ConfigureAwait(false);
         }
 
         private static async Task ConvertRecordingToMp4Async(string ffmpegPath, string inputPath, string outputPath, CancellationToken ct)
