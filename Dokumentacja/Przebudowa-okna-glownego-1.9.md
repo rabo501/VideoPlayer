@@ -44,3 +44,12 @@ Ten zakres wymaga kompilacji i sprawdzenia układu w Windows, szczególnie przy 
 - bez zmian w logice przełączania trybów, otwierania plików, OCR, widoku, sesji i panelu narzędzi.
 
 Ten zakres wymaga kompilacji i sprawdzenia w Windows przy typowej oraz minimalnej szerokości okna. Należy zwrócić szczególną uwagę na to, czy prawa strefa szybkich akcji mieści się bez obcinania.
+
+
+## Piąty zakres zmian — oś czasu i pasek statusu
+- wizualne uporządkowanie dolnej osi czasu: wyraźniejszy nagłówek, czytelniejsze wskazanie aktualnej pozycji i czasu trwania;
+- pozostawienie bez zmian suwaka `PositionSlider`, warstwy `TimelineOverlay`, uchwytów zaznaczenia oraz ich zdarzeń — nie zmieniano mechanizmu synchronizacji osi czasu;
+- ujednolicenie paska statusu: osobne oznaczenie statusu, czytelniejsze informacje o operacji i postępie oraz wydzielony obszar paska postępu;
+- zachowanie wszystkich nazw kontrolek, bindingów i komend anulowania.
+
+Wymagana jest kompilacja i test w Windows: przewijanie suwaka, synchronizacja czasu, zaznaczanie fragmentu uchwytami, znaczniki zdarzeń oraz prezentacja postępu i anulowania eksportu.
