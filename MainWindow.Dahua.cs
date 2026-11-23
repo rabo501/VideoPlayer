@@ -82,6 +82,10 @@ namespace VideoPlayer
             public FormsIntegration.WindowsFormsHost Host { get; init; } = null!;
             public Forms.Panel Viewport { get; init; } = null!;
             public double Zoom { get; set; } = 1.0;
+            public int SourceWidth { get; set; }
+            public int SourceHeight { get; set; }
+            public double SourceAspect { get; set; } = 16.0 / 9.0;
+            public DahuaNetSdk.fRealDataCallBackEx2? FrameInfoCallback { get; set; }
             public int PanX { get; set; }
             public int PanY { get; set; }
             public bool IsDragging { get; set; }
@@ -137,20 +141,11 @@ namespace VideoPlayer
             // Dlatego skalę trzeba zastosować do wszystkich aktualnych slotów.
             if (_dahuaMultiViewSlots.Count > 0)
             {
-                const double sourceAspect = 16.0 / 9.0;
                 foreach (DahuaMultiViewSlot slot in _dahuaMultiViewSlots)
                 {
-                    int width = Math.Max(1, slot.Viewport.ClientSize.Width);
-                    int height = Math.Max(1, slot.Viewport.ClientSize.Height);
-                    double fillZoom = 1.0;
-
-                    if (string.Equals(mode, "fill", StringComparison.OrdinalIgnoreCase))
-                    {
-                        double viewportAspect = (double)width / height;
-                        fillZoom = Math.Max(viewportAspect / sourceAspect, sourceAspect / viewportAspect);
-                    }
-
-                    slot.Zoom = Math.Max(1.0, fillZoom * _dahuaViewScaleFactor);
+                    // Fit/fill jest realizowane przez bazowy rozmiar obrazu z jego
+                    // rzeczywistym aspect ratio; Zoom pozostaje dodatkowym powiększeniem.
+                    slot.Zoom = Math.Max(1.0, _dahuaViewScaleFactor);
                     slot.PanX = 0;
                     slot.PanY = 0;
                     ApplyDahuaSlotViewport(slot);
@@ -1328,8 +1323,30 @@ namespace VideoPlayer
             if (slot == null || slot.Viewport.IsDisposed || slot.PictureBox.IsDisposed) return;
             int viewportWidth = Math.Max(1, slot.Viewport.ClientSize.Width);
             int viewportHeight = Math.Max(1, slot.Viewport.ClientSize.Height);
-            int width = Math.Max(1, (int)Math.Round(viewportWidth * slot.Zoom));
-            int height = Math.Max(1, (int)Math.Round(viewportHeight * slot.Zoom));
+            double aspect = slot.SourceAspect > 0.01 && double.IsFinite(slot.SourceAspect)
+                ? slot.SourceAspect : 16.0 / 9.0;
+            double viewportAspect = (double)viewportWidth / viewportHeight;
+            bool fill = string.Equals(_dahuaViewScaleMode, "fill", StringComparison.OrdinalIgnoreCase);
+
+            // Dopasuj cały obraz (Fit) albo wypełnij viewport i przytnij nadmiar (Fill),
+            // zawsze zachowując proporcje rzeczywistej klatki źródłowej.
+            double baseWidth = fill
+                ? Math.Max(viewportWidth, viewportHeight * aspect)
+                : Math.Min(viewportWidth, viewportHeight * aspect);
+            double baseHeight = baseWidth / aspect;
+            if (!fill && baseHeight > viewportHeight)
+            {
+                baseHeight = viewportHeight;
+                baseWidth = baseHeight * aspect;
+            }
+            else if (fill && baseHeight < viewportHeight)
+            {
+                baseHeight = viewportHeight;
+                baseWidth = baseHeight * aspect;
+            }
+
+            int width = Math.Max(1, (int)Math.Round(baseWidth * slot.Zoom));
+            int height = Math.Max(1, (int)Math.Round(baseHeight * slot.Zoom));
 
             slot.PanX = Math.Min(0, Math.Max(viewportWidth - width, slot.PanX));
             slot.PanY = Math.Min(0, Math.Max(viewportHeight - height, slot.PanY));
@@ -1556,7 +1573,52 @@ namespace VideoPlayer
                     slot.Channel, slot.PictureBox.Handle, streamType);
 
                 if (slot.StreamHandle != IntPtr.Zero)
+                {
                     started++;
+                    // Callback przekazuje metadane klatki; przechowujemy delegata w slocie,
+                    // aby GC nie zwolnił go, gdy natywny SDK nadal go wywołuje.
+                    slot.FrameInfoCallback = (handle, dataType, buffer, bufferSize, param, user) =>
+                    {
+                        if (dataType != 1 || param == IntPtr.Zero) return;
+                        try
+                        {
+                            DahuaNetSdk.tagVideoFrameParam frame =
+                                System.Runtime.InteropServices.Marshal.PtrToStructure<DahuaNetSdk.tagVideoFrameParam>(param);
+                            if (frame.size != 255 || frame.width == 0 || frame.height == 0)
+                                return;
+
+                            double aspect = (double)frame.width / frame.height;
+                            if (!double.IsFinite(aspect) || aspect <= 0.01) return;
+
+                            // Nie wykonujemy operacji UI na wątku NetSDK.
+                            Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                if (_closing || slot.StreamHandle != handle ||
+                                    !_dahuaMultiViewSlots.Contains(slot) ||
+                                    slot.SourceWidth == frame.width && slot.SourceHeight == frame.height)
+                                    return;
+
+                                slot.SourceWidth = frame.width;
+                                slot.SourceHeight = frame.height;
+                                slot.SourceAspect = aspect;
+                                ApplyDahuaSlotViewport(slot);
+                            }), DispatcherPriority.Render);
+                        }
+                        catch
+                        {
+                            // Nie wolno dopuścić, aby wyjątek zarządzany opuścił callback natywny.
+                        }
+                    };
+
+                    // 0x2 = REALDATA_FLAG_DATA_WITH_FRAME_INFO.
+                    // Jeśli firmware/SDK nie obsługuje callbacku, Live pozostaje aktywny
+                    // i zachowuje bezpieczne proporcje domyślne do czasu kolejnego odczytu.
+                    if (!DahuaNetSdk.CLIENT_SetRealDataCallBackEx2(
+                        slot.StreamHandle, slot.FrameInfoCallback, IntPtr.Zero, 0x00000002))
+                    {
+                        slot.FrameInfoCallback = null;
+                    }
+                }
                 else
                     lastError = DahuaNetSdk.CLIENT_GetLastError();
             }
@@ -1578,6 +1640,7 @@ namespace VideoPlayer
                 if (slot.StreamHandle == IntPtr.Zero) continue;
                 ViewModel.Dahua.StopLiveStream(slot.StreamHandle);
                 slot.StreamHandle = IntPtr.Zero;
+                slot.FrameInfoCallback = null;
             }
         }
 
