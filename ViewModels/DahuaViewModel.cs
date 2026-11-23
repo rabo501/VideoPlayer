@@ -399,6 +399,18 @@ namespace VideoPlayer.ViewModels
             return changes.Count;
         }
 
+        public bool EnsureChannelExists(DahuaDeviceItem device, int channel)
+        {
+            EnsureManagedDevice(device);
+            if (channel < 1)
+                throw new ArgumentOutOfRangeException(nameof(channel));
+            if (device.Channels.Any(item => item.Number == channel))
+                return false;
+
+            device.SetChannelName(channel, $"Kamera {channel}");
+            return true;
+        }
+
         public void SaveChannelName(DahuaDeviceItem device, int channel, string name)
         {
             EnsureManagedDevice(device);
