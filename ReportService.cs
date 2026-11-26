@@ -625,7 +625,8 @@ namespace VideoPlayer
                     y += 5;
                 }
 
-                Section("IV. Chronologiczny wykaz zdarzeń");
+                Section("IV. Wykaz zdarzeń według materiału");
+                Paragraph("Zdarzenia uporządkowano według nagrania, a w jego obrębie według czasu względnego.", small, 4);
                 int eventIndex = 0;
                 foreach (CaseReportSource source in sources)
                 {
