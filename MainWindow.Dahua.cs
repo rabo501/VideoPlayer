@@ -1379,17 +1379,33 @@ namespace VideoPlayer
                 baseWidth = baseHeight * aspect;
             }
 
+            // W trybie Fit przy bazowym powiększeniu zawsze licz pozycję
+            // od nowa. Rozmiar WindowsFormsHost może zmienić się jeszcze po
+            // uruchomieniu strumienia (layout WPF), a zachowanie przesunięcia
+            // z poprzedniego rozmiaru powodowało wyrównanie obrazu do lewej.
+            bool fitAtBaseZoom =
+                string.Equals(_dahuaViewScaleMode, "fit", StringComparison.OrdinalIgnoreCase) &&
+                slot.Zoom <= 1.001;
+            if (fitAtBaseZoom)
+                slot.Zoom = 1.0;
+
             int width = Math.Max(1, (int)Math.Round(baseWidth * slot.Zoom));
             int height = Math.Max(1, (int)Math.Round(baseHeight * slot.Zoom));
 
-            // Każdą oś centruj niezależnie. Wymiary źródła mogą zostać
-            // zaktualizowane dopiero po odebraniu pierwszej klatki z rejestratora;
-            // wtedy jedna oś może już mieć wyliczone przesunięcie, a druga nadal zero.
-            // Zero oznacza pozycję początkową — wyznaczamy dla niej środek obrazu.
-            if (slot.PanX == 0)
+            if (fitAtBaseZoom)
+            {
+                // Dopasuj i wyśrodkuj obraz względem aktualnego viewportu.
                 slot.PanX = (int)Math.Round((viewportWidth - width) / 2.0);
-            if (slot.PanY == 0)
                 slot.PanY = (int)Math.Round((viewportHeight - height) / 2.0);
+            }
+            else
+            {
+                // Przy powiększeniu zachowujemy ręczne przesunięcie obrazu.
+                if (slot.PanX == 0)
+                    slot.PanX = (int)Math.Round((viewportWidth - width) / 2.0);
+                if (slot.PanY == 0)
+                    slot.PanY = (int)Math.Round((viewportHeight - height) / 2.0);
+            }
 
             // Gdy obraz jest mniejszy od viewportu, pozycja może być dodatnia.
             // Gdy jest większy, ograniczamy przesunięcie do zakresu bez pustych krawędzi.
@@ -1399,7 +1415,6 @@ namespace VideoPlayer
             int maxPanY = Math.Max(0, viewportHeight - height);
             slot.PanX = Math.Clamp(slot.PanX, minPanX, maxPanX);
             slot.PanY = Math.Clamp(slot.PanY, minPanY, maxPanY);
-            if (slot.Zoom <= 1.001) slot.Zoom = 1.0;
 
             slot.PictureBox.Size = new System.Drawing.Size(width, height);
             slot.PictureBox.Location = new System.Drawing.Point(slot.PanX, slot.PanY);
