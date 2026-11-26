@@ -1155,7 +1155,28 @@ namespace VideoPlayer
             }
             _dahuaUpdatingArchiveChannelChecks = false;
             UpdateDahuaArchiveChannelCheckStates();
+            SyncDahuaArchivePrimaryChannelFromChecks();
             RefreshDahuaArchiveSelectedChannelsSummary();
+        }
+
+        private void SyncDahuaArchivePrimaryChannelFromChecks()
+        {
+            int? primary = DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(check => check.IsChecked == true)
+                .Select(check => check.Tag is int number ? (int?)number : null)
+                .FirstOrDefault(number => number.HasValue);
+            if (!primary.HasValue) return;
+
+            for (int i = 0; i < DahuaArchiveChannelBox.Items.Count; i++)
+            {
+                if (DahuaArchiveChannelBox.Items[i] is ComboBoxItem item &&
+                    item.Tag is int channel && channel == primary.Value)
+                {
+                    if (DahuaArchiveChannelBox.SelectedIndex != i)
+                        DahuaArchiveChannelBox.SelectedIndex = i;
+                    break;
+                }
+            }
         }
 
         private void UpdateDahuaArchiveChannelCheckStates()
@@ -1785,7 +1806,10 @@ namespace VideoPlayer
 
             string summary = string.Join(", ", channels.Select(channel =>
                 $"{_currentDahuaDevice.GetChannelName(channel)} (CH {channel})"));
-            DahuaArchiveSelectedChannelsText.Text = summary;
+            int primaryChannel = channels[0];
+            DahuaArchiveSelectedChannelsText.Text =
+                $"Kamera do wyszukiwania: {_currentDahuaDevice.GetChannelName(primaryChannel)} (CH {primaryChannel})\n" +
+                $"Kamery do odtwarzania: {summary}";
         }
 
         private async void DahuaStartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
@@ -2734,6 +2758,13 @@ namespace VideoPlayer
             DahuaStartTimeBox.Text = record.StartTime.ToString("HH:mm:ss");
             DahuaEndDatePicker.SelectedDate = record.EndTime.Date;
             DahuaEndTimeBox.Text = record.EndTime.ToString("HH:mm:ss");
+            _dahuaArchiveSelectedChannels.Clear();
+            _dahuaArchiveSelectedChannels.Add(record.Channel);
+            _dahuaUpdatingArchiveChannelChecks = true;
+            foreach (CheckBox check in DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsChecked = check.Tag is int number && number == record.Channel;
+            _dahuaUpdatingArchiveChannelChecks = false;
+            UpdateDahuaArchiveChannelCheckStates();
             for (int i = 0; i < DahuaArchiveChannelBox.Items.Count; i++)
             {
                 if (DahuaArchiveChannelBox.Items[i] is ComboBoxItem item && item.Tag is int ch && ch == record.Channel)
