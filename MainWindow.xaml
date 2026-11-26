@@ -1370,8 +1370,8 @@
                                                 </StackPanel>
                                             </Border>
 
-                                            <Button Content="▶ Odtwórz zaznaczone kamery w wybranym zakresie"
-                                                    Click="DahuaStartSynchronizedPlayback_Click"
+                                            <Button Content="▶ Odtwórz w podglądzie Dahua"
+                                                    Click="DahuaArchivePlay_Click"
                                                     Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch"
                                                     Margin="0,0,0,8" />
 
@@ -1427,16 +1427,13 @@
                                                 </DataGrid.Columns>
                                             </DataGrid>
 
-                                            <WrapPanel Margin="0,0,0,6">
-                                                <Button Content="▶ Odtwórz wybrane nagranie" Click="DahuaPlaySelectedRecord_Click" />
-                                                <Button Content="★ Wczytaj wybrane nagranie do odtwarzacza" Click="DahuaLoadSelectedRecord_Click" Style="{StaticResource DahuaGreenButton}" />
-                                            </WrapPanel>
+                                            <TextBlock Text="Zaznacz wynik, aby odtworzyć lub pobrać dokładnie to nagranie. Bez zaznaczenia używany jest zakres i wybór kamer powyżej."
+                                                       Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,7" />
 
                                             <ProgressBar x:Name="DahuaDownloadProgressBar" Height="8" Margin="0,0,0,6" IsIndeterminate="{Binding Dahua.IsDownloadBusy}" Visibility="{Binding Dahua.IsDownloadBusy, Converter={StaticResource BooleanToVisibilityConverter}}" Background="#13161F" Foreground="#22C55E" />
                                             <TextBlock x:Name="DahuaDownloadStatusText" Text="{Binding Dahua.DownloadStatusText}" FontSize="11" FontWeight="SemiBold" Foreground="#4ADE80" Margin="0,0,0,6" Visibility="{Binding Dahua.IsDownloadStatusVisible, Converter={StaticResource BooleanToVisibilityConverter}}" TextWrapping="Wrap" />
 
-                                            <Button x:Name="DahuaLoadToPlayerButton" Content="★ Pobierz zakres głównej kamery do odtwarzacza" Click="DahuaLoadToPlayer_Click" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
-                                            <Button Content="Odtwórz zakres w podglądzie Dahua" Click="DahuaPlayArchiveInWindow_Click" HorizontalAlignment="Stretch" />
+                                            <Button x:Name="DahuaLoadToPlayerButton" Content="★ Pobierz do głównego odtwarzacza" Click="DahuaLoadToPlayer_Click" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
                                         </StackPanel>
                                     </ScrollViewer>
                                 </TabItem>
