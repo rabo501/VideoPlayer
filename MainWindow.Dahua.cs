@@ -1210,6 +1210,7 @@ namespace VideoPlayer
                 if (check.Tag is int number) _dahuaArchiveSelectedChannels.Add(number);
 
             UpdateDahuaArchiveChannelCheckStates();
+            SyncDahuaArchivePrimaryChannelFromChecks();
             RefreshDahuaArchiveSelectedChannelsSummary();
         }
 
@@ -1227,6 +1228,7 @@ namespace VideoPlayer
             }
             _dahuaUpdatingArchiveChannelChecks = false;
             UpdateDahuaArchiveChannelCheckStates();
+            SyncDahuaArchivePrimaryChannelFromChecks();
             RefreshDahuaArchiveSelectedChannelsSummary();
         }
 
