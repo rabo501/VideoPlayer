@@ -2777,6 +2777,22 @@ namespace VideoPlayer
             }
         }
 
+        private void DahuaArchivePlay_Click(object sender, RoutedEventArgs e)
+        {
+            // Zaznaczony wynik wyszukiwania ma pierwszeństwo:
+            // odtwarzamy dokładny zakres i kanał tego nagrania.
+            var record = GetSelectedDahuaRecord();
+            if (record != null)
+            {
+                ApplyDahuaRecordRange(record);
+                SelectDahuaModernChannel(record.Channel);
+            }
+
+            DahuaStartSynchronizedPlayback_Click(sender, e);
+        }
+
+        // Zachowane jako zgodnościowe handlery — główny interfejs używa teraz
+        // jednego przycisku odtwarzania obsługującego zakres lub wybrany wynik.
         private void DahuaPlaySelectedRecord_Click(object sender, RoutedEventArgs e)
         {
             var record = GetSelectedDahuaRecord();
@@ -2797,6 +2813,12 @@ namespace VideoPlayer
         private async void DahuaLoadToPlayer_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
+
+            // Jeśli zaznaczono wynik wyszukiwania, pobieramy dokładnie to
+            // nagranie. W przeciwnym razie używamy kamery i zakresu z formularza.
+            var selectedRecord = GetSelectedDahuaRecord();
+            if (selectedRecord != null)
+                ApplyDahuaRecordRange(selectedRecord);
             var start = GetDahuaStartDateTime();
             var end = GetDahuaEndDateTime();
             if (!DahuaSessionService.ValidateArchiveRange(start, end, out string error))
