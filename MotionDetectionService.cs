@@ -1,15 +1,22 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace VideoPlayer
 {
+    internal readonly record struct MotionFrameDiffResult(int ChangedPixels, int MinX, int MinY, int MaxX, int MaxY);
+
     internal sealed class MotionDetectionService
     {
-        private const int FrameWidth = 320, FrameHeight = 180, FramesPerSecond = 2;
+        public const int FrameWidth = 320;
+        public const int FrameHeight = 180;
+        private const int FramesPerSecond = 2;
         private const int FrameBytes = FrameWidth * FrameHeight;
         private const double EventMergeGapSeconds = 1.5;
 
@@ -46,8 +53,11 @@ namespace VideoPlayer
             string filter = $"fps={FramesPerSecond},scale={FrameWidth}:{FrameHeight}:flags=area,format=gray";
             var psi = new ProcessStartInfo
             {
-                FileName = ffmpegPath, UseShellExecute = false, CreateNoWindow = true,
-                RedirectStandardOutput = true, RedirectStandardError = true
+                FileName = ffmpegPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
             foreach (string arg in new[] { "-hide_banner", "-loglevel", "error", "-i", sourcePath, "-an", "-sn", "-dn", "-vf", filter, "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1" })
                 psi.ArgumentList.Add(arg);
@@ -65,7 +75,8 @@ namespace VideoPlayer
 
             Task<string> errorTask = process.StandardError.ReadToEndAsync();
             var events = new List<MotionEvent>();
-            byte[] previous = new byte[FrameBytes], current = new byte[FrameBytes];
+            byte[] previous = ArrayPool<byte>.Shared.Rent(FrameBytes);
+            byte[] current = ArrayPool<byte>.Shared.Rent(FrameBytes);
             bool hasPrevious = false;
             MotionEvent? active = null;
             double lastDetectionSeconds = double.NegativeInfinity;
@@ -75,55 +86,27 @@ namespace VideoPlayer
 
             try
             {
-                while ((read = await ReadFrameAsync(process.StandardOutput.BaseStream, current, cancellationToken).ConfigureAwait(false)) == FrameBytes)
+                while ((read = await ReadFrameAsync(process.StandardOutput.BaseStream, current, FrameBytes, cancellationToken).ConfigureAwait(false)) == FrameBytes)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     double seconds = (double)frameIndex++ / FramesPerSecond;
 
                     if (hasPrevious)
                     {
-                        int changed = 0, minX = FrameWidth, minY = FrameHeight, maxX = -1, maxY = -1;
+                        MotionFrameDiffResult diff = AnalyzeFrameDifference(
+                            previous.AsSpan(0, FrameBytes),
+                            current.AsSpan(0, FrameBytes),
+                            threshold,
+                            left, top, right, bottom,
+                            FrameWidth, FrameHeight);
 
-                        // Reject isolated pixel changes (sensor noise/compression artefacts):
-                        // a changed pixel is counted only when at least two of its 8 neighbours
-                        // also exceed the configured brightness-difference threshold.
-                        for (int y = top; y < bottom; y++)
-                        {
-                            int row = y * FrameWidth;
-                            for (int x = left; x < right; x++)
-                            {
-                                int index = row + x;
-                                if (Math.Abs(current[index] - previous[index]) < threshold) continue;
-
-                                int neighbours = 0;
-                                for (int ny = Math.Max(top, y - 1); ny <= Math.Min(bottom - 1, y + 1) && neighbours < 2; ny++)
-                                {
-                                    int neighbourRow = ny * FrameWidth;
-                                    for (int nx = Math.Max(left, x - 1); nx <= Math.Min(right - 1, x + 1); nx++)
-                                    {
-                                        if (nx == x && ny == y) continue;
-                                        if (Math.Abs(current[neighbourRow + nx] - previous[neighbourRow + nx]) >= threshold)
-                                        {
-                                            neighbours++;
-                                            if (neighbours >= 2) break;
-                                        }
-                                    }
-                                }
-                                if (neighbours < 2) continue;
-
-                                changed++;
-                                minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
-                                minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
-                            }
-                        }
-
-                        double ratio = changed * 100.0 / roiPixelCount;
-                        bool detected = changed > 0 && ratio >= changedAreaPercent;
+                        double ratio = diff.ChangedPixels * 100.0 / roiPixelCount;
+                        bool detected = diff.ChangedPixels > 0 && ratio >= changedAreaPercent;
                         if (detected)
                         {
                             if (active != null && seconds - lastDetectionSeconds <= EventMergeGapSeconds)
                             {
-                                ExtendEvent(active, seconds, ratio, minX, minY, maxX, maxY, durationSeconds);
+                                ExtendEvent(active, seconds, ratio, diff.MinX, diff.MinY, diff.MaxX, diff.MaxY, durationSeconds);
                                 lastDetectionSeconds = seconds;
                                 pendingDetectionSeconds = double.NaN;
                             }
@@ -142,10 +125,10 @@ namespace VideoPlayer
                                         StartSeconds = Math.Max(0, pendingDetectionSeconds - 0.5),
                                         EndSeconds = ClampEnd(seconds + 0.5, durationSeconds),
                                         PeakChangedRatio = ratio,
-                                        MotionX = (double)minX / FrameWidth,
-                                        MotionY = (double)minY / FrameHeight,
-                                        MotionWidth = (double)(maxX - minX + 1) / FrameWidth,
-                                        MotionHeight = (double)(maxY - minY + 1) / FrameHeight
+                                        MotionX = (double)diff.MinX / FrameWidth,
+                                        MotionY = (double)diff.MinY / FrameHeight,
+                                        MotionWidth = (double)(diff.MaxX - diff.MinX + 1) / FrameWidth,
+                                        MotionHeight = (double)(diff.MaxY - diff.MinY + 1) / FrameHeight
                                     };
                                     events.Add(active);
                                     lastDetectionSeconds = seconds;
@@ -161,7 +144,8 @@ namespace VideoPlayer
                         }
                     }
 
-                    Buffer.BlockCopy(current, 0, previous, 0, FrameBytes);
+                    // Zamiana buforów O(1) zamiast Buffer.BlockCopy na każdą klatkę.
+                    (previous, current) = (current, previous);
                     hasPrevious = true;
                     if (durationSeconds > 0)
                         progress?.Report(Math.Clamp(seconds / durationSeconds * 100, 0, 99));
@@ -184,9 +168,154 @@ namespace VideoPlayer
                 try { if (!process.HasExited) process.Kill(true); } catch { }
                 throw;
             }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(previous);
+                ArrayPool<byte>.Shared.Return(current);
+            }
         }
 
-        private static void ExtendEvent(MotionEvent motionEvent, double seconds, double ratio,
+        internal static MotionFrameDiffResult AnalyzeFrameDifference(
+            ReadOnlySpan<byte> previous,
+            ReadOnlySpan<byte> current,
+            int threshold,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            int frameWidth,
+            int frameHeight)
+        {
+            if (previous.Length < frameWidth * frameHeight || current.Length < frameWidth * frameHeight)
+                throw new ArgumentException("Bufory klatek są mniejsze niż zadeklarowane wymiary obrazu.");
+
+            int changed = 0, minX = frameWidth, minY = frameHeight, maxX = -1, maxY = -1;
+            int roiWidth = right - left;
+            int vecLen = Vector<byte>.Count;
+            byte byteThreshold = (byte)Math.Clamp(threshold, 1, 255);
+            var thresholdVec = new Vector<byte>(byteThreshold);
+
+            for (int y = top; y < bottom; y++)
+            {
+                int row = y * frameWidth;
+
+                // Szybkie skanowanie wektorowe wiersza — pozwala pominąć wiersze bez żadnej zmiany pikseli.
+                if (Vector.IsHardwareAccelerated && roiWidth >= vecLen)
+                {
+                    bool rowHasCandidate = false;
+                    int xVec = left;
+                    int lastVecEnd = right - vecLen;
+                    for (; xVec <= lastVecEnd; xVec += vecLen)
+                    {
+                        var vPrev = new Vector<byte>(previous.Slice(row + xVec, vecLen));
+                        var vCurr = new Vector<byte>(current.Slice(row + xVec, vecLen));
+                        var absDiff = Vector.Subtract(Vector.Max(vPrev, vCurr), Vector.Min(vPrev, vCurr));
+                        if (Vector.GreaterThanOrEqualAny(absDiff, thresholdVec))
+                        {
+                            rowHasCandidate = true;
+                            break;
+                        }
+                    }
+
+                    if (!rowHasCandidate)
+                    {
+                        for (; xVec < right; xVec++)
+                        {
+                            if (Math.Abs(current[row + xVec] - previous[row + xVec]) >= threshold)
+                            {
+                                rowHasCandidate = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!rowHasCandidate) continue;
+                }
+
+                for (int x = left; x < right; x++)
+                {
+                    int index = row + x;
+                    if (Math.Abs(current[index] - previous[index]) < threshold) continue;
+
+                    // Odrzucanie izolowanych pikseli (szum matrycy / artefakty kompresji):
+                    // wymagamy co najmniej dwóch spośród 8 sąsiednich pikseli przekraczających próg.
+                    int neighbours = 0;
+                    int nyStart = Math.Max(top, y - 1);
+                    int nyEnd = Math.Min(bottom - 1, y + 1);
+                    int nxStart = Math.Max(left, x - 1);
+                    int nxEnd = Math.Min(right - 1, x + 1);
+
+                    for (int ny = nyStart; ny <= nyEnd && neighbours < 2; ny++)
+                    {
+                        int neighbourRow = ny * frameWidth;
+                        for (int nx = nxStart; nx <= nxEnd; nx++)
+                        {
+                            if (nx == x && ny == y) continue;
+                            if (Math.Abs(current[neighbourRow + nx] - previous[neighbourRow + nx]) >= threshold)
+                            {
+                                neighbours++;
+                                if (neighbours >= 2) break;
+                            }
+                        }
+                    }
+                    if (neighbours < 2) continue;
+
+                    changed++;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+
+            return new MotionFrameDiffResult(changed, minX, minY, maxX, maxY);
+        }
+
+        internal static async Task<byte[]> ExtractPreviewBmpAsync(
+            string ffmpegPath,
+            string sourcePath,
+            double seconds,
+            CancellationToken cancellationToken = default)
+        {
+            if (!File.Exists(ffmpegPath)) throw new FileNotFoundException("Nie znaleziono FFmpeg.", ffmpegPath);
+            if (!File.Exists(sourcePath)) throw new FileNotFoundException("Nie znaleziono nagrania.", sourcePath);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            foreach (string arg in new[]
+            {
+                "-hide_banner", "-loglevel", "error",
+                "-ss", Math.Max(0, seconds).ToString("0.###", CultureInfo.InvariantCulture),
+                "-i", sourcePath,
+                "-frames:v", "1", "-an", "-sn", "-dn",
+                "-f", "image2pipe", "-vcodec", "bmp", "pipe:1"
+            })
+                psi.ArgumentList.Add(arg);
+
+            using var process = Process.Start(psi) ?? throw new InvalidOperationException("Nie udało się uruchomić FFmpeg.");
+            using var reg = cancellationToken.Register(() => { try { if (!process.HasExited) process.Kill(true); } catch { } });
+
+            using var outputStream = new MemoryStream();
+            Task copyTask = process.StandardOutput.BaseStream.CopyToAsync(outputStream, cancellationToken);
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+
+            await Task.WhenAll(copyTask, process.WaitForExitAsync(cancellationToken)).ConfigureAwait(false);
+            string error = await errorTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (process.ExitCode != 0 || outputStream.Length == 0)
+                throw new IOException("Nie udało się pobrać klatki zdarzenia. " + error.Trim());
+
+            return outputStream.ToArray();
+        }
+
+        internal static void ExtendEvent(MotionEvent motionEvent, double seconds, double ratio,
             int minX, int minY, int maxX, int maxY, double durationSeconds)
         {
             motionEvent.EndSeconds = ClampEnd(seconds + 0.5, durationSeconds);
@@ -206,12 +335,12 @@ namespace VideoPlayer
         private static double ClampEnd(double value, double durationSeconds) =>
             durationSeconds > 0 ? Math.Min(value, durationSeconds) : value;
 
-        private static async Task<int> ReadFrameAsync(Stream stream, byte[] buffer, CancellationToken token)
+        private static async Task<int> ReadFrameAsync(Stream stream, byte[] buffer, int frameBytes, CancellationToken token)
         {
             int offset = 0;
-            while (offset < buffer.Length)
+            while (offset < frameBytes)
             {
-                int count = await stream.ReadAsync(buffer.AsMemory(offset, buffer.Length - offset), token).ConfigureAwait(false);
+                int count = await stream.ReadAsync(buffer.AsMemory(offset, frameBytes - offset), token).ConfigureAwait(false);
                 if (count == 0) break;
                 offset += count;
             }

@@ -2,14 +2,15 @@
         xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="VideoPlayer.MainWindow"
-        Title="VideoPlayer 1.7.0 — analiza nagrań"
-        Width="1360" Height="820" MinWidth="960" MinHeight="620"
+        Title="VideoPlayer 1.9.0 — analiza nagrań"
+        Width="1540" Height="940" MinWidth="1120" MinHeight="720"
         Background="#111318" Foreground="#F1F3F5"
         FontFamily="Segoe UI" FontSize="13"
         Loaded="Window_Loaded" Closing="Window_Closing"
         WindowStartupLocation="CenterScreen"
         Icon="/VideoPlayer;component/VideoPlayer.ico">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style TargetType="Button">
             <Setter Property="Background" Value="#292D36" />
             <Setter Property="Foreground" Value="#F1F3F5" />
@@ -584,7 +585,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="10">
+    <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" MinHeight="180" />
@@ -593,97 +594,164 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Pasek górny: menu i przełącznik trybów w jednym oknie -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="True">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Background="#1B1F27" BorderBrush="#343B48" BorderThickness="1" CornerRadius="7" Padding="3" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="ModePlayerButton" Content="Odtwarzacz" Click="SwitchToPlayerMode_Click" Background="#3478F6" BorderBrush="#3478F6" Foreground="#FFFFFF" Margin="0,0,3,0" Padding="11,6" />
-                        <Button x:Name="ModeDahuaButton" Content="Kamery Dahua IP" Click="DahuaStream_Click" Background="Transparent" BorderBrush="Transparent" Foreground="#D8DCE4" Margin="0" Padding="11,6" ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua (Ctrl+D)" />
-                    </StackPanel>
-                </Border>
-                <Button x:Name="OcrReturnTopButton" Content="Powrót do wideo (OCR)" Click="OcrCancel_Click" Visibility="Collapsed" Background="#B45309" BorderBrush="#D97706" Foreground="#FFFFFF" Margin="0,0,8,0" Padding="11,7" />
-                <Button Content="Otwórz nagranie" Click="Open_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="12,7" />
-                <Button x:Name="PanelToggleButton" Content="Ukryj panel ▶" Click="ToggleTools_Click" Margin="0" Padding="12,7" ToolTip="Pokaż lub ukryj prawy panel narzędzi" />
-            </StackPanel>
+        <!-- Pasek górny: marka, menu główne i szybkie akcje -->
+        <Border Grid.Row="0" Background="#171B23" BorderBrush="#343B48" BorderThickness="1"
+                CornerRadius="9" Padding="9,7" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <Border Background="#171E29" BorderBrush="#344256" BorderThickness="1" CornerRadius="9"
-                    Padding="4,3" Margin="0,0,10,0" VerticalAlignment="Center">
-                <Menu Background="Transparent" Padding="0" VerticalAlignment="Center"
-                      ItemContainerStyle="{StaticResource MainMenuTopItemStyle}">
-                    <MenuItem>
-                        <MenuItem.Header>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
-                                <TextBlock Text="Plik" />
-                            </StackPanel>
-                        </MenuItem.Header>
-                        <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                <!-- Marka aplikacji -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="3,0,18,0">
+                    <Border Width="34" Height="34" CornerRadius="8" Background="#3478F6" Margin="0,0,10,0">
+                        <TextBlock Text="▶" FontSize="15" FontWeight="Bold" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="VIDEOPLAYER" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                        <TextBlock Text="ANALIZA NAGRAŃ  •  1.9" FontSize="9" FontWeight="SemiBold" Foreground="#93A4BC" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Menu główne -->
+                <Border Grid.Column="1" Background="#202735" BorderBrush="#344256" BorderThickness="1"
+                        CornerRadius="8" Padding="4,3" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <Menu Background="Transparent" Padding="0" VerticalAlignment="Center"
+                          ItemContainerStyle="{StaticResource MainMenuTopItemStyle}">
+                        <MenuItem>
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                    <TextBlock Text="Plik" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                            <MenuItem Header="Otwórz nagranie…" InputGestureText="Ctrl+O" Click="Open_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Tryb odtwarzacza nagrań" Click="SwitchToPlayerMode_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Tryb kamer Dahua IP (Live &amp; Archiwum)" InputGestureText="Ctrl+D" Click="DahuaStream_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Wyszukaj tablicę / pojazd" Click="PlateSearch_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Zapisz sesję" Click="SaveSession_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="Zakończ" Click="ExitMenu_Click">
+                                <MenuItem.Icon><TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" Foreground="#FCA5A5" /></MenuItem.Icon>
+                            </MenuItem>
                         </MenuItem>
-                        <MenuItem Header="Tryb odtwarzacza nagrań" Click="SwitchToPlayerMode_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        <MenuItem>
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                    <TextBlock Text="Widok" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                            <MenuItem Header="Panel narzędzi" x:Name="ToolsPanelMenuItem" IsCheckable="True" IsChecked="True" Click="ToggleTools_Click" />
+                            <MenuItem Header="Pełny ekran podglądu (F11)" Click="TogglePreviewWindow_Click" />
+                            <MenuItem Header="Przywróć podgląd do głównego okna" Click="ReturnPreviewWindow_Click" />
+                            <Separator />
+                            <MenuItem Header="Dopasuj cały obraz" Tag="fit" Click="MenuScale_Click" />
+                            <MenuItem Header="Wypełnij okno" Tag="fill" Click="MenuScale_Click" />
+                            <MenuItem Header="Powiększenie 125%" Tag="1.25" Click="MenuScale_Click" />
+                            <MenuItem Header="Powiększenie 150%" Tag="1.5" Click="MenuScale_Click" />
+                            <MenuItem Header="Powiększenie 200%" Tag="2" Click="MenuScale_Click" />
+                            <MenuItem Header="Resetuj widok" InputGestureText="R" Click="ResetView_Click" />
                         </MenuItem>
-                        <MenuItem Header="Tryb kamer Dahua IP (Live &amp; Archiwum)" InputGestureText="Ctrl+D" Click="DahuaStream_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
+                        <MenuItem>
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
+                                    <TextBlock Text="Pomoc" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                            <MenuItem Header="Obsługa i skróty" Click="BasicHelp_Click" />
+                            <MenuItem Header="Uruchom ponownie mpv" Click="RestartMpv_Click" />
+                            <Separator />
+                            <MenuItem Header="Informacje o programie" Click="About_Click" />
                         </MenuItem>
-                        <MenuItem Header="Wyszukaj tablicę / pojazd" Click="PlateSearch_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
-                        </MenuItem>
-                        <MenuItem Header="Zapisz sesję" Click="SaveSession_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" Foreground="#93C5FD" /></MenuItem.Icon>
-                        </MenuItem>
-                        <Separator />
-                        <MenuItem Header="Zakończ" Click="ExitMenu_Click">
-                            <MenuItem.Icon><TextBlock Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets" Foreground="#FCA5A5" /></MenuItem.Icon>
-                        </MenuItem>
-                    </MenuItem>
-                    <MenuItem>
-                        <MenuItem.Header>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
-                                <TextBlock Text="Widok" />
-                            </StackPanel>
-                        </MenuItem.Header>
-                        <MenuItem Header="Panel narzędzi" x:Name="ToolsPanelMenuItem" IsCheckable="True" IsChecked="True" Click="ToggleTools_Click" />
-                        <Separator />
-                        <MenuItem Header="Dopasuj cały obraz" Tag="fit" Click="MenuScale_Click" />
-                        <MenuItem Header="Wypełnij okno" Tag="fill" Click="MenuScale_Click" />
-                        <MenuItem Header="Powiększenie 125%" Tag="1.25" Click="MenuScale_Click" />
-                        <MenuItem Header="Powiększenie 150%" Tag="1.5" Click="MenuScale_Click" />
-                        <MenuItem Header="Powiększenie 200%" Tag="2" Click="MenuScale_Click" />
-                        <MenuItem Header="Resetuj widok" InputGestureText="R" Click="ResetView_Click" />
-                    </MenuItem>
-                    <MenuItem>
-                        <MenuItem.Header>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,9,0" Foreground="#93C5FD" />
-                                <TextBlock Text="Pomoc" />
-                            </StackPanel>
-                        </MenuItem.Header>
-                        <MenuItem Header="Obsługa i skróty" Click="BasicHelp_Click" />
-                        <MenuItem Header="Uruchom ponownie mpv" Click="RestartMpv_Click" />
-                        <Separator />
-                        <MenuItem Header="Informacje o programie" Click="About_Click" />
-                    </MenuItem>
-                </Menu>
-            </Border>
-        </DockPanel>
+                    </Menu>
+                </Border>
+
+                <!-- Tryb pracy i najczęściej używane polecenia -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,2,0">
+                    <Border Background="#202735" BorderBrush="#344256" BorderThickness="1" CornerRadius="8"
+                            Padding="3" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="ModePlayerButton" Content="Odtwarzacz" Click="SwitchToPlayerMode_Click"
+                                    Background="#3478F6" BorderBrush="#3478F6" Foreground="#FFFFFF"
+                                    Margin="0,0,3,0" Padding="11,6" />
+                            <Button x:Name="ModeDahuaButton" Content="Kamery Dahua IP" Click="DahuaStream_Click"
+                                    Background="Transparent" BorderBrush="Transparent" Foreground="#D8DCE4"
+                                    Margin="0" Padding="11,6"
+                                    ToolTip="Podgląd w czasie rzeczywistym z kamer i rejestratorów Dahua (Ctrl+D)" />
+                        </StackPanel>
+                    </Border>
+                    <Button x:Name="OcrReturnTopButton" Content="Powrót do wideo (OCR)" Click="OcrCancel_Click"
+                            Visibility="Collapsed" Background="#B45309" BorderBrush="#D97706" Foreground="#FFFFFF"
+                            Margin="0,0,8,0" Padding="11,7" />
+                    <Button Content="Otwórz nagranie" Click="Open_Click" Style="{StaticResource PrimaryButton}"
+                            Margin="0,0,8,0" Padding="12,7" />
+                    <Button x:Name="PanelToggleButton" Content="Ukryj panel ▶" Click="ToggleTools_Click"
+                            Margin="0" Padding="12,7" ToolTip="Pokaż lub ukryj prawy panel narzędzi" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <!-- Główny obszar roboczy: duży podgląd po lewej + rozwijany/zmienialny panel po prawej -->
         <Grid Grid.Row="1" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="320" />
-                <ColumnDefinition x:Name="ToolsSplitterColumn" Width="7" />
-                <ColumnDefinition x:Name="ToolsColumn" Width="390" MinWidth="320" />
+                <ColumnDefinition Width="*" MinWidth="480" />
+                <ColumnDefinition x:Name="ToolsSplitterColumn" Width="8" />
+                <ColumnDefinition x:Name="ToolsColumn" Width="360" MinWidth="300" />
             </Grid.ColumnDefinitions>
 
             <!-- LEWA STREFA: Duży obszar podglądu (przełączane warstwy bez dodatkowych okien) -->
             <Border Grid.Column="0" Background="#050608" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
                 <Grid>
                     <!-- 1. Odtwarzacz lokalny mpv -->
-                    <Grid x:Name="PlayerViewportLayer" Visibility="Visible">
-                        <wfi:WindowsFormsHost x:Name="VideoHost" Background="#050608" />
+                    <Grid x:Name="PlayerViewportLayer" Visibility="Visible" Background="#050608" ClipToBounds="True">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="38" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Nagłówek WPF poza obszarem WindowsFormsHost — zawsze widoczny -->
+                        <Border Grid.Row="0" Background="#202A39" BorderBrush="#3B4A60"
+                                BorderThickness="0,0,0,1" Padding="12,0">
+                            <DockPanel LastChildFill="True">
+                                <Border DockPanel.Dock="Left" Background="#3478F6"
+                                        CornerRadius="3" Padding="7,3" Margin="0,0,10,0"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="MPV" Foreground="#FFFFFF"
+                                               FontSize="10" FontWeight="Bold" />
+                                </Border>
+                                <TextBlock Text="ODTWARZACZ LOKALNY"
+                                           Foreground="#F1F5F9" FontSize="11"
+                                           FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Content="Pełny ekran / drugi monitor  •  F11"
+                                        Click="TogglePreviewWindow_Click"
+                                        DockPanel.Dock="Right"
+                                        Margin="8,0,0,0" Padding="9,4"
+                                        FontSize="10"
+                                        ToolTip="Odłącz podgląd do osobnego, pełnoekranowego okna. Esc przywraca go do głównego okna." />
+                                <TextBlock Text="Podgląd nagrania"
+                                           Foreground="#9EACC0" FontSize="10"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+
+                        <Border x:Name="VideoHostContainer" Grid.Row="1" Background="#050608" ClipToBounds="True">
+                            <wfi:WindowsFormsHost x:Name="VideoHost" Background="#050608" />
+                        </Border>
                     </Grid>
 
                     <!-- 2. Wbudowany moduł lokalnego rozpoznawania tablic (OCR) na dużym podglądzie -->
@@ -697,14 +765,14 @@
                                 <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
                                     <TextBlock Text="Powiększenie:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" Foreground="#AEB9CA" />
                                     <Button Content="−" Click="OcrZoomOut_Click" Width="32" Padding="4" Margin="0,0,4,0" ToolTip="Pomniejsz widok klatki" />
-                                    <TextBlock x:Name="OcrZoomLabel" Text="1×" Width="46" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="OcrZoomLabel" Text="{Binding PlateOcr.ZoomLabel}" Width="46" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
                                     <Button Content="+" Click="OcrZoomIn_Click" Width="32" Padding="4" Margin="4,0,6,0" ToolTip="Powiększ widok klatki" />
                                     <Button Content="Dopasuj" Click="OcrFitView_Click" Padding="9,4" Margin="0,0,6,0" ToolTip="Pokaż całą klatkę z zachowaniem narożników" />
-                                    <Button x:Name="OcrResetSelectionButton" Content="Nowe zaznaczenie" Click="OcrResetSelection_Click" Padding="9,4" Margin="0,0,6,0" />
+                                    <Button x:Name="OcrResetSelectionButton" Content="Nowe zaznaczenie" Click="OcrResetSelection_Click" IsEnabled="{Binding PlateOcr.CanResetSelection}" Padding="9,4" Margin="0,0,6,0" />
                                     <Button Content="Powrót do wideo" Click="OcrCancel_Click" Padding="10,4" Margin="0" Background="#8F3038" BorderBrush="#A63B44" Foreground="#FFFFFF" />
                                 </WrapPanel>
                                 <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
-                                    <TextBlock x:Name="OcrFrameInfo" Text="Rozpoznawanie tablicy — lokalnie" FontSize="13" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock x:Name="OcrFrameInfo" Text="{Binding PlateOcr.FrameInfoText}" FontSize="13" FontWeight="SemiBold" Foreground="#F8FAFC" />
                                     <TextBlock Text="Lewy przycisk: zaznacz obszar i przesuwaj 4 narożniki • Kółko: zoom • Prawy przycisk: przesuwanie obrazu" Foreground="#94A3B8" FontSize="11" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </DockPanel>
@@ -736,7 +804,7 @@
                             <Grid x:Name="DahuaVideoContainerGrid">
                                 <wfi:WindowsFormsHost x:Name="DahuaPrimaryVideoHost" Background="#000000" Visibility="Collapsed" />
                                 <UniformGrid x:Name="DahuaMultiVideoGrid" Rows="1" Columns="1" Background="#000000" />
-                                <Border x:Name="DahuaStreamOverlay" Background="#B0000000" Visibility="Visible" VerticalAlignment="Center" HorizontalAlignment="Center" CornerRadius="8" Padding="20">
+                                <Border x:Name="DahuaStreamOverlay" Background="#B0000000" Visibility="{Binding Dahua.IsStreamOverlayVisible, Converter={StaticResource BooleanToVisibilityConverter}}" VerticalAlignment="Center" HorizontalAlignment="Center" CornerRadius="8" Padding="20">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock x:Name="DahuaOverlayText" Text="Brak aktywnego strumienia Dahua IP" Foreground="#F8FAFC" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
                                         <TextBlock Text="Wybierz urządzenie w zakładce 'Dahua IP' po prawej i kliknij 'Połącz ze strumieniem'" Foreground="#CBD5E1" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" />
@@ -773,18 +841,24 @@
                             <StackPanel>
                                 <DockPanel Margin="0,0,0,4">
                                     <TextBlock Text="ODTWARZANIE ARCHIWUM DAHUA" Foreground="#F8FAFC" FontWeight="Bold" FontSize="11" />
-                                    <TextBlock x:Name="DahuaPlaybackPositionText" Text="00:00:00 / 00:00:00" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" HorizontalAlignment="Right" />
+                                    <TextBlock x:Name="DahuaPlaybackPositionText" Text="{Binding Dahua.PlaybackPositionText}" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" HorizontalAlignment="Right" />
                                 </DockPanel>
                                 <Slider x:Name="DahuaPlaybackPositionSlider" Minimum="0" Maximum="3600" Value="0"
                                         Margin="24,0,8,0" IsEnabled="False" IsMoveToPointEnabled="True"
                                         PreviewMouseLeftButtonDown="DahuaPlaybackSlider_MouseLeftButtonDown"
                                         PreviewMouseLeftButtonUp="DahuaPlaybackSlider_MouseLeftButtonUp"
                                         LostMouseCapture="DahuaPlaybackSlider_LostMouseCapture"
+                                        ValueChanged="DahuaPlaybackPositionSlider_ValueChanged"
                                         TickFrequency="1" IsSnapToTickEnabled="False" />
+                                <TextBlock Text="ZIELONY PASEK = NAGRANIE  •  Kliknij = ustaw czas / przewiń  •  Przeciągnij = zaznacz fragment  •  Kółko = przybliżenie  •  Prawy klik = reset"
+                                           Foreground="#94A3B8" FontSize="10" Margin="2,2,0,3" />
                                 <Border Background="#101722" BorderBrush="#344155" BorderThickness="1" CornerRadius="4" Padding="5,3" Margin="0,4,0,4">
                                     <Canvas x:Name="DahuaRecordingTimelineCanvas" Height="42" ClipToBounds="True" Background="Transparent"
                                             SizeChanged="DahuaRecordingTimelineCanvas_SizeChanged"
                                             PreviewMouseLeftButtonDown="DahuaRecordingTimelineCanvas_MouseLeftButtonDown"
+                                            PreviewMouseMove="DahuaRecordingTimelineCanvas_MouseMove"
+                                            PreviewMouseLeftButtonUp="DahuaRecordingTimelineCanvas_MouseLeftButtonUp"
+                                            LostMouseCapture="DahuaRecordingTimelineCanvas_LostMouseCapture"
                                             MouseWheel="DahuaRecordingTimelineCanvas_MouseWheel"
                                             MouseRightButtonDown="DahuaRecordingTimelineCanvas_ResetZoom" />
                                 </Border>
@@ -803,8 +877,11 @@
                                             <ComboBoxItem Content="16×" Tag="16" />
                                             <ComboBoxItem Content="32×" Tag="32" />
                                         </ComboBox>
+                                        <Button Content="▶ Odtwórz od wskazanego" Click="DahuaPlayFromTimeline_Click" Padding="8,4" Margin="0,0,5,0" ToolTip="Odtwórz od klikniętego czasu lub zaznaczony fragment" />
+                                        <Button x:Name="DahuaDownloadTimelineSelectionButton" Content="Pobierz zaznaczony" Click="DahuaDownloadTimelineSelection_Click" Padding="8,4" Margin="0,0,5,0" />
+                                        <Button x:Name="DahuaCancelDownloadButton" Content="Anuluj pobieranie" Click="DahuaCancelDownload_Click" Padding="8,4" IsEnabled="False" />
                                     </StackPanel>
-                                    <TextBlock x:Name="DahuaPlaybackSyncStatusText" Text="Wybierz kanały i zakres czasu." Foreground="#CBD5E1" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="DahuaPlaybackSyncStatusText" Text="{Binding Dahua.PlaybackSyncStatusText}" Foreground="#CBD5E1" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
                             </StackPanel>
                         </Border>
@@ -815,7 +892,7 @@
             <GridSplitter x:Name="ToolsSplitter" Grid.Column="1" Width="7" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="#292F3A" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ShowsPreview="True" ToolTip="Przeciągnij, żeby zmienić szerokość panelu" />
 
             <!-- PRAWA STREFA: Wszystkie narzędzia w jednym panelu zakładek -->
-            <Border x:Name="ToolsPanel" Grid.Column="2" Background="#20242C" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" Padding="3">
+            <Border x:Name="ToolsPanel" Grid.Column="2" Background="#20242C" BorderBrush="#343B48" BorderThickness="1" CornerRadius="8" Padding="5">
                 <TabControl x:Name="ToolsTabs" SelectedIndex="0" Background="#20242C" BorderThickness="0" Padding="6" SelectionChanged="ToolsTabs_SelectionChanged">
 
                     <!-- ZAKŁADKA 0: Fragmenty -->
@@ -827,14 +904,14 @@
                                     <Button Content="Początek (I)" Click="MarkStart_Click" />
                                     <Button Content="Koniec (O)" Click="MarkEnd_Click" />
                                 </WrapPanel>
-                                <TextBlock x:Name="RangeFeedbackText" TextWrapping="Wrap" Foreground="#F5C970" Margin="0,0,0,10" />
+                                <TextBlock x:Name="RangeFeedbackText" Text="{Binding Export.RangeFeedbackText}" TextWrapping="Wrap" Foreground="#F5C970" Margin="0,0,0,10" />
                                 <TextBlock Text="Nazwa fragmentu" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <TextBox x:Name="ClipNameBox" Margin="0,0,0,8" Padding="7" Text="Fragment" ToolTip="Nazwa fragmentu" HorizontalAlignment="Stretch" />
+                                <TextBox x:Name="ClipNameBox" Margin="0,0,0,8" Padding="7" Text="{Binding Export.ClipName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Nazwa fragmentu" HorizontalAlignment="Stretch" />
                                 <WrapPanel>
                                     <Button Content="Dodaj zaznaczenie" Click="AddRange_Click" Style="{StaticResource PrimaryButton}" />
                                     <Button Content="Zaktualizuj" Click="UpdateRange_Click" />
                                 </WrapPanel>
-                                <ListBox x:Name="ClipRangesListBox" Height="180" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" Margin="0,0,0,8" />
+                                <ListBox x:Name="ClipRangesListBox" Height="180" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" ItemsSource="{Binding Export.Clips}" SelectedItem="{Binding Export.SelectedClip, Mode=TwoWay}" Margin="0,0,0,8" />
                                 <WrapPanel>
                                     <Button Content="Wczytaj zakres" Click="LoadRange_Click" />
                                     <Button Content="Usuń z listy" Click="DeleteRange_Click" />
@@ -845,7 +922,7 @@
                     </TabItem>
 
                     <!-- ZAKŁADKA 1: Zdarzenia, OCR tablic, Wyszukiwarka, Raporty -->
-                    <TabItem Header="Zdarzenia">
+                    <TabItem Header="Zdarzenia / OCR" ToolTip="Ręczne i automatyczne zdarzenia, rozpoznawanie oraz wyszukiwanie tablic">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Zapisz zdarzenie w bieżącej pozycji filmu. Dwuklik na liście przenosi do wskazanego czasu." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
@@ -861,9 +938,9 @@
                                                 <Image x:Name="OcrRectifiedPreview" Height="64" Stretch="Uniform" />
                                             </StackPanel>
                                         </Border>
-                                        <TextBlock x:Name="OcrSelectionInfo" Text="Zaznacz tablicę na obrazie po lewej." FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,6" />
-                                        <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj tablicę (wieloklatkowo)" Click="OcrRecognize_Click" ToolTip="Nagranie lokalne: porównanie do 5 klatek w pobliżu bieżącej pozycji. Podgląd Dahua: rozpoznanie bieżącej klatki." Style="{StaticResource PrimaryButton}" IsEnabled="False" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
-                                        <TextBlock x:Name="OcrStatusText" Text="Silnik OCR działa lokalnie. Wynik wymaga sprawdzenia." FontSize="11" Foreground="#F5C970" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                        <TextBlock x:Name="OcrSelectionInfo" Text="{Binding PlateOcr.SelectionInfo}" FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                        <Button x:Name="OcrRecognizeButton" Content="Rozpoznaj tablicę (wieloklatkowo)" Click="OcrRecognize_Click" ToolTip="Nagranie lokalne: porównanie do 5 klatek w pobliżu bieżącej pozycji. Podgląd Dahua: rozpoznanie bieżącej klatki." Style="{StaticResource PrimaryButton}" IsEnabled="{Binding PlateOcr.CanRecognize}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
+                                        <TextBlock x:Name="OcrStatusText" Text="{Binding PlateOcr.StatusText}" FontSize="11" Foreground="#F5C970" TextWrapping="Wrap" Margin="0,0,0,6" />
 
                                         <Border Background="#101722" BorderBrush="#34445B" BorderThickness="1" CornerRadius="4" Padding="7" Margin="0,0,0,8">
                                             <StackPanel>
@@ -871,7 +948,7 @@
                                                 <TextBlock Text="Analiza obejmuje zaznaczony obszar obrazu w kolejnych klatkach. Dla kamery nieruchomej zaznacz miejsce, przez które przejeżdżają pojazdy. Obiekty poza tym obszarem nie zostaną wykryte." FontSize="10" Foreground="#AEB9CA" TextWrapping="Wrap" Margin="0,0,0,6" />
                                                 <DockPanel Margin="0,0,0,6">
                                                     <TextBlock Text="Odstęp próbkowania:" FontSize="10" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                    <ComboBox x:Name="OcrSearchIntervalBox" Width="76" Height="27" SelectedIndex="2" HorizontalAlignment="Left">
+                                                    <ComboBox x:Name="OcrSearchIntervalBox" Width="76" Height="27" SelectedIndex="2" HorizontalAlignment="Left" IsEnabled="{Binding PlateOcr.CanChangeInterval}">
                                                         <ComboBoxItem Content="1 s" Tag="1" />
                                                         <ComboBoxItem Content="2 s" Tag="2" />
                                                         <ComboBoxItem Content="5 s" Tag="5" />
@@ -879,33 +956,33 @@
                                                     </ComboBox>
                                                 </DockPanel>
                                                 <WrapPanel>
-                                                    <Button x:Name="OcrSearchButton" Content="Szukaj w nagraniu" Click="OcrSearchStart_Click" IsEnabled="False" Style="{StaticResource PrimaryButton}" />
-                                                    <Button x:Name="OcrSearchCancelButton" Content="Anuluj wyszukiwanie" Click="OcrSearchCancel_Click" IsEnabled="False" Visibility="Collapsed" />
+                                                    <Button x:Name="OcrSearchButton" Content="Szukaj w nagraniu" Click="OcrSearchStart_Click" IsEnabled="{Binding PlateOcr.CanSearchInRecording}" Style="{StaticResource PrimaryButton}" />
+                                                    <Button x:Name="OcrSearchCancelButton" Content="Anuluj wyszukiwanie" Command="{Binding PlateOcr.CancelSearchCommand}" Visibility="{Binding PlateOcr.IsSearchingVideo, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                                 </WrapPanel>
-                                                <TextBlock x:Name="OcrSearchProgressText" Text="Wpisz numer tablicy, potwierdź go i rozpocznij wyszukiwanie." FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,6,0,4" />
-                                                <ListBox x:Name="OcrSearchResultsList" Height="86" Background="#0B0F15" Foreground="#E6EAF0" BorderBrush="#34445B" DisplayMemberPath="DisplayText" MouseDoubleClick="OcrSearchResultsList_MouseDoubleClick" ToolTip="Dwuklik na wyniku przenosi odtwarzacz do wskazanego czasu" />
+                                                <TextBlock x:Name="OcrSearchProgressText" Text="{Binding PlateOcr.SearchProgressText}" FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,6,0,4" />
+                                                <ListBox x:Name="OcrSearchResultsList" Height="86" Background="#0B0F15" Foreground="#E6EAF0" BorderBrush="#34445B" ItemsSource="{Binding PlateOcr.VideoSearchHits}" DisplayMemberPath="DisplayText" MouseDoubleClick="OcrSearchResultsList_MouseDoubleClick" ToolTip="Dwuklik na wyniku przenosi odtwarzacz do wskazanego czasu" />
                                             </StackPanel>
                                         </Border>
 
                                         <TextBlock Text="Numer tablicy:" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,3" />
-                                        <TextBox x:Name="OcrPlateBox" FontSize="18" FontWeight="Bold" MaxLength="24" Padding="6,4" CharacterCasing="Upper" TextChanged="OcrPlate_Changed" Margin="0,0,0,6" />
+                                        <TextBox x:Name="OcrPlateBox" FontSize="18" FontWeight="Bold" MaxLength="24" Padding="6,4" CharacterCasing="Upper" Text="{Binding PlateOcr.PlateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding PlateOcr.CanEditResult}" Margin="0,0,0,6" />
 
                                         <TextBlock Text="Marka pojazdu:" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,3" />
-                                        <TextBox x:Name="OcrVehicleMakeBox" FontSize="13" MaxLength="60" Padding="6,4" Margin="0,0,0,6" ToolTip="Wpisz ręcznie markę pojazdu, np. Toyota, Volkswagen, BMW" />
+                                        <TextBox x:Name="OcrVehicleMakeBox" FontSize="13" MaxLength="60" Padding="6,4" Text="{Binding PlateOcr.VehicleMake, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" ToolTip="Wpisz ręcznie markę pojazdu, np. Toyota, Volkswagen, BMW" />
 
                                         <TextBlock Text="Inne propozycje:" FontSize="11" Margin="0,0,0,3" />
-                                        <ComboBox x:Name="OcrCandidatesBox" Height="30" SelectionChanged="OcrCandidate_Changed" Margin="0,0,0,6" />
+                                        <ComboBox x:Name="OcrCandidatesBox" Height="30" ItemsSource="{Binding PlateOcr.Candidates}" SelectedItem="{Binding PlateOcr.SelectedCandidate, Mode=TwoWay}" IsEnabled="{Binding PlateOcr.CanEditResult}" Margin="0,0,0,6" />
 
-                                        <CheckBox x:Name="OcrConfirmedBox" Content="Potwierdzam zgodność numeru z obrazem" Foreground="#E6EAF0" Margin="0,2,0,8" Checked="OcrConfirmation_Changed" Unchecked="OcrConfirmation_Changed" />
+                                        <CheckBox x:Name="OcrConfirmedBox" Content="Potwierdzam zgodność numeru z obrazem" Foreground="#E6EAF0" Margin="0,2,0,8" IsChecked="{Binding PlateOcr.IsResultConfirmed, Mode=TwoWay}" IsEnabled="{Binding PlateOcr.CanEditResult}" />
 
                                         <WrapPanel>
-                                            <Button x:Name="OcrSaveEventButton" Content="Zapisz jako zdarzenie" Click="OcrSave_Click" Style="{StaticResource DahuaGreenButton}" IsEnabled="False" />
+                                            <Button x:Name="OcrSaveEventButton" Content="Zapisz jako zdarzenie" Click="OcrSave_Click" Style="{StaticResource DahuaGreenButton}" IsEnabled="{Binding PlateOcr.CanSaveEvent}" />
                                             <Button Content="Anuluj OCR" Click="OcrCancel_Click" />
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
 
-                                <TextBox x:Name="MarkerDescriptionBox" Margin="0,0,0,8" Padding="7,5" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#454C59" ToolTip="Opis zdarzenia, np. Wejście osoby lub Otwarcie bramy" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="36" />
+                                <TextBox x:Name="MarkerDescriptionBox" Text="{Binding EventCenter.MarkerDescription, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" Padding="7,5" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#454C59" ToolTip="Opis zdarzenia, np. Wejście osoby lub Otwarcie bramy" VerticalContentAlignment="Center" TextWrapping="Wrap" MinHeight="36" />
                                 <WrapPanel>
                                     <Button Content="Dodaj zdarzenie" Click="AddMarker_Click" Style="{StaticResource PrimaryButton}" />
                                     <Button Content="Zmień opis" Click="UpdateMarker_Click" />
@@ -915,23 +992,25 @@
                                         <TextBlock Text="CENTRUM ZDARZEŃ — BIEŻĄCE NAGRANIE" FontSize="10" FontWeight="Bold" Foreground="#75A5FF" Margin="0,0,0,5" />
                                         <TextBox x:Name="EventCenterFilterBox" Padding="6,4" Margin="0,0,0,5"
                                                  ToolTip="Szukaj w opisie, numerze tablicy, marce lub typie zdarzenia"
-                                                 TextChanged="EventCenterFilter_Changed" />
+                                                 Text="{Binding EventCenter.FilterText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <DockPanel>
-                                            <ComboBox x:Name="EventCenterCategoryBox" Width="150" Height="27" SelectedIndex="0"
-                                                      SelectionChanged="EventCenterFilter_Changed" Margin="0,0,6,5">
+                                            <ComboBox x:Name="EventCenterCategoryBox" Width="150" Height="27"
+                                                      SelectedValuePath="Tag"
+                                                      SelectedValue="{Binding EventCenter.SelectedCategoryTag, Mode=TwoWay}"
+                                                      Margin="0,0,6,5">
                                                 <ComboBoxItem Content="Wszystkie zdarzenia" Tag="all" />
                                                 <ComboBoxItem Content="Wykryty ruch" Tag="Ruch" />
                                                 <ComboBoxItem Content="Tablice rejestracyjne" Tag="Tablica" />
                                                 <ComboBoxItem Content="Zdarzenia ręczne" Tag="Ręczne" />
                                                 <ComboBoxItem Content="Tablice powiązane z ruchem" Tag="related" />
                                             </ComboBox>
-                                            <Button Content="Wyczyść" Click="EventCenterClearFilter_Click" Padding="8,3" Margin="0,0,0,5" />
+                                            <Button Content="Wyczyść" Command="{Binding EventCenter.ClearFilterCommand}" Padding="8,3" Margin="0,0,0,5" />
                                         </DockPanel>
-                                        <TextBlock x:Name="EventCenterCountText" Text="Brak zdarzeń dla bieżącego nagrania." FontSize="10"
+                                        <TextBlock x:Name="EventCenterCountText" Text="{Binding EventCenter.SummaryText}" FontSize="10"
                                                    Foreground="#AEB9CA" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
-                                <ListBox x:Name="TimelineMarkersListBox" Height="165" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" SelectionChanged="TimelineMarkersListBox_SelectionChanged" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
+                                <ListBox x:Name="TimelineMarkersListBox" Height="165" Background="#171A20" Foreground="#E6EAF0" BorderBrush="#343B48" ItemsSource="{Binding EventCenter.VisibleMarkers}" SelectedItem="{Binding EventCenter.SelectedMarker, Mode=TwoWay}" ToolTip="Dwuklik na zdarzeniu, aby przejść do jego czasu" Margin="0,0,0,8">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
                                             <EventSetter Event="MouseDoubleClick" Handler="MarkerListItem_DoubleClick" />
@@ -949,7 +1028,7 @@
                                     <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
                                         <StackPanel>
                                             <TextBlock Text="Numer tablicy" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="SearchPlateFilterBox" CharacterCasing="Upper" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBox x:Name="SearchPlateFilterBox" Text="{Binding PlateSearch.PlateFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" CharacterCasing="Upper" Padding="6,4" Margin="0,0,0,6" />
                                             <Grid Margin="0,0,0,6">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -957,19 +1036,19 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,4,0">
                                                     <TextBlock Text="Marka" FontSize="11" Margin="0,0,0,3" />
-                                                    <TextBox x:Name="SearchMakeFilterBox" Padding="6,4" />
+                                                    <TextBox x:Name="SearchMakeFilterBox" Text="{Binding PlateSearch.MakeFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1">
                                                     <TextBlock Text="Nagranie" FontSize="11" Margin="0,0,0,3" />
-                                                    <TextBox x:Name="SearchSourceFilterBox" Padding="6,4" />
+                                                    <TextBox x:Name="SearchSourceFilterBox" Text="{Binding PlateSearch.SourceFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" />
                                                 </StackPanel>
                                             </Grid>
                                             <WrapPanel>
-                                                <Button Content="Szukaj" Click="PlateSearchExecute_Click" Style="{StaticResource PrimaryButton}" />
+                                                <Button Content="Szukaj" Command="{Binding PlateSearch.SearchCommand}" Style="{StaticResource PrimaryButton}" />
                                                 <Button Content="Otwórz wybrane" Click="PlateSearchOpenSelected_Click" />
                                             </WrapPanel>
-                                            <TextBlock x:Name="SearchResultCountText" Text="Wpisz kryteria i kliknij Szukaj." Foreground="#AEB9CA" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6" />
-                                            <ListView x:Name="PlateSearchResultsList" Height="150" Background="#12151B" Foreground="#E6EAF0" BorderBrush="#343B48" MouseDoubleClick="PlateSearchResultsList_MouseDoubleClick">
+                                            <TextBlock x:Name="SearchResultCountText" Text="{Binding PlateSearch.ResultCountText}" Foreground="#AEB9CA" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <ListView x:Name="PlateSearchResultsList" Height="150" Background="#12151B" Foreground="#E6EAF0" BorderBrush="#343B48" ItemsSource="{Binding PlateSearch.Results}" SelectedItem="{Binding PlateSearch.SelectedResult, Mode=TwoWay}" MouseDoubleClick="PlateSearchResultsList_MouseDoubleClick">
                                                 <ListView.View>
                                                     <GridView>
                                                         <GridViewColumn Header="Tablica" Width="88" DisplayMemberBinding="{Binding PlateNumber}" />
@@ -984,94 +1063,87 @@
                                 </Expander>
 
                                 <!-- Wbudowane dane sprawy do raportu PDF -->
-                                <Expander x:Name="ReportDetailsExpander" Header="Dane sprawy do raportu PDF (opcjonalne)" Margin="0,2,0,8" Foreground="#D8DCE4">
-                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="Numer sprawy / referencyjny" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportCaseNumberBox" Padding="6,4" Margin="0,0,0,6" />
-                                            <TextBlock Text="Tytuł sprawy" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportCaseTitleBox" Padding="6,4" Margin="0,0,0,6" />
-                                            <TextBlock Text="Miejsce zdarzenia" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportLocationBox" Padding="6,4" Margin="0,0,0,6" />
-                                            <TextBlock Text="Uwagi / opis sprawy" FontSize="11" Margin="0,0,0,3" />
-                                            <TextBox x:Name="ReportNotesBox" Padding="6,4" MinHeight="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
-                                        </StackPanel>
-                                    </Border>
-                                </Expander>
+                                
 
-                                <Expander x:Name="CaseArchiveExpander" Header="Archiwum spraw" Margin="0,2,0,8" Foreground="#D8DCE4" IsExpanded="True">
-                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="Zapisane sprawy" FontSize="11" Margin="0,0,0,4" />
-                                            <ComboBox x:Name="ReportCasesBox" Margin="0,0,0,8" MinWidth="180" SelectionChanged="ReportCasesBox_SelectionChanged" ToolTip="Wybierz sprawę; jej dane zostaną wczytane automatycznie" />
-                                            <WrapPanel>
-                                                <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
-                                                <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
-                                                <Button x:Name="ClearCaseSelectionButton" Content="Bieżące nagranie" Click="ClearCaseSelection_Click" ToolTip="Wyczyść wybór sprawy i raportuj aktualnie otwarty plik" />
-                                                <Button x:Name="DeleteCaseButton" Content="Usuń sprawę" Click="DeleteCase_Click" />
-                                            </WrapPanel>
-                                            <TextBlock x:Name="CaseArchiveStatusText" Text="Sprawa może zawierać wiele nagrań. Zapis nie kopiuje ani nie modyfikuje plików źródłowych." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
-                                        </StackPanel>
-                                    </Border>
-                                </Expander>
+                                
 
-                                <TextBlock Text="Raport wybranej sprawy lub bieżącego nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="True" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
-                                <WrapPanel>
-                                    <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" />
-                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" Style="{StaticResource PrimaryButton}" />
-                                </WrapPanel>
-                            </StackPanel>
+                                
+                                
+                                
+                            
+                                <Button Content="Przejdź do raportów →" Click="SelectReportsTab_Click" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,10,0,4" ToolTip="Otwórz dane sprawy, archiwum i generowanie raportów CSV/PDF" />
+</StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
                     <!-- ZAKŁADKA 2: Eksport -->
-                    <TabItem Header="Eksport">
+                    <TabItem Header="Eksport" ToolTip="Eksport zaznaczonych fragmentów i przetwarzanie nagrania">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Bieżące zaznaczenie" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <TextBlock x:Name="ClipRangeText" Text="Nie zaznaczono fragmentu." FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <TextBlock x:Name="ClipRangeText" Text="{Binding Export.ClipRangeText}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10" />
                                 <TextBlock Text="Profil eksportu" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <ComboBox x:Name="ExportProfileBox" Margin="0,0,0,10" SelectedIndex="1" ToolTip="Wybierz kompromis między szybkością, jakością i rozmiarem" HorizontalAlignment="Stretch">
+                                <ComboBox x:Name="ExportProfileBox" Margin="0,0,0,10" SelectedValuePath="Tag" SelectedValue="{Binding Export.SelectedProfileTag, Mode=TwoWay}" IsEnabled="{Binding Export.CanStartOperation}" ToolTip="Wybierz kompromis między szybkością, jakością i rozmiarem" HorizontalAlignment="Stretch">
                                     <ComboBoxItem Content="Szybki eksport" Tag="fast" />
                                     <ComboBoxItem Content="Standardowy" Tag="standard" />
                                     <ComboBoxItem Content="Mniejszy plik" Tag="small" />
                                     <ComboBoxItem Content="Wysoka jakość" Tag="quality" />
                                 </ComboBox>
-                                <CheckBox x:Name="StreamCopyCheckBox" Content="Kopiuj strumienie bez rekompresji" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,12" ToolTip="Kopiuje strumienie bez kodowania. Cięcie może wypaść na najbliższej klatce kluczowej; kodeki muszą być zgodne z MP4." />
-                                <Button x:Name="ExportClipButton" Content="Zapisz zaznaczenie jako MP4" Style="{StaticResource PrimaryButton}" Click="ExportClip_Click" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
-                                <Button x:Name="ExportAllButton" Content="Eksportuj całą listę fragmentów" Click="ExportAll_Click" Margin="0,0,0,14" HorizontalAlignment="Stretch" />
+                                <CheckBox x:Name="StreamCopyCheckBox" Content="Kopiuj strumienie bez rekompresji" IsChecked="{Binding Export.UseStreamCopy, Mode=TwoWay}" IsEnabled="{Binding Export.CanStartOperation}" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,12" ToolTip="Kopiuje strumienie bez kodowania. Cięcie może wypaść na najbliższej klatce kluczowej; kodeki muszą być zgodne z MP4." />
+                                <Button x:Name="ExportClipButton" Content="Zapisz zaznaczenie jako MP4" Style="{StaticResource PrimaryButton}" Click="ExportClip_Click" IsEnabled="{Binding Export.CanStartOperation}" Margin="0,0,0,8" HorizontalAlignment="Stretch" />
+                                <Button x:Name="ExportAllButton" Content="Eksportuj całą listę fragmentów" Click="ExportAll_Click" IsEnabled="{Binding Export.CanStartOperation}" Margin="0,0,0,14" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="Eksport korzysta z aktualnego zaznaczenia albo listy zapisanych fragmentów. Postęp i anulowanie są zawsze na dolnym pasku." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,10" />
                                 <TextBlock Text="Nowy film bez zaznaczenia" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <Button x:Name="RemoveClipButton" Content="Zapisz film bez zaznaczonego fragmentu" Click="RemoveClip_Click" Margin="0,0,0,8" Padding="12,8" Background="#8F3038" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Tworzy nowe nagranie bez zaznaczonego fragmentu" HorizontalAlignment="Stretch" />
+                                <Button x:Name="RemoveClipButton" Content="Zapisz film bez zaznaczonego fragmentu" Click="RemoveClip_Click" IsEnabled="{Binding Export.CanStartOperation}" Margin="0,0,0,8" Padding="12,8" Background="#8F3038" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Tworzy nowe nagranie bez zaznaczonego fragmentu" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="Oryginał pozostaje bez zmian. Ta operacja tworzy nowy plik." TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="12" Margin="0,0,0,8" />
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
                     <!-- ZAKŁADKA 3: Kamery Dahua IP (Podgląd & PTZ, Archiwum NVR, Konfiguracja urządzeń) -->
-                    <TabItem x:Name="DahuaTab" Header="Dahua IP">
+                    <TabItem x:Name="DahuaTab" Header="Kamery Dahua" ToolTip="Podgląd na żywo, archiwum NVR, pobieranie i konfiguracja urządzeń">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <!-- Pasek stanu Dahua -->
-                            <Border Grid.Row="0" Background="#13161F" BorderBrush="#3B4455" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,0,0,6">
-                                <StackPanel>
-                                    <TextBlock x:Name="DahuaSdkStatusBadge" Text="Dahua NetSDK: Oczekuje na uruchomienie" Foreground="#CBD5E1" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock x:Name="DahuaStatusLabel" Text="Wybierz urządzenie z listy i połącz." Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0" />
-                                </StackPanel>
+                            <!-- Czytelny nagłówek stanu połączenia Dahua -->
+                            <Border Grid.Row="0" Background="#151B26" BorderBrush="#3B4A60" BorderThickness="1"
+                                    CornerRadius="7" Padding="9,7" Margin="0,0,0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="145" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <TextBlock Text="STATUS SDK" Foreground="#8FA4C2" FontSize="9"
+                                                   FontWeight="Bold" Margin="0,0,0,3" />
+                                        <TextBlock x:Name="DahuaSdkStatusBadge" Text="{Binding Dahua.SdkStatusBadge}"
+                                                   Foreground="#BFDBFE" FontSize="11" FontWeight="Bold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#202A39" BorderBrush="#34445B"
+                                            BorderThickness="1" CornerRadius="5" Padding="9,6">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="URZĄDZENIE / OPERACJA" Foreground="#8FA4C2"
+                                                       FontSize="9" FontWeight="Bold" Margin="0,0,0,3" />
+                                            <TextBlock x:Name="DahuaStatusLabel" Text="{Binding Dahua.StatusText}"
+                                                       Foreground="#F1F5F9" FontSize="11" FontWeight="SemiBold"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
                             </Border>
 
-                            <TabControl x:Name="DahuaSubTabs" Grid.Row="1" Background="#1A1E28" BorderThickness="0" Padding="2" ItemContainerStyle="{StaticResource DahuaSubTabItemStyle}">
+                            <TabControl x:Name="DahuaSubTabs" Grid.Row="1" Background="#1A1E28" BorderThickness="0"
+                                        Padding="3" ItemContainerStyle="{StaticResource DahuaSubTabItemStyle}">
                                 <!-- Podzakładka 3.0: Podgląd Live & PTZ -->
                                 <TabItem Header="Podgląd &amp; PTZ">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                                         <StackPanel>
                                             <TextBlock Text="URZĄDZENIA DAHUA" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ListBox x:Name="DahuaDevicesListBox" Height="110" Background="#0F1724" Foreground="#F8FAFC" BorderBrush="#475569" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" SelectionChanged="DahuaDevicesListBox_SelectionChanged" Margin="0,0,0,8">
+                                            <ListBox x:Name="DahuaDevicesListBox" Height="110" Background="#0F1724" Foreground="#F8FAFC" BorderBrush="#475569" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" ItemsSource="{Binding Dahua.Devices}" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" SelectionChanged="DahuaDevicesListBox_SelectionChanged" Margin="0,0,0,8">
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Margin="2">
@@ -1083,8 +1155,8 @@
                                             </ListBox>
 
                                             <WrapPanel Margin="0,0,0,6">
-                                                <Button x:Name="DahuaConnectButton" Content="▶ Połącz" Click="DahuaConnect_Click" Style="{StaticResource DahuaGreenButton}" />
-                                                <Button x:Name="DahuaDisconnectButton" Content="■ Rozłącz" Click="DahuaDisconnect_Click" Style="{StaticResource DahuaRedButton}" IsEnabled="False" />
+                                                <Button x:Name="DahuaConnectButton" Content="▶ Połącz" Click="DahuaConnect_Click" IsEnabled="{Binding Dahua.CanConnect}" Style="{StaticResource DahuaGreenButton}" />
+                                                <Button x:Name="DahuaDisconnectButton" Content="■ Rozłącz" Click="DahuaDisconnect_Click" IsEnabled="{Binding Dahua.CanDisconnect}" Style="{StaticResource DahuaRedButton}" />
                                                 <Button x:Name="DahuaQueryDeviceButton" Content="🔄 Odczytaj z NVR" Click="DahuaQueryFromDevice_Click" Style="{StaticResource DahuaBlueButton}" ToolTip="Pobiera nazwy kanałów i presety PTZ bezpośrednio z urządzenia" />
                                             </WrapPanel>
 
@@ -1228,50 +1300,80 @@
                                                 <TextBlock Text="Pobierz nagranie wg kanału i czasu, aby wczytać je bezpośrednio do głównego odtwarzacza (klatkowanie, OCR, cięcie i eksport MP4/PDF)." Foreground="#DCFCE7" FontSize="11" TextWrapping="Wrap" />
                                             </Border>
 
-                                            <TextBlock Text="POJEDYNCZY KANAŁ — WYSZUKIWANIE / POBIERANIE" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Margin="0,0,0,3" SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
-                                            <TextBlock Text="Ten wybór dotyczy wyszukiwania i pobierania jednego nagrania. Nie zmienia listy kanałów odtwarzanych równocześnie w głównym oknie." Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,9" />
+                                            <!-- Ukryty, zgodnościowy wybór kanału głównego. Jest synchronizowany ze wspólną listą poniżej. -->
+                                            <ComboBox x:Name="DahuaArchiveChannelBox" SelectedIndex="0" Visibility="Collapsed"
+                                                      IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                      SelectionChanged="DahuaArchiveChannelBox_SelectionChanged" />
 
-                                            <TextBlock Text="POCZĄTEK (OD)" Style="{StaticResource DahuaFieldLabel}" />
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.4*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <DatePicker x:Name="DahuaStartDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
-                                                <TextBox x:Name="DahuaStartTimeBox" Grid.Column="1" Text="12:00:00" FontWeight="Bold" />
-                                            </Grid>
-
-                                            <TextBlock Text="KONIEC (DO)" Style="{StaticResource DahuaFieldLabel}" />
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.4*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <DatePicker x:Name="DahuaEndDatePicker" Style="{StaticResource DahuaDatePickerStyle}" Grid.Column="0" Margin="0,0,6,0" CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
-                                                <TextBox x:Name="DahuaEndTimeBox" Grid.Column="1" Text="12:15:00" FontWeight="Bold" />
-                                            </Grid>
-
-                                            <Border Background="#14243A" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,2,0,8">
+                                            <Border Background="#171F2B" BorderBrush="#3B4A60" BorderThickness="1"
+                                                    CornerRadius="7" Padding="9" Margin="0,0,0,9">
                                                 <StackPanel>
-                                                    <TextBlock Text="ODTWARZANIE ARCHIWUM — WIELE KANAŁÓW" Foreground="#93C5FD" FontWeight="Bold" FontSize="11" Margin="0,0,0,6" />
-                                                    <TextBlock Text="1. Wybierz układ:" Foreground="#E2E8F0" FontSize="11" />
-                                                    <ComboBox x:Name="DahuaArchiveGridModeBox" SelectedIndex="1" Margin="0,3,0,7" SelectionChanged="DahuaArchiveGridModeBox_SelectionChanged">
-                                                        <ComboBoxItem Content="1 kanał" />
-                                                        <ComboBoxItem Content="4 kanały" />
-                                                        <ComboBoxItem Content="9 kanałów" />
-                                                        <ComboBoxItem Content="16 kanałów" />
+                                                    <TextBlock Text="1. WYBIERZ KAMERĘ LUB KAMERY" Foreground="#BFDBFE"
+                                                               FontSize="11" FontWeight="Bold" Margin="0,0,0,4" />
+                                                    <TextBlock Text="Zaznaczone kamery będą używane do odtwarzania. Pierwsza zaznaczona kamera jest używana do wyszukiwania pojedynczego nagrania i pobierania."
+                                                               Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,7" />
+                                                    <TextBlock Text="Układ podglądu (maksymalna liczba kamer):" Foreground="#E2E8F0" FontSize="11" />
+                                                    <ComboBox x:Name="DahuaArchiveGridModeBox" SelectedIndex="1" Margin="0,3,0,7"
+                                                              SelectionChanged="DahuaArchiveGridModeBox_SelectionChanged">
+                                                        <ComboBoxItem Content="1 kamera" />
+                                                        <ComboBoxItem Content="4 kamery" />
+                                                        <ComboBoxItem Content="9 kamer" />
+                                                        <ComboBoxItem Content="16 kamer" />
                                                     </ComboBox>
-                                                    <TextBlock Text="2. Zaznacz kanały do równoczesnego odtwarzania:" Foreground="#E2E8F0" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5" />
                                                     <Border Background="#0F1724" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="6">
                                                         <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
                                                             <StackPanel x:Name="DahuaArchiveChannelChecksPanel" />
                                                         </ScrollViewer>
                                                     </Border>
-                                                    <TextBlock x:Name="DahuaArchiveSelectedChannelsText" Text="Wybierz kanały powyżej." Foreground="#BFDBFE" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0" />
-                                                    <Button Content="▶ Odtwarzaj wybrane kanały od wskazanego czasu" Click="DahuaStartSynchronizedPlayback_Click" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+                                                    <TextBlock x:Name="DahuaArchiveSelectedChannelsText" Text="Wybierz kamerę." Foreground="#BFDBFE"
+                                                               FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0" />
                                                 </StackPanel>
                                             </Border>
+
+                                            <Border Background="#171F2B" BorderBrush="#3B4A60" BorderThickness="1"
+                                                    CornerRadius="7" Padding="9" Margin="0,0,0,9">
+                                                <StackPanel>
+                                                    <TextBlock Text="2. USTAW ZAKRES DAT I GODZIN" Foreground="#BFDBFE"
+                                                               FontSize="11" FontWeight="Bold" Margin="0,0,0,7" />
+                                                    <Grid Margin="0,0,0,7">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="POCZĄTEK (OD)" Style="{StaticResource DahuaFieldLabel}" />
+                                                        <TextBlock Grid.Column="1" Text="KONIEC (DO)" Style="{StaticResource DahuaFieldLabel}" />
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="1.4*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <DatePicker x:Name="DahuaStartDatePicker" Style="{StaticResource DahuaDatePickerStyle}"
+                                                                    Grid.Column="0" Margin="0,0,6,0"
+                                                                    IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                                    CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
+                                                        <TextBox x:Name="DahuaStartTimeBox" Grid.Column="1" Text="12:00:00"
+                                                                 FontWeight="Bold" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="1.4*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <DatePicker x:Name="DahuaEndDatePicker" Style="{StaticResource DahuaDatePickerStyle}"
+                                                                    Grid.Column="0" Margin="0,0,6,0"
+                                                                    IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                                    CalendarOpened="DahuaArchiveDatePicker_CalendarOpened" />
+                                                        <TextBox x:Name="DahuaEndTimeBox" Grid.Column="1" Text="12:15:00"
+                                                                 FontWeight="Bold" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Button Content="▶ Odtwórz w podglądzie Dahua"
+                                                    Click="DahuaArchivePlay_Click"
+                                                    Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch"
+                                                    Margin="0,0,0,8" />
 
                                             <WrapPanel Margin="0,0,0,4" VerticalAlignment="Center">
                                                 <Border Width="10" Height="10" Background="#14532D" BorderBrush="#4ADE80" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />
@@ -1281,11 +1383,16 @@
                                                 <Border Width="10" Height="10" Background="#1D4ED8" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="2" Margin="0,0,4,0" />
                                                 <TextBlock Text="Wybrany" Foreground="#DBEAFE" FontSize="10" />
                                             </WrapPanel>
-                                            <TextBlock x:Name="DahuaCalendarAvailabilityStatusText" Text="Otwórz kalendarz, aby sprawdzić dostępność nagrań." Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <TextBlock x:Name="DahuaCalendarAvailabilityStatusText" Text="{Binding Dahua.CalendarAvailabilityStatusText}" Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6" />
 
-                                            <Button x:Name="DahuaSearchArchiveButton" Content="🔎 Wyszukaj nagrania na rejestratorze" Click="DahuaSearchArchive_Click" Style="{StaticResource DahuaBlueButton}" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+                                            <Button x:Name="DahuaSearchArchiveButton" Content="3. Wyszukaj nagrania dla pierwszej zaznaczonej kamery"
+                                                    Click="DahuaSearchArchive_Click" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}"
+                                                    Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch"
+                                                    Margin="0,0,0,8" />
 
-                                            <DataGrid x:Name="DahuaArchiveRecordsGrid" Height="165" AutoGenerateColumns="False"
+                                            <TextBlock Text="4. WYNIKI WYSZUKIWANIA — wybierz nagranie z listy" Style="{StaticResource DahuaFieldLabel}" Margin="0,2,0,6" />
+                                            <DataGrid x:Name="DahuaArchiveRecordsGrid" Height="185" AutoGenerateColumns="False"
+                                                      ItemsSource="{Binding Dahua.ArchiveRecords}"
                                                       IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow"
                                                       CanUserAddRows="False" CanUserDeleteRows="False"
                                                       Background="#101722" Foreground="#F8FAFC"
@@ -1320,16 +1427,13 @@
                                                 </DataGrid.Columns>
                                             </DataGrid>
 
-                                            <WrapPanel Margin="0,0,0,6">
-                                                <Button Content="▶ Odtwórz zaznaczone" Click="DahuaPlaySelectedRecord_Click" />
-                                                <Button Content="★ Wczytaj zaznaczone do odtwarzacza" Click="DahuaLoadSelectedRecord_Click" Style="{StaticResource DahuaGreenButton}" />
-                                            </WrapPanel>
+                                            <TextBlock Text="Zaznacz wynik, aby odtworzyć lub pobrać dokładnie to nagranie. Bez zaznaczenia używany jest zakres i wybór kamer powyżej."
+                                                       Foreground="#94A3B8" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,7" />
 
-                                            <ProgressBar x:Name="DahuaDownloadProgressBar" Height="8" Margin="0,0,0,6" Visibility="Collapsed" Background="#13161F" Foreground="#22C55E" />
-                                            <TextBlock x:Name="DahuaDownloadStatusText" Text="" FontSize="11" FontWeight="SemiBold" Foreground="#4ADE80" Margin="0,0,0,6" Visibility="Collapsed" TextWrapping="Wrap" />
+                                            <ProgressBar x:Name="DahuaDownloadProgressBar" Height="8" Margin="0,0,0,6" IsIndeterminate="{Binding Dahua.IsDownloadBusy}" Visibility="{Binding Dahua.IsDownloadBusy, Converter={StaticResource BooleanToVisibilityConverter}}" Background="#13161F" Foreground="#22C55E" />
+                                            <TextBlock x:Name="DahuaDownloadStatusText" Text="{Binding Dahua.DownloadStatusText}" FontSize="11" FontWeight="SemiBold" Foreground="#4ADE80" Margin="0,0,0,6" Visibility="{Binding Dahua.IsDownloadStatusVisible, Converter={StaticResource BooleanToVisibilityConverter}}" TextWrapping="Wrap" />
 
-                                            <Button x:Name="DahuaLoadToPlayerButton" Content="★ Pobierz zakres do Odtwarzacza" Click="DahuaLoadToPlayer_Click" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
-                                            <Button Content="Odtwórz zakres w podglądzie Dahua" Click="DahuaPlayArchiveInWindow_Click" HorizontalAlignment="Stretch" />
+                                            <Button x:Name="DahuaLoadToPlayerButton" Content="★ Pobierz do głównego odtwarzacza" Click="DahuaLoadToPlayer_Click" IsEnabled="{Binding Dahua.IsArchiveInputsEnabled}" Style="{StaticResource DahuaGreenButton}" HorizontalAlignment="Stretch" Margin="0,0,0,6" />
                                         </StackPanel>
                                     </ScrollViewer>
                                 </TabItem>
@@ -1339,7 +1443,7 @@
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                                         <StackPanel>
                                             <TextBlock Text="LISTA SKONFIGUROWANYCH URZĄDZEŃ" Style="{StaticResource DahuaFieldLabel}" />
-                                            <ListBox x:Name="DahuaConfigDevicesList" Height="110" Background="#101A2A" Foreground="#FFFFFF" BorderBrush="#42546D" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" SelectionChanged="DahuaConfigDevicesList_SelectionChanged" Margin="0,0,0,6">
+                                            <ListBox x:Name="DahuaConfigDevicesList" Height="110" Background="#101A2A" Foreground="#FFFFFF" BorderBrush="#42546D" ItemContainerStyle="{StaticResource DahuaListBoxItemStyle}" ItemsSource="{Binding Dahua.Devices}" SelectionChanged="DahuaConfigDevicesList_SelectionChanged" Margin="0,0,0,6">
                                                 <ListBox.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Margin="2">
@@ -1394,22 +1498,22 @@
                     </TabItem>
 
                     <!-- ZAKŁADKA 4: Pliki, MediaInfo, Sesja, Obsługa i O programie -->
-                    <TabItem Header="Pliki">
+                    <TabItem Header="Pliki i sesja" ToolTip="Ostatnie nagrania, zrzuty klatek, informacje o pliku i ustawienia sesji">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
                             <StackPanel>
                                 <TextBlock Text="Ostatnie nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <ComboBox x:Name="RecentFilesBox" Margin="0,0,0,8" ToolTip="Ostatnio otwierane nagrania" HorizontalAlignment="Stretch" />
+                                <ComboBox x:Name="RecentFilesBox" ItemsSource="{Binding History.RecentFiles}" SelectedItem="{Binding History.SelectedRecentFile, Mode=TwoWay}" DisplayMemberPath="FileName" Margin="0,0,0,8" ToolTip="Ostatnio otwierane nagrania" HorizontalAlignment="Stretch" />
                                 <Button Content="Otwórz wybrane" Click="OpenRecent_Click" />
 
                                 <TextBlock Text="Zapisane klatki" FontWeight="SemiBold" Margin="0,8,0,6" />
-                                <ComboBox x:Name="ScreenshotsBox" Margin="0,0,0,8" ToolTip="Ostatnio zapisane zrzuty klatek" HorizontalAlignment="Stretch" />
+                                <ComboBox x:Name="ScreenshotsBox" ItemsSource="{Binding History.RecentScreenshots}" SelectedItem="{Binding History.SelectedRecentScreenshot, Mode=TwoWay}" DisplayMemberPath="FileName" Margin="0,0,0,8" ToolTip="Ostatnio zapisane zrzuty klatek" HorizontalAlignment="Stretch" />
                                 <WrapPanel>
                                     <Button Content="Pokaż klatkę" Click="OpenScreenshot_Click" />
                                     <Button Content="Folder klatek" Click="OpenScreenshotsFolder_Click" />
                                 </WrapPanel>
 
                                 <Expander Header="Informacje o nagraniu" Margin="0,10,0,6" Foreground="#D8DCE4">
-                                    <TextBlock x:Name="MediaInfoText" Text="Otwórz nagranie, aby odczytać kodek, rozdzielczość, FPS, bitrate i rozmiar." Foreground="#D8DCE4" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                    <TextBlock x:Name="MediaInfoText" Text="{Binding Export.MediaInfoText}" Foreground="#D8DCE4" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
                                 </Expander>
 
                                 <Expander Header="Widok i sesja" Margin="0,2,0,6" Foreground="#D8DCE4">
@@ -1459,20 +1563,74 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
-                </TabControl>
+                
+                    <!-- ZAKŁADKA 5: Raporty i archiwum spraw -->
+                    <TabItem x:Name="ReportsTab" Header="Raporty" ToolTip="Dane sprawy, archiwum oraz generowanie raportów CSV i PDF">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
+                            <StackPanel>
+                                <Border Background="#17263A" BorderBrush="#365D9B" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="RAPORTOWANIE SPRAWY" FontSize="11" FontWeight="Bold" Foreground="#93C5FD" Margin="0,0,0,4" />
+                                        <TextBlock Text="Uzupełnij dane sprawy, wybierz zapisane materiały i wygeneruj raport. Raport można utworzyć także dla sprawy obejmującej wiele nagrań, bez otwierania pliku w odtwarzaczu." FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Expander x:Name="ReportDetailsExpander" Header="Dane sprawy do raportu PDF (opcjonalne)" Margin="0,2,0,8" Foreground="#D8DCE4">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Numer sprawy / referencyjny" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportCaseNumberBox" Text="{Binding Cases.CaseNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Tytuł sprawy" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportCaseTitleBox" Text="{Binding Cases.CaseTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Miejsce zdarzenia" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportLocationBox" Text="{Binding Cases.Location, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" Margin="0,0,0,6" />
+                                            <TextBlock Text="Uwagi / opis sprawy" FontSize="11" Margin="0,0,0,3" />
+                                            <TextBox x:Name="ReportNotesBox" Text="{Binding Cases.Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="6,4" MinHeight="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+                                <Expander x:Name="CaseArchiveExpander" Header="Archiwum spraw" Margin="0,2,0,8" Foreground="#D8DCE4" IsExpanded="True">
+                                    <Border Background="#171A20" BorderBrush="#343B48" BorderThickness="1" CornerRadius="5" Padding="8" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Zapisane sprawy" FontSize="11" Margin="0,0,0,4" />
+                                            <ComboBox x:Name="ReportCasesBox" ItemsSource="{Binding Cases.Cases}" SelectedItem="{Binding Cases.SelectedCase, Mode=TwoWay}" Margin="0,0,0,8" MinWidth="180" ToolTip="Wybierz sprawę; jej dane zostaną wczytane automatycznie" />
+                                            <WrapPanel>
+                                                <Button x:Name="SaveCaseButton" Content="Zapisz / aktualizuj sprawę" Click="SaveCase_Click" Style="{StaticResource PrimaryButton}" />
+                                                <Button x:Name="LoadCaseButton" Content="Wczytaj dane sprawy" Click="LoadCase_Click" />
+                                                <Button x:Name="ClearCaseSelectionButton" Content="Bieżące nagranie" Command="{Binding Cases.ClearSelectionCommand}" ToolTip="Wyczyść wybór sprawy i raportuj aktualnie otwarty plik" />
+                                                <Button x:Name="DeleteCaseButton" Content="Usuń sprawę" Click="DeleteCase_Click" />
+                                            </WrapPanel>
+                                            <TextBlock x:Name="CaseArchiveStatusText" Text="{Binding Cases.StatusText}" TextWrapping="Wrap" Foreground="#AEB9CA" FontSize="11" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
+                                <TextBlock Text="Raport wybranej sprawy lub bieżącego nagrania" FontWeight="SemiBold" Margin="0,4,0,6" />
+                                <CheckBox x:Name="ReportThumbnailsCheckBox" Content="Miniatury w PDF" IsChecked="{Binding Cases.IncludeThumbnails, Mode=TwoWay}" Foreground="#D8DCE4" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                <WrapPanel>
+                                    <Button x:Name="CsvReportButton" Content="Raport CSV" Click="CsvReport_Click" IsEnabled="{Binding Export.CanStartOperation}" />
+                                    <Button x:Name="PdfReportButton" Content="Raport PDF" Click="PdfReport_Click" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding Export.CanStartOperation}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+</TabControl>
             </Border>
         </Grid>
 
-        <!-- Dolna oś czasu odtwarzacza mpv (chowana tylko w trybie Dahua, który ma własną oś archiwum) -->
-        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="74" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1" CornerRadius="6" Padding="10,5" Margin="0,0,0,0">
+        <!-- Dolna oś czasu odtwarzacza mpv — układ wizualny bez zmian w mechanice suwaka -->
+        <Border x:Name="PlayerTimelineBorder" Grid.Row="2" Height="66" Background="#1B2029"
+                BorderBrush="#343B48" BorderThickness="1" CornerRadius="7"
+                Padding="8,4" Margin="0,0,0,4">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="20" />
+                    <RowDefinition Height="17" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <DockPanel>
-                    <TextBlock Text="OŚ CZASU" FontSize="11" FontWeight="SemiBold" Foreground="#BCD0EF" />
-                    <TextBlock Text="  •  I / O: zakres  •  znaczniki: kliknij punkt" FontSize="11" Foreground="#909DB1" />
+                <DockPanel LastChildFill="True">
+                    <Border DockPanel.Dock="Left" Background="#26364D" CornerRadius="4" Padding="7,2" Margin="0,0,9,0">
+                        <TextBlock Text="OŚ CZASU" FontSize="9" FontWeight="Bold" Foreground="#C8DCFA" />
+                    </Border>
+                    <TextBlock Text="I / O — fragment  •  Znaczniki — przejście do zdarzenia"
+                               FontSize="9" Foreground="#909DB1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
@@ -1480,8 +1638,14 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="76" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="PositionText" Text="00:00:00" FontFamily="Consolas" FontSize="12" VerticalAlignment="Center" Grid.Column="0" />
-                    <TextBlock x:Name="DurationText" Text="00:00:00" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" Grid.Column="2" />
+                    <Border Grid.Column="0" Background="#151A23" BorderBrush="#343B48" BorderThickness="1"
+                            CornerRadius="5" Padding="5,2" Margin="0,0,4,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="PositionText" Text="00:00:00" FontFamily="Consolas" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#93C5FD" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock x:Name="DurationText" Grid.Column="2" Text="00:00:00" FontFamily="Consolas"
+                               FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
+                               HorizontalAlignment="Right" VerticalAlignment="Center" />
                     <Grid Grid.Column="1" Margin="10,0">
                         <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" Value="0" IsEnabled="False" IsSelectionRangeEnabled="False" SelectionStart="0" SelectionEnd="0" SmallChange="1" LargeChange="10" Height="30" VerticalAlignment="Center" ValueChanged="PositionSlider_ValueChanged" Thumb.DragStarted="PositionSlider_DragStarted" Thumb.DragCompleted="PositionSlider_DragCompleted" />
                         <Canvas x:Name="TimelineOverlay" Margin="10,0" VerticalAlignment="Stretch" SizeChanged="TimelineOverlay_SizeChanged">
@@ -1494,57 +1658,82 @@
             </Grid>
         </Border>
 
-        <!-- Pasek transportu odtwarzacza mpv -->
-        <Grid x:Name="PlayerTransportGrid" Grid.Row="3" Height="46" Margin="0,6,0,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Content="◀ Klatka" Click="PreviousFrame_Click" Margin="0,0,6,0" Padding="10,8" />
-                <Button x:Name="PlayButton" Content="Play / Pauza" Style="{StaticResource PlayButtonStyle}" Click="PlayPause_Click" Margin="0,0,6,0" MinWidth="100" Padding="14,8" />
-                <Button Content="Klatka ▶" Click="NextFrame_Click" Margin="0,0,14,0" Padding="10,8" />
-                <Button x:Name="ScreenshotButton" Content="Zapisz klatkę (S)" Click="Screenshot_Click" Margin="0,0,6,0" Padding="10,8" />
-                <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" Margin="0,0,6,0" Padding="10,8" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
-                <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Click="MotionCancel_Click" Margin="0" Padding="10,8" Visibility="Collapsed" IsEnabled="False" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Prędkość" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#AEB9CA" />
-                <ComboBox x:Name="SpeedBox" Width="85" Margin="0" SelectedIndex="2" SelectionChanged="Speed_Changed" Height="34">
-                    <ComboBoxItem Content="0,25×" Tag="0.25" />
-                    <ComboBoxItem Content="0,5×" Tag="0.5" />
-                    <ComboBoxItem Content="1×" Tag="1" />
-                    <ComboBoxItem Content="2×" Tag="2" />
-                    <ComboBoxItem Content="4×" Tag="4" />
-                    <ComboBoxItem Content="8×" Tag="8" />
-                    <ComboBoxItem Content="16×" Tag="16" />
-                    <ComboBoxItem Content="32×" Tag="32" />
-                </ComboBox>
-            </StackPanel>
-        </Grid>
+        <!-- Responsywny pasek sterowania odtwarzaczem mpv -->
+        <Border Grid.Row="3" Background="#1B2029" BorderBrush="#343B48" BorderThickness="1"
+                CornerRadius="7" Padding="7,3" Margin="0,0,0,4">
+            <Grid x:Name="PlayerTransportGrid" MinHeight="38">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                        <Button Content="◀ Klatka" Click="PreviousFrame_Click" Margin="0,0,5,0" Padding="8,5" />
+                        <Button x:Name="PlayButton" Content="Play / Pauza" Style="{StaticResource PlayButtonStyle}" Click="PlayPause_Click" Margin="0,0,5,0" MinWidth="94" Padding="10,5" />
+                        <Button Content="Klatka ▶" Click="NextFrame_Click" Margin="0,0,8,0" Padding="8,5" />
+                        <Button x:Name="ScreenshotButton" Content="Zapisz klatkę" Click="Screenshot_Click" Margin="0,0,5,0" Padding="8,5" />
+                        <Button x:Name="MotionDetectButton" Content="Wykryj ruch" Click="MotionDetect_Click" IsEnabled="{Binding Motion.CanStart}" Margin="0,0,5,0" Padding="8,5" ToolTip="Analiza nagrania i dodanie wykrytych zdarzeń do osi czasu" />
+                        <Button x:Name="MotionCancelButton" Content="Anuluj analizę" Command="{Binding Motion.CancelCommand}" Visibility="{Binding Motion.IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0" Padding="8,5" />
+                    </WrapPanel>
+                    <Border Grid.Column="1" Background="#151A23" BorderBrush="#343B48" BorderThickness="1"
+                            CornerRadius="6" Padding="8,3" Margin="8,0,0,4" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Tempo" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#AEB9CA" FontSize="10" />
+                            <ComboBox x:Name="SpeedBox" Width="76" Margin="0" SelectedIndex="2" SelectionChanged="Speed_Changed" Height="29">
+                                <ComboBoxItem Content="0,25×" Tag="0.25" />
+                                <ComboBoxItem Content="0,5×" Tag="0.5" />
+                                <ComboBoxItem Content="1×" Tag="1" />
+                                <ComboBoxItem Content="2×" Tag="2" />
+                                <ComboBoxItem Content="4×" Tag="4" />
+                                <ComboBoxItem Content="8×" Tag="8" />
+                                <ComboBoxItem Content="16×" Tag="16" />
+                                <ComboBoxItem Content="32×" Tag="32" />
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+        </Border>
 
-        <!-- Stały pasek statusu i postępu eksportu -->
-        <Border Grid.Row="4" Background="#191D25" CornerRadius="5" Padding="8,5">
+        <!-- Zwarty pasek statusu i postępu — bez osobnego panelu narzędziowego -->
+        <Border Grid.Row="4" Background="#171C25" BorderBrush="#343B48" BorderThickness="0,1,0,0"
+                CornerRadius="0" Padding="7,3">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="20" />
-                    <RowDefinition Height="30" />
+                    <RowDefinition Height="18" />
+                    <RowDefinition Height="21" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="190" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <DockPanel Grid.Row="0" Grid.ColumnSpan="3">
-                    <Ellipse x:Name="StatusIndicator" Width="7" Height="7" Fill="#687386" Margin="0,0,9,0" VerticalAlignment="Center" DockPanel.Dock="Left" />
-                    <TextBlock x:Name="StatusText" Text="Uruchamianie odtwarzacza…" Foreground="#9CA6B6" FontSize="11" TextWrapping="NoWrap" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                <DockPanel Grid.Row="0" Grid.ColumnSpan="3" LastChildFill="True">
+                    <Border DockPanel.Dock="Left" Background="#26364D" CornerRadius="4" Padding="6,2" Margin="0,0,9,0">
+                        <TextBlock Text="STATUS" FontSize="8" FontWeight="Bold" Foreground="#C8DCFA" />
+                    </Border>
+                    <Ellipse x:Name="StatusIndicator" Width="7" Height="7" Fill="#687386"
+                             Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="StatusText" Text="{Binding StatusMessage}" Foreground="#C7D0DE"
+                               FontSize="11" TextWrapping="NoWrap" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                 </DockPanel>
-                <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <TextBlock x:Name="ExportOperationText" Text="Brak aktywnej operacji" Foreground="#7F899A" FontSize="10" TextWrapping="NoWrap" Margin="0" MaxHeight="14" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="ExportProgressText" Text="Gotowy do eksportu" Foreground="#9CA6B6" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <TextBlock x:Name="ExportOperationText" Text="{Binding Export.OperationTitle}"
+                               Foreground="#93A4BC" FontSize="10" TextWrapping="NoWrap"
+                               Margin="0" MaxHeight="14" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ExportProgressText" Text="{Binding Export.ProgressText}"
+                               Foreground="#C7D0DE" FontSize="10" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
                 </StackPanel>
-                <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100" Value="0" Height="7" Background="#303541" Foreground="#3478F6" BorderThickness="0" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <Button x:Name="CancelExportButton" Content="Anuluj" Padding="10,5" Margin="0" Visibility="Collapsed" IsEnabled="False" Click="CancelExport_Click" Grid.Row="1" Grid.Column="2" />
+                <Border Grid.Row="1" Grid.Column="1" Background="#242B38" CornerRadius="4"
+                        Padding="2" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100"
+                                 Value="{Binding Export.ProgressPercent}" Height="5"
+                                 Background="#242B38" Foreground="#3478F6" BorderThickness="0" />
+                </Border>
+                <Button x:Name="CancelExportButton" Content="Anuluj" Padding="10,5" Margin="0"
+                        Visibility="{Binding Export.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        IsEnabled="{Binding Export.CanCancel}" Command="{Binding Export.CancelCommand}"
+                        Grid.Row="1" Grid.Column="2" />
             </Grid>
         </Border>
     </Grid>

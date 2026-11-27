@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 
@@ -10,9 +10,9 @@ namespace VideoPlayer
     {
         private bool _plateSearchLoadedOnce;
 
-        private void PlateSearch_Click(object sender, RoutedEventArgs e)
+        private async void PlateSearch_Click(object sender, RoutedEventArgs e)
         {
-            if (_historyService == null)
+            if (!ViewModel.History.IsReady)
             {
                 MessageBox.Show(this, "Historia nie została jeszcze zainicjalizowana.", "Wyszukiwarka tablic");
                 return;
@@ -21,52 +21,33 @@ namespace VideoPlayer
             SetWorkspaceMode(WorkspaceMode.Player, 1);
             PlateSearchExpander.IsExpanded = true;
             PlateSearchExpander.BringIntoView();
-            RunPlateSearch();
             SearchPlateFilterBox.Focus();
+            _plateSearchLoadedOnce = true;
+            await ViewModel.PlateSearch.SearchAsync();
         }
 
-        private void PlateSearchExpander_Expanded(object sender, RoutedEventArgs e)
+        private async void PlateSearchExpander_Expanded(object sender, RoutedEventArgs e)
         {
-            if (_historyService != null && !_plateSearchLoadedOnce)
+            if (ViewModel.History.IsReady && !_plateSearchLoadedOnce)
             {
                 _plateSearchLoadedOnce = true;
-                RunPlateSearch();
-            }
-        }
-
-        private void PlateSearchExecute_Click(object sender, RoutedEventArgs e) => RunPlateSearch();
-
-        private void RunPlateSearch()
-        {
-            if (_historyService == null) return;
-            try
-            {
-                List<PlateSearchResult> results = _historyService.SearchMarkers(
-                    SearchPlateFilterBox.Text, SearchMakeFilterBox.Text, SearchSourceFilterBox.Text);
-                PlateSearchResultsList.ItemsSource = results;
-                SearchResultCountText.Text = results.Count == 1000
-                    ? "Znaleziono co najmniej 1000 wyników (limit listy: 1000). Zawęź kryteria."
-                    : $"Znaleziono: {results.Count} zdarzeń.";
-            }
-            catch (Exception ex)
-            {
-                SearchResultCountText.Text = "Błąd wyszukiwania: " + ex.Message;
+                await ViewModel.PlateSearch.SearchAsync();
             }
         }
 
         private void PlateSearchOpenSelected_Click(object sender, RoutedEventArgs e)
         {
-            if (PlateSearchResultsList.SelectedItem is PlateSearchResult result)
+            if (ViewModel.PlateSearch.SelectedResult is PlateSearchResult result)
                 _ = OpenPlateSearchResultAsync(result);
         }
 
         private void PlateSearchResultsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            if (PlateSearchResultsList.SelectedItem is PlateSearchResult result)
+            if (ViewModel.PlateSearch.SelectedResult is PlateSearchResult result)
                 _ = OpenPlateSearchResultAsync(result);
         }
 
-        private async System.Threading.Tasks.Task OpenPlateSearchResultAsync(PlateSearchResult result)
+        private async Task OpenPlateSearchResultAsync(PlateSearchResult result)
         {
             if (!File.Exists(result.SourcePath))
             {
@@ -87,7 +68,7 @@ namespace VideoPlayer
             {
                 await SendAsync("set_property", "pause", true);
                 await SeekAsync(result.Seconds);
-                StatusText.Text = "Wynik wyszukiwania: " + result.PlateNumber + " — " + result.TimeText;
+                ViewModel.StatusMessage = "Wynik wyszukiwania: " + result.PlateNumber + " — " + result.TimeText;
             }
         }
     }

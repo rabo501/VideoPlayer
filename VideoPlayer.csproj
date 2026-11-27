@@ -4,18 +4,21 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <Version>1.7.0</Version>
-    <AssemblyVersion>1.7.0.0</AssemblyVersion>
-    <FileVersion>1.7.0.0</FileVersion>
-    <InformationalVersion>1.7.0</InformationalVersion>
+    <DefaultItemExcludes>$(DefaultItemExcludes);VideoPlayer.Tests\**</DefaultItemExcludes>
+    <Version>1.9.0</Version>
+    <AssemblyVersion>1.9.0.0</AssemblyVersion>
+    <FileVersion>1.9.0.0</FileVersion>
+    <InformationalVersion>1.9.0</InformationalVersion>
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationIcon>VideoPlayer.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <PackageReference Include="PDFsharp-WPF" Version="6.2.4" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="Tesseract" Version="5.2.0" />
   </ItemGroup>
   <ItemGroup>
 	  <Content Include="mpv\**\*">
@@ -32,9 +35,9 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="Tesseract"><HintPath>lib\Tesseract.dll</HintPath><Private>true</Private></Reference>
-    <!-- Biblioteki SDK (zarówno natywne DLL, jak i pozostałe pliki) pozostają w katalogu lib. -->
-    <Content Include="lib\**\*;tessdata\**\*;x64\**\*;licenses\**\*">
+    <!-- Biblioteki Dahua SDK (zarówno natywne DLL, jak i pozostałe pliki) pozostają w katalogu lib.
+         Tesseract oraz jego natywne biblioteki x64 pochodzą z pakietu NuGet Tesseract 5.2.0. -->
+    <Content Include="lib\**\*;tessdata\**\*;licenses\**\*" Exclude="lib\Tesseract.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>

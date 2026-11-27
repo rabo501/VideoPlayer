@@ -3,17 +3,24 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace VideoPlayer
 {
-    internal sealed class MediaInfoService
+    internal interface IMediaInfoReader
+    {
+        Task<MediaInfoData> ReadAsync(string sourcePath, CancellationToken ct = default);
+    }
+
+    internal sealed class MediaInfoService : IMediaInfoReader
     {
         private readonly string _ffmpegPath;
         public MediaInfoService(string ffmpegPath) => _ffmpegPath = ffmpegPath;
 
-        public async Task<MediaInfoData> ReadAsync(string sourcePath)
+        public async Task<MediaInfoData> ReadAsync(string sourcePath, CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
             if (!File.Exists(_ffmpegPath))
                 throw new FileNotFoundException("Brak ffmpeg.exe — nie można odczytać parametrów nagrania.", _ffmpegPath);
 
@@ -29,9 +36,15 @@ namespace VideoPlayer
             psi.ArgumentList.Add(sourcePath);
 
             using var process = new Process { StartInfo = psi };
-            process.Start();
-            string output = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
-            await process.WaitForExitAsync().ConfigureAwait(false);
+            if (!process.Start())
+                throw new IOException("Nie uruchomiono procesu FFmpeg.");
+            using var cancel = ct.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(true); } catch { }
+            });
+            string output = await process.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
 
             var info = new MediaInfoData
             {

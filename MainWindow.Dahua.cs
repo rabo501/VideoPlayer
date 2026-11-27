@@ -1,12 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,40 +14,41 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 using FormsIntegration = System.Windows.Forms.Integration;
+using Calendar = System.Windows.Controls.Calendar;
+using VideoPlayer.ViewModels;
 
 namespace VideoPlayer
 {
     public partial class MainWindow
     {
+        // Panel przycina obraz. PictureBox zachowuje ten sam HWND przekazany do SDK.
+        private readonly Forms.Panel _dahuaPrimaryViewport = new()
+        {
+            BackColor = System.Drawing.Color.Black,
+            Dock = Forms.DockStyle.Fill
+        };
         private readonly Forms.PictureBox _dahuaPrimaryPictureBox = new()
         {
             BackColor = System.Drawing.Color.Black,
-            Dock = Forms.DockStyle.Fill,
             SizeMode = Forms.PictureBoxSizeMode.Normal
         };
+        private string _dahuaViewScaleMode = "fit";
+        private double _dahuaViewScaleFactor = 1.0;
 
-        private List<DahuaDeviceItem> _dahuaDevices = new();
         private DahuaDeviceItem? _currentDahuaDevice;
         private DahuaDeviceItem? _configSelectedDevice;
         private bool _configLoading;
-        private string? _connectedDahuaDeviceId;
-        private IntPtr _dahuaLoginId = IntPtr.Zero;
         private IntPtr _dahuaRealPlayHandle = IntPtr.Zero;
         private IntPtr _dahuaPlaybackHandle = IntPtr.Zero;
-        private bool _dahuaSdkInitialized;
         private int _dahuaCurrentChannel = 1;
         private bool _dahuaPtzAreaZoomRunning;
-        private int _dahuaDeviceChannelCount;
-        private HashSet<int>? _dahuaActiveChannelNumbers;
         private readonly List<Button> _dahuaChannelButtons = new();
         private readonly HashSet<DateTime> _dahuaArchiveAvailableDays = new();
         private readonly HashSet<DateTime> _dahuaRecorderAvailableDays = new();
         private readonly HashSet<Calendar> _dahuaHookedArchiveCalendars = new();
-        private readonly Dictionary<string, HashSet<DateTime>> _dahuaRecorderAvailabilityCache = new();
-        private readonly HashSet<string> _dahuaAvailabilityQueriesInProgress = new();
-        private readonly SemaphoreSlim _dahuaArchiveAvailabilitySemaphore = new(1, 1);
         private readonly List<DahuaMultiViewSlot> _dahuaMultiViewSlots = new();
-        private readonly List<IntPtr> _dahuaMultiPlaybackHandles = new();
+        private int _dahuaLiveStartRequestId;
+        private IReadOnlyList<IntPtr> DahuaMultiPlaybackHandles => ViewModel.Dahua.GetArchivePlaybackHandles();
         private readonly HashSet<int> _dahuaArchiveSelectedChannels = new();
         private bool _dahuaUpdatingArchiveChannelChecks;
         private readonly DispatcherTimer _dahuaPlaybackUiTimer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -68,9 +65,15 @@ namespace VideoPlayer
         private double _dahuaRecordingTimelineZoom = 1.0;
         private double _dahuaRecordingTimelineStartHour;
         private bool _dahuaSyncingDeviceLists;
+        private bool _dahuaEventsHooked;
+        private bool _dahuaTimelineIsSelecting;
+        private bool _dahuaTimelineDragStarted;
+        private Point _dahuaTimelinePointerDown;
+        private DateTime? _dahuaTimelineSelectionStart;
+        private DateTime? _dahuaTimelineSelectionEnd;
+        private CancellationTokenSource? _dahuaArchiveDownloadCts;
 
-        private DahuaNetSdk.fDisConnect? _dahuaDisConnectCallback;
-        private DahuaNetSdk.fHaveReConnect? _dahuaHaveReConnectCallback;
+        private DahuaSessionService DahuaSession => ViewModel.Dahua.Session;
 
         private sealed class DahuaMultiViewSlot
         {
@@ -79,6 +82,11 @@ namespace VideoPlayer
             public FormsIntegration.WindowsFormsHost Host { get; init; } = null!;
             public Forms.Panel Viewport { get; init; } = null!;
             public double Zoom { get; set; } = 1.0;
+            public int SourceWidth { get; set; }
+            public int SourceHeight { get; set; }
+            public double SourceAspect { get; set; } = 16.0 / 9.0;
+            public DahuaNetSdk.fRealDataCallBackEx2? FrameInfoCallback { get; set; }
+            public int FrameInfoUpdatePending;
             public int PanX { get; set; }
             public int PanY { get; set; }
             public bool IsDragging { get; set; }
@@ -93,10 +101,88 @@ namespace VideoPlayer
 
         private void InitializeDahuaHost()
         {
+            _dahuaPrimaryViewport.Controls.Add(_dahuaPrimaryPictureBox);
             _dahuaPrimaryPictureBox.CreateControl();
-            DahuaPrimaryVideoHost.Child = _dahuaPrimaryPictureBox;
+            DahuaPrimaryVideoHost.Child = _dahuaPrimaryViewport;
+            _dahuaPrimaryViewport.MouseUp += DahuaVideoSurface_MouseUp;
+            _dahuaPrimaryPictureBox.MouseUp += DahuaVideoSurface_MouseUp;
+            _dahuaPrimaryViewport.Resize += (_, __) => ApplyDahuaPrimaryScale();
+            ApplyDahuaPrimaryScale();
             InitializeDahuaDatePickers();
             _dahuaPlaybackUiTimer.Tick += DahuaPlaybackUiTimer_Tick;
+
+            if (!_dahuaEventsHooked)
+            {
+                _dahuaEventsHooked = true;
+                DahuaSession.SdkDisconnected += (ip, port) =>
+                {
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        ViewModel.Dahua.StatusText = $"Utracono połączenie z {ip}:{port}. Trwa automatyczne wznawianie…";
+                    });
+                };
+                DahuaSession.SdkReconnected += (ip, port) =>
+                {
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        ViewModel.Dahua.StatusText = $"Przywrócono połączenie z {ip}:{port}.";
+                        _ = StartDahuaMultiLiveForSelectedChannelsAsync();
+                    });
+                };
+            }
+        }
+
+        private void SetDahuaPrimaryScale(string mode)
+        {
+            _dahuaViewScaleMode = mode;
+            _dahuaViewScaleFactor = 1.0;
+            if (double.TryParse(mode, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) && factor >= 1.0)
+                _dahuaViewScaleFactor = factor;
+
+            // Właściwy podgląd Live jest uruchamiany w slotach wielokanałowych:
+            // SDK otrzymuje HWND slot.PictureBox, a nie główny _dahuaPrimaryPictureBox.
+            // Dlatego skalę trzeba zastosować do wszystkich aktualnych slotów.
+            if (_dahuaMultiViewSlots.Count > 0)
+            {
+                foreach (DahuaMultiViewSlot slot in _dahuaMultiViewSlots)
+                {
+                    // Fit/fill jest realizowane przez bazowy rozmiar obrazu z jego
+                    // rzeczywistym aspect ratio; Zoom pozostaje dodatkowym powiększeniem.
+                    slot.Zoom = Math.Max(1.0, _dahuaViewScaleFactor);
+                    slot.PanX = 0;
+                    slot.PanY = 0;
+                    ApplyDahuaSlotViewport(slot);
+                }
+                return;
+            }
+
+            // Zapasowa ścieżka dla pojedynczego hosta, jeśli zostanie użyty bez slotów.
+            ApplyDahuaPrimaryScale();
+        }
+
+        private void ApplyDahuaPrimaryScale()
+        {
+            if (_dahuaPrimaryViewport.ClientSize.Width <= 0 || _dahuaPrimaryViewport.ClientSize.Height <= 0) return;
+            double vw = _dahuaPrimaryViewport.ClientSize.Width;
+            double vh = _dahuaPrimaryViewport.ClientSize.Height;
+            const double aspect = 16.0 / 9.0;
+            double bw, bh;
+            if (string.Equals(_dahuaViewScaleMode, "fill", StringComparison.OrdinalIgnoreCase))
+            {
+                bw = Math.Max(vw, vh * aspect);
+                bh = bw / aspect;
+                if (bh < vh) { bh = vh; bw = bh * aspect; }
+            }
+            else
+            {
+                bw = Math.Min(vw, vh * aspect);
+                bh = bw / aspect;
+            }
+            int width = Math.Max(1, (int)Math.Round(bw * _dahuaViewScaleFactor));
+            int height = Math.Max(1, (int)Math.Round(bh * _dahuaViewScaleFactor));
+            _dahuaPrimaryPictureBox.Bounds = new System.Drawing.Rectangle(
+                (int)Math.Round((vw - width) / 2.0),
+                (int)Math.Round((vh - height) / 2.0), width, height);
         }
 
         private void InitializeDahuaDatePickers()
@@ -117,7 +203,7 @@ namespace VideoPlayer
         {
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
             {
-                StatusText.Text = "Plik nagrania Dahua nie istnieje.";
+                ViewModel.StatusMessage = "Plik nagrania Dahua nie istnieje.";
                 return;
             }
 
@@ -135,104 +221,30 @@ namespace VideoPlayer
 
         private void EnsureDahuaSdkInitialized()
         {
-            if (!_dahuaSdkInitialized)
-            {
-                InitializeDahuaSdk();
-            }
+            DahuaSdkInitResult result = ViewModel.Dahua.EnsureSdkInitialized();
+            if (DahuaSdkStatusBadge != null)
+                DahuaSdkStatusBadge.Foreground = result.Success ? Brushes.LightGreen : Brushes.Orange;
         }
 
         private void CleanupDahuaOnClosing()
         {
             _dahuaPlaybackUiTimer.Stop();
+            try { _dahuaArchiveDownloadCts?.Cancel(); } catch { }
             DahuaDisconnect();
             DisposeDahuaMultiViewSlots();
-            if (_dahuaSdkInitialized)
-            {
-                try { DahuaNetSdk.CLIENT_Cleanup(); } catch { }
-                _dahuaSdkInitialized = false;
-            }
-        }
-
-        private static void WriteDahuaSdkDiagnostic(string message)
-        {
-            try
-            {
-                string directory = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "VideoPlayer", "logs");
-                Directory.CreateDirectory(directory);
-                File.AppendAllText(
-                    Path.Combine(directory, "dahua-sdk.log"),
-                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
-            }
-            catch
-            {
-            }
-        }
-
-        private void InitializeDahuaSdk()
-        {
-            try
-            {
-                int deviceInfoSize = Marshal.SizeOf<DahuaNetSdk.NET_DEVICEINFO>();
-                WriteDahuaSdkDiagnostic($"InitializeSdk started. NET_DEVICEINFO size={deviceInfoSize} bytes; process={Environment.Is64BitProcess switch { true => "x64", false => "x86" }}.");
-                if (deviceInfoSize != 53)
-                {
-                    throw new InvalidOperationException(
-                        $"Nieprawidłowy rozmiar NET_DEVICEINFO: {deviceInfoSize} bajtów (oczekiwano 53).");
-                }
-
-                var missingDlls = DahuaNetSdk.CheckDependencies();
-                if (missingDlls.Count > 0)
-                {
-                    string missingList = string.Join(", ", missingDlls);
-                    DahuaSdkStatusBadge.Text = $"Dahua NetSDK: Brak plików: {missingList}";
-                    DahuaSdkStatusBadge.Foreground = Brushes.Orange;
-                    DahuaStatusLabel.Text = $"Brak bibliotek DLL: {missingList}. Skopiuj je do folderu programu.";
-                    return;
-                }
-
-                _dahuaDisConnectCallback = OnDahuaSdkDisconnected;
-                _dahuaHaveReConnectCallback = OnDahuaSdkReconnected;
-
-                WriteDahuaSdkDiagnostic("Calling CLIENT_Init.");
-                bool initOk = DahuaNetSdk.CLIENT_Init(_dahuaDisConnectCallback, IntPtr.Zero);
-                WriteDahuaSdkDiagnostic($"CLIENT_Init returned: {initOk}.");
-                if (initOk)
-                {
-                    _dahuaSdkInitialized = true;
-                    DahuaNetSdk.CLIENT_SetAutoReconnect(_dahuaHaveReConnectCallback, IntPtr.Zero);
-                    DahuaSdkStatusBadge.Text = "Dahua NetSDK: Zainicjalizowano (x64)";
-                    DahuaSdkStatusBadge.Foreground = Brushes.LightGreen;
-                    DahuaStatusLabel.Text = "Gotowy do połączenia ze strumieniem IP.";
-                }
-                else
-                {
-                    DahuaSdkStatusBadge.Text = "Dahua NetSDK: Błąd CLIENT_Init";
-                    DahuaSdkStatusBadge.Foreground = Brushes.Salmon;
-                }
-            }
-            catch (Exception ex)
-            {
-                DahuaSdkStatusBadge.Text = "Dahua NetSDK: Wyjątek DLL";
-                DahuaSdkStatusBadge.Foreground = Brushes.Salmon;
-                DahuaStatusLabel.Text = $"Błąd: {ex.Message}";
-            }
         }
 
         private void LoadDahuaDeviceList()
         {
             try
             {
-                _dahuaDevices = DahuaConfigService.LoadDevices();
-                RefreshDahuaDeviceBindings(selectDevice: _dahuaDevices.FirstOrDefault());
+                ViewModel.Dahua.LoadDevices();
+                RefreshDahuaDeviceBindings(selectDevice: ViewModel.Dahua.Devices.FirstOrDefault());
             }
             catch (Exception ex)
             {
-                _dahuaDevices = new List<DahuaDeviceItem>();
-                DahuaDevicesListBox.ItemsSource = null;
-                DahuaConfigDevicesList.ItemsSource = null;
-                DahuaStatusLabel.Text = "Nie można wczytać konfiguracji urządzeń. Oryginalny plik nie został nadpisany.";
+                ViewModel.Dahua.Devices.Clear();
+                ViewModel.Dahua.StatusText = "Nie można wczytać konfiguracji urządzeń. Oryginalny plik nie został nadpisany.";
                 MessageBox.Show(this, ex.Message, "Błąd konfiguracji Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -242,17 +254,15 @@ namespace VideoPlayer
             _dahuaSyncingDeviceLists = true;
             try
             {
-                DahuaDevicesListBox.ItemsSource = null;
-                DahuaDevicesListBox.ItemsSource = _dahuaDevices;
-                DahuaConfigDevicesList.ItemsSource = null;
-                DahuaConfigDevicesList.ItemsSource = _dahuaDevices;
-
-                if (selectDevice != null && _dahuaDevices.Contains(selectDevice))
+                DahuaDevicesListBox.Items.Refresh();
+                DahuaConfigDevicesList.Items.Refresh();
+                var devices = ViewModel.Dahua.Devices;
+                if (selectDevice != null && devices.Contains(selectDevice))
                 {
                     DahuaDevicesListBox.SelectedItem = selectDevice;
                     DahuaConfigDevicesList.SelectedItem = selectDevice;
                 }
-                else if (_dahuaDevices.Count > 0)
+                else if (devices.Count > 0)
                 {
                     DahuaDevicesListBox.SelectedIndex = 0;
                     DahuaConfigDevicesList.SelectedIndex = 0;
@@ -285,26 +295,29 @@ namespace VideoPlayer
             if (_currentDahuaDevice != null && !string.Equals(_currentDahuaDevice.Id, dev.Id, StringComparison.Ordinal))
                 _dahuaArchiveSelectedChannels.Clear();
 
-            if (_dahuaLoginId != IntPtr.Zero && !string.Equals(_connectedDahuaDeviceId, dev.Id, StringComparison.Ordinal))
+            if (DahuaSession.LoginId != IntPtr.Zero && !DahuaSession.IsConnectedTo(dev))
                 DahuaDisconnect();
 
+            ClearDahuaTimelineSelection();
             _currentDahuaDevice = dev;
-            _dahuaActiveChannelNumbers = null;
+            ViewModel.Dahua.SelectedDevice = dev;
             DahuaStopMultiLiveStreams();
             DahuaStopSynchronizedPlayback();
             DisposeDahuaMultiViewSlots();
             BuildDahuaModernChannelChecks();
+
             _dahuaArchiveAvailableDays.Clear();
             _dahuaRecorderAvailableDays.Clear();
-            string selectedAvailabilityPrefix = $"{dev.Id}|{GetSelectedDahuaArchiveChannel()}|";
-            foreach (var entry in _dahuaRecorderAvailabilityCache.Where(pair => pair.Key.StartsWith(selectedAvailabilityPrefix, StringComparison.Ordinal)))
-                _dahuaRecorderAvailableDays.UnionWith(entry.Value);
+            foreach (DateTime day in DahuaSession.GetCachedAvailabilityForChannel(dev.Id, GetSelectedDahuaArchiveChannel()))
+                _dahuaRecorderAvailableDays.Add(day);
+
             RefreshOpenDahuaArchiveCalendars();
-            DahuaArchiveRecordsGrid.ItemsSource = null;
+            ViewModel.Dahua.ArchiveRecords.Clear();
             _currentDahuaDevice.EnsureDefaultChannels(16);
             _currentDahuaDevice.EnsureDefaultPresets();
 
             _dahuaCurrentChannel = dev.Channel;
+            ViewModel.Dahua.CurrentChannel = dev.Channel;
             RefreshDahuaChannelLists();
             RefreshDahuaPresetsList();
             BuildDahuaArchiveChannelChecks();
@@ -323,7 +336,7 @@ namespace VideoPlayer
             }
         }
 
-        #region Dahua Device Configuration Sub-tab (replaces DahuaConfigurationWindow)
+        #region Dahua Device Configuration Sub-tab
 
         private void DahuaConfigDevicesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -338,8 +351,8 @@ namespace VideoPlayer
             _configSelectedDevice = device;
             DahuaConfigNameBox.Text = device.Name;
             DahuaConfigAddressBox.Text = device.IpAddress;
-            DahuaConfigPortBox.Text = device.Port.ToString();
-            DahuaConfigHttpPortBox.Text = device.HttpPort.ToString();
+            DahuaConfigPortBox.Text = device.Port.ToString(CultureInfo.InvariantCulture);
+            DahuaConfigHttpPortBox.Text = device.HttpPort.ToString(CultureInfo.InvariantCulture);
             DahuaConfigUsernameBox.Text = device.CredentialsUnavailable ? string.Empty : device.Username;
             DahuaConfigPasswordBox.Password = device.CredentialsUnavailable ? string.Empty : device.Password;
             DahuaConfigCredentialInfo.Text = device.CredentialsUnavailable
@@ -368,33 +381,21 @@ namespace VideoPlayer
         {
             name = DahuaConfigNameBox.Text.Trim();
             address = DahuaConfigAddressBox.Text.Trim();
-            port = 0;
-            httpPort = 0;
-            if (string.IsNullOrWhiteSpace(name))
+            if (!DahuaViewModel.TryValidateDeviceConfiguration(
+                name,
+                address,
+                DahuaConfigPortBox.Text,
+                DahuaConfigHttpPortBox.Text,
+                DahuaConfigUsernameBox.Text,
+                DahuaConfigPasswordBox.Password,
+                out port,
+                out httpPort,
+                out string error))
             {
-                MessageBox.Show(this, "Podaj nazwę urządzenia.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, error, "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
-            if (string.IsNullOrWhiteSpace(address) || Uri.CheckHostName(address.Trim('[', ']')) == UriHostNameType.Unknown)
-            {
-                MessageBox.Show(this, "Podaj prawidłowy adres IP lub nazwę hosta.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-            if (!ushort.TryParse(DahuaConfigPortBox.Text.Trim(), out port) || port == 0)
-            {
-                MessageBox.Show(this, "Port NetSDK musi mieścić się w zakresie 1–65535.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-            if (!ushort.TryParse(DahuaConfigHttpPortBox.Text.Trim(), out httpPort) || httpPort == 0)
-            {
-                MessageBox.Show(this, "Port HTTP musi mieścić się w zakresie 1–65535.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-            if (string.IsNullOrWhiteSpace(DahuaConfigUsernameBox.Text) || string.IsNullOrEmpty(DahuaConfigPasswordBox.Password))
-            {
-                MessageBox.Show(this, "Wpisz nazwę użytkownika i hasło. Puste hasło nie zostanie zapisane.", "Konfiguracja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
+
             return true;
         }
 
@@ -409,34 +410,34 @@ namespace VideoPlayer
                 return;
             }
 
-            if (string.Equals(_connectedDahuaDeviceId, _configSelectedDevice.Id, StringComparison.Ordinal))
+            if (DahuaSession.IsConnectedTo(_configSelectedDevice))
                 DahuaDisconnect();
 
-            _configSelectedDevice.Name = name;
-            _configSelectedDevice.IpAddress = address;
-            _configSelectedDevice.Port = port;
-            _configSelectedDevice.HttpPort = httpPort;
-            _configSelectedDevice.SetCredentials(DahuaConfigUsernameBox.Text.Trim(), DahuaConfigPasswordBox.Password);
-            DahuaConfigService.SaveDevices(_dahuaDevices);
+            try
+            {
+                ViewModel.Dahua.SaveDeviceConfiguration(
+                    _configSelectedDevice,
+                    name,
+                    address,
+                    port,
+                    httpPort,
+                    DahuaConfigUsernameBox.Text,
+                    DahuaConfigPasswordBox.Password);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Błąd konfiguracji", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
             DahuaConfigCredentialInfo.Text = "Zapisano. Dane logowania są chronione przez Windows DPAPI.";
             DahuaConfigCredentialInfo.Foreground = Brushes.LightGreen;
             RefreshDahuaDeviceBindings(_configSelectedDevice);
-            DahuaStatusLabel.Text = $"Zapisano urządzenie: '{_configSelectedDevice.Name}' ({_configSelectedDevice.IpAddress}:{_configSelectedDevice.Port})";
         }
 
         private void DahuaConfigAdd_Click(object sender, RoutedEventArgs e)
         {
-            var device = new DahuaDeviceItem
-            {
-                Name = "Nowe urządzenie Dahua",
-                IpAddress = string.Empty,
-                Port = 37777,
-                HttpPort = 80,
-                Channel = 1
-            };
-            device.EnsureDefaultChannels(16);
-            _dahuaDevices.Add(device);
+            DahuaDeviceItem device = ViewModel.Dahua.AddNewDevice();
             RefreshDahuaDeviceBindings(device);
             LoadDahuaConfigEditor(device);
             DahuaConfigNameBox.Text = "Nowe urządzenie Dahua";
@@ -451,109 +452,81 @@ namespace VideoPlayer
                 return;
 
             var removed = _configSelectedDevice;
-            if (string.Equals(_connectedDahuaDeviceId, removed.Id, StringComparison.Ordinal))
+            if (DahuaSession.IsConnectedTo(removed))
                 DahuaDisconnect();
 
-            _dahuaDevices.Remove(removed);
-            DahuaConfigService.SaveDevices(_dahuaDevices);
-            RefreshDahuaDeviceBindings(_dahuaDevices.FirstOrDefault());
-            DahuaStatusLabel.Text = $"Usunięto urządzenie '{removed.Name}'.";
+            ViewModel.Dahua.RemoveDevice(removed);
+            RefreshDahuaDeviceBindings(ViewModel.Dahua.Devices.FirstOrDefault());
         }
 
         #endregion
 
         #region Channels & Device State Queries
 
-        private void DahuaQueryFromDevice_Click(object sender, RoutedEventArgs e)
+        private async void DahuaQueryFromDevice_Click(object sender, RoutedEventArgs e)
         {
-            if (_dahuaLoginId == IntPtr.Zero)
+            if (DahuaSession.LoginId == IntPtr.Zero)
             {
-                DahuaConnect_Click(sender, e);
-                if (_dahuaLoginId == IntPtr.Zero) return;
+                if (!await DahuaConnectAsync()) return;
             }
-            QueryDahuaDeviceState(showDialog: true);
+            await QueryDahuaDeviceStateAsync(showDialog: true);
         }
 
-        private void QueryDahuaDeviceState(bool showDialog = false)
+        private async Task QueryDahuaDeviceStateAsync(bool showDialog = false)
         {
-            if (_currentDahuaDevice == null || _dahuaLoginId == IntPtr.Zero) return;
+            if (_currentDahuaDevice == null || DahuaSession.LoginId == IntPtr.Zero) return;
 
             try
             {
-                WriteDahuaSdkDiagnostic("Manual device read started.");
-                int channelCount = _dahuaDeviceChannelCount > 0 ? _dahuaDeviceChannelCount : _currentDahuaDevice.Channels.Count;
-                if (channelCount > 0) _currentDahuaDevice.EnsureDefaultChannels(channelCount);
+                DahuaDeviceItem device = _currentDahuaDevice;
+                int channel = _dahuaCurrentChannel;
+                DahuaDeviceStateReadResult result =
+                    await ViewModel.Dahua.ReadDeviceStateAsync(device, channel);
 
-                List<DahuaChannelInfo> remoteNames = DahuaNetSdk.QueryChannelNamesFromDevice(_dahuaLoginId, channelCount);
+                if (_closing || !ReferenceEquals(_currentDahuaDevice, device)) return;
+
+                List<DahuaChannelNameChange> changes =
+                    DahuaViewModel.GetChannelNameChanges(device, result.RemoteChannels);
                 int appliedNames = 0;
-                if (remoteNames.Count > 0)
+                if (changes.Count > 0)
                 {
-                    var changes = remoteNames
-                        .Where(remote => !string.IsNullOrWhiteSpace(remote.Name))
-                        .Select(remote => new
-                        {
-                            remote.Number,
-                            RemoteName = remote.Name.Trim(),
-                            LocalName = _currentDahuaDevice.GetChannelName(remote.Number)
-                        })
-                        .Where(x => !string.Equals(x.LocalName, x.RemoteName, StringComparison.Ordinal))
-                        .ToList();
+                    string preview = string.Join(Environment.NewLine,
+                        changes.Take(20).Select(change =>
+                            $"CH {change.Number}: \"{change.LocalName}\"  →  \"{change.RemoteName}\""));
+                    if (changes.Count > 20)
+                        preview += Environment.NewLine + $"… oraz {changes.Count - 20} kolejnych zmian.";
 
-                    if (changes.Count > 0)
-                    {
-                        string preview = string.Join(Environment.NewLine,
-                            changes.Take(20).Select(x => $"CH {x.Number}: \"{x.LocalName}\"  →  \"{x.RemoteName}\""));
-                        if (changes.Count > 20) preview += Environment.NewLine + $"… oraz {changes.Count - 20} kolejnych zmian.";
+                    var decision = MessageBox.Show(this,
+                        $"Rejestrator zwrócił {result.RemoteChannels.Count} nazw kanałów. Wykryto {changes.Count} różnic względem konfiguracji lokalnej.\n\n" +
+                        preview + "\n\nCzy zastosować nazwy z rejestratora?\nIdentyfikatory kanałów pozostaną bez zmian.",
+                        "Porównanie nazw kanałów Dahua",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question);
 
-                        var decision = MessageBox.Show(this,
-                            $"Rejestrator zwrócił {remoteNames.Count} nazw kanałów. Wykryto {changes.Count} różnic względem konfiguracji lokalnej.\n\n" +
-                            preview + "\n\nCzy zastosować nazwy z rejestratora?\nIdentyfikatory kanałów pozostaną bez zmian.",
-                            "Porównanie nazw kanałów Dahua",
-                            MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                        if (decision == MessageBoxResult.Yes)
-                        {
-                            foreach (var change in changes)
-                                _currentDahuaDevice.SetChannelName(change.Number, change.RemoteName);
-                            appliedNames = changes.Count;
-                        }
-                    }
+                    if (decision == MessageBoxResult.Yes)
+                        appliedNames = ViewModel.Dahua.ApplyDeviceChannelNames(device, result.RemoteChannels);
                 }
 
-                int presetCount = -1;
-                try
-                {
-                    var remotePresets = DahuaNetSdk.QueryPresetsFromDevice(
-                        _currentDahuaDevice.ConnectionAddress, _currentDahuaDevice.HttpPort, _currentDahuaDevice.Username,
-                        _currentDahuaDevice.Password, _dahuaCurrentChannel);
-                    _currentDahuaDevice.UpdateFromDevicePresets(remotePresets);
-                    presetCount = remotePresets.Count;
-                }
-                catch (Exception presetError)
-                {
-                    WriteDahuaSdkDiagnostic($"PTZ preset read failed; local list preserved. {presetError}");
-                }
+                ViewModel.Dahua.SaveDevices();
 
-                DahuaConfigService.SaveDevices(_dahuaDevices);
                 RefreshDahuaChannelLists();
                 RefreshDahuaPresetsList();
 
-                string channelMessage = remoteNames.Count > 0
-                    ? $"Nazwy kanałów: odczytano {remoteNames.Count}, zastosowano {appliedNames} zmian."
-                    : $"Nazwy kanałów: odczyt nieudany; zachowano lokalne etykiety (kanałów: {channelCount}).";
-                string presetMessage = presetCount >= 0
-                    ? $"Presety PTZ: odczytano {presetCount} pozycji."
+                string channelMessage = result.RemoteChannels.Count > 0
+                    ? $"Nazwy kanałów: odczytano {result.RemoteChannels.Count}, zastosowano {appliedNames} zmian."
+                    : $"Nazwy kanałów: odczyt nieudany; zachowano lokalne etykiety (kanałów: {result.ChannelCount}).";
+                string presetMessage = result.PresetCount.HasValue
+                    ? $"Presety PTZ: odczytano {result.PresetCount.Value} pozycji."
                     : "Presety PTZ: odczyt nieudany; zachowano dotychczasową listę.";
                 string msg = channelMessage + Environment.NewLine + presetMessage;
 
-                DahuaStatusLabel.Text = msg;
+                ViewModel.Dahua.StatusText = msg;
                 if (showDialog)
                     MessageBox.Show(this, msg, "Odczyt z urządzenia Dahua", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                WriteDahuaSdkDiagnostic($"Manual device read managed exception: {ex}");
-                DahuaStatusLabel.Text = $"Błąd odczytu danych z urządzenia: {ex.Message}";
+                DahuaSessionService.WriteDiagnostic($"Manual device read managed exception: {ex}");
+                ViewModel.Dahua.StatusText = $"Błąd odczytu danych z urządzenia: {ex.Message}";
             }
         }
 
@@ -639,6 +612,7 @@ namespace VideoPlayer
         public void SwitchDahuaChannel(int channelNumber)
         {
             _dahuaCurrentChannel = channelNumber;
+            ViewModel.Dahua.CurrentChannel = channelNumber;
             HighlightActiveDahuaChannelButton(channelNumber);
             if (_currentDahuaDevice != null)
                 DahuaChannelNameEditBox.Text = _currentDahuaDevice.GetChannelName(channelNumber);
@@ -654,14 +628,14 @@ namespace VideoPlayer
             }
 
             SelectDahuaModernChannel(channelNumber);
-            if (_dahuaLoginId != IntPtr.Zero)
+            if (DahuaSession.LoginId != IntPtr.Zero)
             {
-                StartDahuaMultiLiveForSelectedChannels();
+                _ = StartDahuaMultiLiveForSelectedChannelsAsync();
             }
             else
             {
                 string name = _currentDahuaDevice?.GetChannelName(channelNumber) ?? $"Kanał {channelNumber}";
-                DahuaStatusLabel.Text = $"Wybrano: {name} (CH {channelNumber}). Kliknij „Podgląd zaznaczonych” lub „Połącz”.";
+                ViewModel.Dahua.StatusText = $"Wybrano: {name} (CH {channelNumber}). Kliknij „Podgląd zaznaczonych” lub „Połącz”.";
             }
         }
 
@@ -677,12 +651,11 @@ namespace VideoPlayer
             string newName = DahuaChannelNameEditBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(newName)) return;
 
-            _currentDahuaDevice.SetChannelName(_dahuaCurrentChannel, newName);
-            DahuaConfigService.SaveDevices(_dahuaDevices);
+            ViewModel.Dahua.SaveChannelName(_currentDahuaDevice, _dahuaCurrentChannel, newName);
             RefreshDahuaChannelLists();
             BuildDahuaModernChannelChecks();
 
-            DahuaStatusLabel.Text = $"Zapisano nową nazwę dla Kanału {_dahuaCurrentChannel}: '{newName}'";
+            ViewModel.Dahua.StatusText = $"Zapisano nową nazwę dla Kanału {_dahuaCurrentChannel}: '{newName}'";
             DahuaActiveChannelOverlayText.Text = $"{newName.ToUpper()} (CH {_dahuaCurrentChannel})";
         }
 
@@ -690,9 +663,9 @@ namespace VideoPlayer
         {
             if (int.TryParse(DahuaCustomChannelBox.Text.Trim(), out int ch) && ch >= 1)
             {
-                if (_currentDahuaDevice != null && !_currentDahuaDevice.Channels.Any(c => c.Number == ch))
+                if (_currentDahuaDevice != null &&
+                    ViewModel.Dahua.EnsureChannelExists(_currentDahuaDevice, ch))
                 {
-                    _currentDahuaDevice.SetChannelName(ch, $"Kamera {ch}");
                     RefreshDahuaChannelLists();
                 }
                 SwitchDahuaChannel(ch);
@@ -736,7 +709,7 @@ namespace VideoPlayer
                 var preset = _currentDahuaDevice?.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
                 if (preset != null)
                 {
-                    DahuaPresetNumberBox.Text = preset.PresetNumber.ToString();
+                    DahuaPresetNumberBox.Text = preset.PresetNumber.ToString(CultureInfo.InvariantCulture);
                     DahuaPresetNameBox.Text = preset.Name;
                 }
             }
@@ -744,35 +717,16 @@ namespace VideoPlayer
 
         private void GotoDahuaPreset(int presetNumber)
         {
-            if (_dahuaLoginId == IntPtr.Zero)
+            if (DahuaSession.LoginId == IntPtr.Zero)
             {
                 MessageBox.Show(this, "Najpierw połącz ze strumieniem wideo kamery.", "Brak połączenia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            int channelIndex = Math.Max(0, _dahuaCurrentChannel - 1);
-            try
-            {
-                bool ok = DahuaNetSdk.CLIENT_DHPTZControlEx2(
-                    _dahuaLoginId, channelIndex, (uint)DahuaNetSdk.EM_PTZ_COMMAND.POINT_MOVE_CONTROL,
-                    0, presetNumber, 0, false, IntPtr.Zero);
-
-                var match = _currentDahuaDevice?.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
-                string pName = match != null ? match.Name : $"Preset {presetNumber}";
-                if (ok)
-                {
-                    DahuaStatusLabel.Text = $"Kamera PTZ: Przechodzenie do '{pName}' (Preset {presetNumber})…";
-                }
-                else
-                {
-                    uint err = DahuaNetSdk.CLIENT_GetLastError();
-                    DahuaStatusLabel.Text = $"Błąd przejścia do presetu {presetNumber}: {DahuaNetSdk.GetErrorDescription(err)}";
-                }
-            }
-            catch (Exception ex)
-            {
-                DahuaStatusLabel.Text = $"Wyjątek PTZ Preset: {ex.Message}";
-            }
+            var match = _currentDahuaDevice?.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
+            ViewModel.Dahua.GotoPreset(_dahuaCurrentChannel, presetNumber);
+            if (match != null && ViewModel.Dahua.StatusText.StartsWith("Kamera PTZ:", StringComparison.Ordinal))
+                ViewModel.Dahua.StatusText = $"Kamera PTZ: Przechodzenie do '{match.Name}' (Preset {presetNumber})…";
         }
 
         private void DahuaGotoPreset_Click(object sender, RoutedEventArgs e)
@@ -781,10 +735,10 @@ namespace VideoPlayer
                 GotoDahuaPreset(pNum);
         }
 
-        private void DahuaSaveCurrentPositionAsPreset_Click(object sender, RoutedEventArgs e)
+        private async void DahuaSaveCurrentPositionAsPreset_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
                 MessageBox.Show(this, "Najpierw połącz się z rejestratorem/kamerą.", "Brak połączenia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -801,34 +755,17 @@ namespace VideoPlayer
 
             try
             {
-                DahuaNetSdk.SetDevicePresetPosition(
-                    _currentDahuaDevice.ConnectionAddress, _currentDahuaDevice.HttpPort, _currentDahuaDevice.Username,
-                    _currentDahuaDevice.Password, _dahuaCurrentChannel, presetNumber);
+                DahuaDeviceItem device = _currentDahuaDevice;
+                int channel = _dahuaCurrentChannel;
+                DahuaPresetPositionSaveResult saveResult =
+                    await ViewModel.Dahua.SavePresetPositionAsync(device, channel, presetNumber, presetName);
 
-                bool nameSaved = true;
-                string nameError = string.Empty;
-                try
-                {
-                    DahuaNetSdk.SetDevicePresetName(
-                        _currentDahuaDevice.ConnectionAddress, _currentDahuaDevice.HttpPort, _currentDahuaDevice.Username,
-                        _currentDahuaDevice.Password, _dahuaCurrentChannel, presetNumber, presetName);
-                }
-                catch (Exception ex) { nameSaved = false; nameError = ex.Message; }
-
-                string effectiveName = nameSaved ? presetName : $"Preset {presetNumber}";
-                var existing = _currentDahuaDevice.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
-                if (existing != null) existing.Name = effectiveName;
-                else _currentDahuaDevice.Presets.Add(new DahuaPresetItem { PresetNumber = presetNumber, Name = effectiveName });
-
-                DahuaConfigService.SaveDevices(_dahuaDevices);
                 RefreshDahuaPresetsList();
                 DahuaPresetsComboBox.SelectedItem = DahuaPresetsComboBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => i.Tag is int n && n == presetNumber);
 
-                if (nameSaved) DahuaStatusLabel.Text = $"Zapisano preset {presetNumber}: {presetName}.";
-                else
+                if (!saveResult.NameSaved)
                 {
-                    DahuaStatusLabel.Text = $"Pozycja presetu {presetNumber} została zapisana, ale nie udało się ustawić nazwy.";
-                    MessageBox.Show(this, $"Pozycja PTZ została zapisana, ale zmiana nazwy nie powiodła się.\n\n{nameError}", "Częściowy zapis presetu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(this, $"Pozycja PTZ została zapisana, ale zmiana nazwy nie powiodła się.\n\n{saveResult.NameError}", "Częściowy zapis presetu", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
@@ -837,7 +774,7 @@ namespace VideoPlayer
             }
         }
 
-        private void DahuaRenameSelectedPreset_Click(object sender, RoutedEventArgs e)
+        private async void DahuaRenameSelectedPreset_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null || DahuaPresetsComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not int presetNumber) return;
             string newName = DahuaPresetNameBox.Text.Trim();
@@ -846,7 +783,7 @@ namespace VideoPlayer
                 MessageBox.Show(this, "Wpisz nową nazwę presetu.", "Brak nazwy", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
                 MessageBox.Show(this, "Najpierw połącz się z urządzeniem.", "Brak połączenia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -854,15 +791,9 @@ namespace VideoPlayer
 
             try
             {
-                DahuaNetSdk.SetDevicePresetName(
-                    _currentDahuaDevice.ConnectionAddress, _currentDahuaDevice.HttpPort, _currentDahuaDevice.Username,
-                    _currentDahuaDevice.Password, _dahuaCurrentChannel, presetNumber, newName);
-
-                var preset = _currentDahuaDevice.Presets.FirstOrDefault(p => p.PresetNumber == presetNumber);
-                if (preset != null) preset.Name = newName;
-                DahuaConfigService.SaveDevices(_dahuaDevices);
+                DahuaDeviceItem device = _currentDahuaDevice;
+                await ViewModel.Dahua.RenamePresetAsync(device, _dahuaCurrentChannel, presetNumber, newName);
                 RefreshDahuaPresetsList();
-                DahuaStatusLabel.Text = $"Zmieniono nazwę presetu {presetNumber} na '{newName}'.";
             }
             catch (Exception ex)
             {
@@ -870,10 +801,10 @@ namespace VideoPlayer
             }
         }
 
-        private void DahuaRefreshPresetsFromDevice_Click(object sender, RoutedEventArgs e)
+        private async void DahuaRefreshPresetsFromDevice_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
                 MessageBox.Show(this, "Najpierw połącz się z urządzeniem.", "Brak połączenia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -881,13 +812,9 @@ namespace VideoPlayer
 
             try
             {
-                var remotePresets = DahuaNetSdk.QueryPresetsFromDevice(
-                    _currentDahuaDevice.ConnectionAddress, _currentDahuaDevice.HttpPort, _currentDahuaDevice.Username,
-                    _currentDahuaDevice.Password, _dahuaCurrentChannel);
-                _currentDahuaDevice.UpdateFromDevicePresets(remotePresets);
-                DahuaConfigService.SaveDevices(_dahuaDevices);
+                DahuaDeviceItem device = _currentDahuaDevice;
+                await ViewModel.Dahua.RefreshPresetsFromDeviceAsync(device, _dahuaCurrentChannel);
                 RefreshDahuaPresetsList();
-                DahuaStatusLabel.Text = $"Odczytano {remotePresets.Count} presetów dla kanału {_dahuaCurrentChannel}.";
             }
             catch (Exception ex)
             {
@@ -895,10 +822,10 @@ namespace VideoPlayer
             }
         }
 
-        private void DahuaDeletePreset_Click(object sender, RoutedEventArgs e)
+        private async void DahuaDeletePreset_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null || DahuaPresetsComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not int presetNumber) return;
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
                 MessageBox.Show(this, "Najpierw połącz się z urządzeniem.", "Brak połączenia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -908,13 +835,9 @@ namespace VideoPlayer
 
             try
             {
-                DahuaNetSdk.DeleteDevicePreset(
-                    _currentDahuaDevice.ConnectionAddress, _currentDahuaDevice.HttpPort, _currentDahuaDevice.Username,
-                    _currentDahuaDevice.Password, _dahuaCurrentChannel, presetNumber);
-                _currentDahuaDevice.Presets.RemoveAll(p => p.PresetNumber == presetNumber);
-                DahuaConfigService.SaveDevices(_dahuaDevices);
+                DahuaDeviceItem device = _currentDahuaDevice;
+                await ViewModel.Dahua.DeletePresetAsync(device, _dahuaCurrentChannel, presetNumber);
                 RefreshDahuaPresetsList();
-                DahuaStatusLabel.Text = $"Usunięto preset {presetNumber} z urządzenia.";
             }
             catch (Exception ex)
             {
@@ -924,16 +847,7 @@ namespace VideoPlayer
 
         private void SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND command, bool stop)
         {
-            if (_dahuaLoginId == IntPtr.Zero) return;
-            int channelIndex = Math.Max(0, _dahuaCurrentChannel - 1);
-            try
-            {
-                DahuaNetSdk.CLIENT_DHPTZControlEx2(_dahuaLoginId, channelIndex, (uint)command, 4, 4, 0, stop, IntPtr.Zero);
-            }
-            catch (Exception ex)
-            {
-                DahuaStatusLabel.Text = $"Błąd sterowania PTZ: {ex.Message}";
-            }
+            ViewModel.Dahua.SendPtz(_dahuaCurrentChannel, command, stop);
         }
 
         private void DahuaPtzUp_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.UP, false);
@@ -941,52 +855,9 @@ namespace VideoPlayer
         private void DahuaPtzLeft_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.LEFT, false);
         private void DahuaPtzRight_Down(object sender, MouseButtonEventArgs e) => SendDahuaPtz(DahuaNetSdk.EM_PTZ_COMMAND.RIGHT, false);
 
-        // Ruch po przekątnej realizujemy równoczesnymi poleceniami osi poziomej i pionowej.
         private void SendDahuaPtzDiagonal(string? direction, bool stop)
         {
-            if (_dahuaLoginId == IntPtr.Zero) return;
-
-            DahuaNetSdk.EM_PTZ_COMMAND command;
-            switch (direction?.ToUpperInvariant())
-            {
-                case "UP_LEFT":
-                    command = DahuaNetSdk.EM_PTZ_COMMAND.LEFTTOP;
-                    break;
-                case "UP_RIGHT":
-                    command = DahuaNetSdk.EM_PTZ_COMMAND.RIGHTTOP;
-                    break;
-                case "DOWN_LEFT":
-                    command = DahuaNetSdk.EM_PTZ_COMMAND.LEFTDOWN;
-                    break;
-                case "DOWN_RIGHT":
-                    command = DahuaNetSdk.EM_PTZ_COMMAND.RIGHTDOWN;
-                    break;
-                default:
-                    return;
-            }
-
-            try
-            {
-                // Dla komend diagonalnych Dahua param1 oznacza prędkość pionową,
-                // a param2 poziomą. Jedno wywołanie steruje obiema osiami.
-                int channelIndex = Math.Max(0, _dahuaCurrentChannel - 1);
-                bool success = DahuaNetSdk.CLIENT_DHPTZControlEx2(
-                    _dahuaLoginId,
-                    channelIndex,
-                    (uint)command,
-                    4,
-                    4,
-                    0,
-                    stop,
-                    IntPtr.Zero);
-
-                if (!success)
-                    DahuaStatusLabel.Text = $"Błąd sterowania PTZ po przekątnej (kod: 0x{DahuaNetSdk.CLIENT_GetLastError():X}).";
-            }
-            catch (Exception ex)
-            {
-                DahuaStatusLabel.Text = $"Błąd sterowania PTZ po przekątnej: {ex.Message}";
-            }
+            ViewModel.Dahua.SendPtzDiagonal(_dahuaCurrentChannel, direction, stop);
         }
 
         private void DahuaPtzDiagonal_Down(object sender, MouseButtonEventArgs e)
@@ -1014,61 +885,43 @@ namespace VideoPlayer
 
         #region Live Stream & Connection
 
-        private void DahuaStreamTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void DahuaStreamTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_dahuaLoginId == IntPtr.Zero) return;
+            if (DahuaSession.LoginId == IntPtr.Zero) return;
             if (_dahuaMultiViewSlots.Any(slot => slot.StreamHandle != IntPtr.Zero))
-                StartDahuaMultiLiveForSelectedChannels();
+                await StartDahuaMultiLiveForSelectedChannelsAsync();
             else if (_dahuaRealPlayHandle != IntPtr.Zero)
                 StartDahuaLiveStreamForChannel(_dahuaCurrentChannel);
         }
 
-        private static bool IsValidDahuaEndpoint(string address, string portText, out ushort port, out string error)
+        private async void DahuaConnect_Click(object sender, RoutedEventArgs e)
         {
-            port = 0;
-            error = string.Empty;
-            if (string.IsNullOrWhiteSpace(address))
-            {
-                error = "Wpisz adres IP lub nazwę hosta urządzenia.";
-                return false;
-            }
-            string host = address.Trim().Trim('[', ']');
-            if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
-            {
-                error = $"Nieprawidłowy adres IP lub nazwa hosta: {address}";
-                return false;
-            }
-            if (!ushort.TryParse(portText, out port) || port == 0)
-            {
-                error = "Port musi być liczbą z zakresu 1–65535.";
-                return false;
-            }
-            return true;
+            await DahuaConnectAsync();
         }
 
-        private void DahuaConnect_Click(object sender, RoutedEventArgs e)
+        private async Task<bool> DahuaConnectAsync()
         {
-            if (_currentDahuaDevice == null) return;
+            if (_currentDahuaDevice == null) return false;
             EnsureDahuaSdkInitialized();
-            if (!_dahuaSdkInitialized)
+            if (!DahuaSession.IsSdkInitialized)
             {
                 MessageBox.Show(this, "Nie zainicjalizowano Dahua NetSDK. Sprawdź pliki dhnetsdk.dll i dhplay.dll (x64) w katalogu lib.", "Błąd SDK", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
+                return false;
             }
 
             if (_currentDahuaDevice.CredentialsUnavailable)
             {
                 DahuaSubTabs.SelectedIndex = 2;
                 MessageBox.Show(this, "Zapisane dane logowania są niedostępne. Wpisz je ponownie w zakładce Urządzenia.", "Dane logowania", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return false;
             }
 
             string ip = _currentDahuaDevice.ConnectionAddress;
-            if (!IsValidDahuaEndpoint(ip, _currentDahuaDevice.Port.ToString(), out ushort port, out string validationError))
+            if (!DahuaSessionService.IsValidEndpoint(ip, _currentDahuaDevice.Port.ToString(CultureInfo.InvariantCulture), out _, out string validationError))
             {
-                DahuaStatusLabel.Text = validationError;
+                ViewModel.Dahua.StatusText = validationError;
                 MessageBox.Show(this, validationError, "Nieprawidłowa konfiguracja urządzenia", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return false;
             }
 
             DahuaDisconnect();
@@ -1077,96 +930,86 @@ namespace VideoPlayer
             if (string.IsNullOrWhiteSpace(user) || string.IsNullOrEmpty(pass))
             {
                 DahuaSubTabs.SelectedIndex = 2;
-                DahuaStatusLabel.Text = "Brak danych logowania. Wpisz użytkownika i hasło w zakładce Urządzenia.";
-                MessageBox.Show(this, DahuaStatusLabel.Text, "Brak danych logowania", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                ViewModel.Dahua.StatusText = "Brak danych logowania. Wpisz użytkownika i hasło w zakładce Urządzenia.";
+                MessageBox.Show(this, ViewModel.Dahua.StatusText, "Brak danych logowania", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
             }
 
-            DahuaStatusLabel.Text = $"Logowanie do {ip}:{port}…";
             try
             {
-                var deviceInfo = DahuaNetSdk.NET_DEVICEINFO.Create();
-                int err = 0;
-                _dahuaLoginId = DahuaNetSdk.CLIENT_Login(ip, port, user, pass, ref deviceInfo, ref err);
-                if (_dahuaLoginId == IntPtr.Zero)
-                {
-                    uint lastError = DahuaNetSdk.CLIENT_GetLastError();
-                    DahuaStatusLabel.Text = $"Błąd logowania do {ip}. {DahuaNetSdk.GetErrorDescription(lastError)}";
-                    return;
-                }
+                DahuaConnectionResult result = await ViewModel.Dahua.ConnectAsync(_currentDahuaDevice);
+                if (!result.Success || _closing)
+                    return false;
 
-                _connectedDahuaDeviceId = _currentDahuaDevice.Id;
-                _dahuaDeviceChannelCount = Math.Max(0, (int)deviceInfo.byChanNum);
-                if (_dahuaDeviceChannelCount > 0) _currentDahuaDevice.EnsureDefaultChannels(_dahuaDeviceChannelCount);
-
-                if (TryQueryActiveDahuaChannelNumbers(out var activeChannels))
+                if (result.ActiveChannels != null)
                 {
-                    _dahuaActiveChannelNumbers = activeChannels;
-                    if (_dahuaActiveChannelNumbers.Count > 0)
+                    if (result.ActiveChannels.Count > 0)
                     {
                         RefreshDahuaChannelLists();
                         BuildDahuaModernChannelChecks();
                     }
-                    else DahuaStatusLabel.Text = "Rejestrator nie zgłosił aktywnych kanałów wejściowych.";
+                    else
+                    {
+                        ViewModel.Dahua.StatusText = "Rejestrator nie zgłosił aktywnych kanałów wejściowych.";
+                    }
                 }
-                else _dahuaActiveChannelNumbers = null;
 
-                DahuaConnectButton.IsEnabled = false;
-                DahuaDisconnectButton.IsEnabled = true;
-                DahuaStreamOverlay.Visibility = Visibility.Collapsed;
+                ViewModel.Dahua.IsStreamOverlayVisible = false;
 
                 if (!_dahuaConnectForCalendarAvailability)
-                    StartDahuaMultiLiveForSelectedChannels();
+                    await StartDahuaMultiLiveForSelectedChannelsAsync();
                 else
-                    DahuaStatusLabel.Text = $"Połączono z {ip}. Sprawdzanie dostępności nagrań w kalendarzu…";
+                    ViewModel.Dahua.StatusText = $"Połączono z {ip}. Sprawdzanie dostępności nagrań w kalendarzu…";
+
+                return true;
             }
             catch (Exception ex)
             {
-                WriteDahuaSdkDiagnostic($"Connect exception: {ex}");
-                DahuaStatusLabel.Text = $"Błąd połączenia: {ex.Message}";
+                DahuaSessionService.WriteDiagnostic($"Connect exception: {ex}");
+                ViewModel.Dahua.StatusText = $"Błąd połączenia: {ex.Message}";
+                return false;
             }
         }
 
         private void StartDahuaLiveStreamForChannel(int channelNumber)
         {
-            if (_dahuaLoginId == IntPtr.Zero) return;
+            if (DahuaSession.LoginId == IntPtr.Zero) return;
             DahuaStopMultiLiveStreams();
             DahuaStopSynchronizedPlayback();
             try
             {
                 if (_dahuaRealPlayHandle != IntPtr.Zero)
                 {
-                    DahuaNetSdk.CLIENT_StopRealPlayEx(_dahuaRealPlayHandle);
+                    ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                     _dahuaRealPlayHandle = IntPtr.Zero;
                 }
                 if (_dahuaPlaybackHandle != IntPtr.Zero)
                 {
-                    DahuaNetSdk.CLIENT_StopPlayBack(_dahuaPlaybackHandle);
+                    ViewModel.Dahua.StopArchivePlayback(_dahuaPlaybackHandle);
                     _dahuaPlaybackHandle = IntPtr.Zero;
                 }
                 if (!_dahuaPrimaryPictureBox.IsHandleCreated) _dahuaPrimaryPictureBox.CreateControl();
 
-                int channelIndex = Math.Max(0, channelNumber - 1);
-                var streamType = DahuaStreamTypeBox.SelectedIndex == 1 ? DahuaNetSdk.EM_RealPlayType.Realplay_1 : DahuaNetSdk.EM_RealPlayType.Realplay;
-                _dahuaRealPlayHandle = DahuaNetSdk.CLIENT_RealPlayEx(_dahuaLoginId, channelIndex, _dahuaPrimaryPictureBox.Handle, streamType);
-                if (_dahuaRealPlayHandle == IntPtr.Zero)
-                    _dahuaRealPlayHandle = DahuaNetSdk.CLIENT_RealPlay(_dahuaLoginId, channelIndex, _dahuaPrimaryPictureBox.Handle);
+                var streamType = DahuaStreamTypeBox.SelectedIndex == 1
+                    ? DahuaNetSdk.EM_RealPlayType.Realplay_1
+                    : DahuaNetSdk.EM_RealPlayType.Realplay;
+                _dahuaRealPlayHandle = ViewModel.Dahua.StartLiveStream(channelNumber, _dahuaPrimaryPictureBox.Handle, streamType);
 
                 string chName = _currentDahuaDevice?.GetChannelName(channelNumber) ?? $"Kanał {channelNumber}";
                 if (_dahuaRealPlayHandle == IntPtr.Zero)
                 {
                     uint lastError = DahuaNetSdk.CLIENT_GetLastError();
-                    DahuaStatusLabel.Text = $"Błąd uruchomienia strumienia na kanale '{chName}'. {DahuaNetSdk.GetErrorDescription(lastError)}";
+                    ViewModel.Dahua.StatusText = $"Błąd uruchomienia strumienia na kanale '{chName}'. {DahuaNetSdk.GetErrorDescription(lastError)}";
                 }
                 else
                 {
-                    DahuaStatusLabel.Text = $"Na żywo: {chName} (CH {channelNumber})";
+                    ViewModel.Dahua.StatusText = $"Na żywo: {chName} (CH {channelNumber})";
                     HighlightActiveDahuaChannelButton(channelNumber);
                 }
             }
             catch (Exception ex)
             {
-                DahuaStatusLabel.Text = $"Błąd uruchamiania kanału {channelNumber}: {ex.Message}";
+                ViewModel.Dahua.StatusText = $"Błąd uruchamiania kanału {channelNumber}: {ex.Message}";
             }
         }
 
@@ -1178,48 +1021,23 @@ namespace VideoPlayer
             {
                 if (_dahuaRealPlayHandle != IntPtr.Zero)
                 {
-                    DahuaNetSdk.CLIENT_StopRealPlayEx(_dahuaRealPlayHandle);
+                    ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                     _dahuaRealPlayHandle = IntPtr.Zero;
                 }
                 if (_dahuaPlaybackHandle != IntPtr.Zero)
                 {
-                    DahuaNetSdk.CLIENT_StopPlayBack(_dahuaPlaybackHandle);
+                    ViewModel.Dahua.StopArchivePlayback(_dahuaPlaybackHandle);
                     _dahuaPlaybackHandle = IntPtr.Zero;
                 }
-                if (_dahuaLoginId != IntPtr.Zero)
-                {
-                    DahuaNetSdk.CLIENT_Logout(_dahuaLoginId);
-                    _dahuaLoginId = IntPtr.Zero;
-                }
+                ViewModel.Dahua.Disconnect();
             }
             catch { }
 
-            _connectedDahuaDeviceId = null;
-            if (DahuaConnectButton != null) DahuaConnectButton.IsEnabled = true;
-            if (DahuaDisconnectButton != null) DahuaDisconnectButton.IsEnabled = false;
-            if (DahuaStreamOverlay != null) DahuaStreamOverlay.Visibility = Visibility.Visible;
-            if (DahuaStatusLabel != null) DahuaStatusLabel.Text = "Rozłączono ze strumieniem.";
+            ViewModel.Dahua.IsStreamOverlayVisible = true;
             _dahuaPrimaryPictureBox.Invalidate();
         }
 
         private void DahuaDisconnect_Click(object sender, RoutedEventArgs e) => DahuaDisconnect();
-
-        private void OnDahuaSdkDisconnected(IntPtr lLoginID, string pchDVRIP, int nDVRPort, IntPtr dwUser)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                DahuaStatusLabel.Text = $"Utracono połączenie z {pchDVRIP}:{nDVRPort}. Trwa automatyczne wznawianie…";
-            });
-        }
-
-        private void OnDahuaSdkReconnected(IntPtr lLoginID, string pchDVRIP, int nDVRPort, IntPtr dwUser)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                DahuaStatusLabel.Text = $"Przywrócono połączenie z {pchDVRIP}:{nDVRPort}.";
-                StartDahuaMultiLiveForSelectedChannels();
-            });
-        }
 
         #endregion
 
@@ -1228,52 +1046,8 @@ namespace VideoPlayer
         private IEnumerable<DahuaChannelInfo> GetVisibleDahuaChannels()
         {
             if (_currentDahuaDevice == null) return Enumerable.Empty<DahuaChannelInfo>();
-            if (_dahuaActiveChannelNumbers == null) return _currentDahuaDevice.Channels;
-            return _currentDahuaDevice.Channels.Where(channel => _dahuaActiveChannelNumbers.Contains(channel.Number));
-        }
-
-        private bool TryQueryActiveDahuaChannelNumbers(out HashSet<int> activeChannels)
-        {
-            activeChannels = new HashSet<int>();
-            if (_currentDahuaDevice == null || _currentDahuaDevice.CredentialsUnavailable) return false;
-            try
-            {
-                string url = $"http://{_currentDahuaDevice.ConnectionAddress}:{_currentDahuaDevice.HttpPort}/cgi-bin/api/LogicDeviceManager/getCameraState";
-                var request = (HttpWebRequest)WebRequest.Create(url);
-                request.Method = "POST";
-                request.ContentType = "application/json";
-                request.Accept = "application/json";
-                request.Credentials = new NetworkCredential(_currentDahuaDevice.Username, _currentDahuaDevice.Password);
-                request.PreAuthenticate = true;
-                request.Timeout = 5000;
-                request.ReadWriteTimeout = 5000;
-
-                byte[] body = Encoding.UTF8.GetBytes("{\"uniqueChannels\":[-1]}");
-                request.ContentLength = body.Length;
-                using (var stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
-
-                using var response = (HttpWebResponse)request.GetResponse();
-                using var responseStream = response.GetResponseStream();
-                if (responseStream == null) return false;
-                using var document = JsonDocument.Parse(responseStream);
-                if (!document.RootElement.TryGetProperty("states", out JsonElement states) || states.ValueKind != JsonValueKind.Array)
-                    return false;
-
-                foreach (JsonElement state in states.EnumerateArray())
-                {
-                    if (!state.TryGetProperty("channel", out JsonElement channelValue) || !channelValue.TryGetInt32(out int zeroBasedChannel))
-                        continue;
-                    string connectionState = state.TryGetProperty("connectionState", out JsonElement stateValue)
-                        ? stateValue.GetString() ?? string.Empty : string.Empty;
-                    if (connectionState.Equals("Empty", StringComparison.OrdinalIgnoreCase) ||
-                        connectionState.Equals("Disable", StringComparison.OrdinalIgnoreCase) ||
-                        connectionState.Equals("UnInited", StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    activeChannels.Add(zeroBasedChannel + 1);
-                }
-                return true;
-            }
-            catch { return false; }
+            if (DahuaSession.ActiveChannelNumbers == null) return _currentDahuaDevice.Channels;
+            return _currentDahuaDevice.Channels.Where(channel => DahuaSession.ActiveChannelNumbers.Contains(channel.Number));
         }
 
         private void BuildDahuaModernChannelChecks()
@@ -1381,7 +1155,28 @@ namespace VideoPlayer
             }
             _dahuaUpdatingArchiveChannelChecks = false;
             UpdateDahuaArchiveChannelCheckStates();
+            SyncDahuaArchivePrimaryChannelFromChecks();
             RefreshDahuaArchiveSelectedChannelsSummary();
+        }
+
+        private void SyncDahuaArchivePrimaryChannelFromChecks()
+        {
+            int? primary = DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>()
+                .Where(check => check.IsChecked == true)
+                .Select(check => check.Tag is int number ? (int?)number : null)
+                .FirstOrDefault(number => number.HasValue);
+            if (!primary.HasValue) return;
+
+            for (int i = 0; i < DahuaArchiveChannelBox.Items.Count; i++)
+            {
+                if (DahuaArchiveChannelBox.Items[i] is ComboBoxItem item &&
+                    item.Tag is int channel && channel == primary.Value)
+                {
+                    if (DahuaArchiveChannelBox.SelectedIndex != i)
+                        DahuaArchiveChannelBox.SelectedIndex = i;
+                    break;
+                }
+            }
         }
 
         private void UpdateDahuaArchiveChannelCheckStates()
@@ -1396,7 +1191,7 @@ namespace VideoPlayer
 
         private void DahuaArchiveChannelCheck_Changed(object sender, RoutedEventArgs e)
         {
-            if (_dahuaUpdatingArchiveChannelChecks || sender is not CheckBox changed || changed.Tag is not int channel)
+            if (_dahuaUpdatingArchiveChannelChecks || sender is not CheckBox changed || changed.Tag is not int)
                 return;
 
             int capacity = GetDahuaArchiveMultiViewCapacity();
@@ -1407,7 +1202,7 @@ namespace VideoPlayer
                 _dahuaUpdatingArchiveChannelChecks = true;
                 changed.IsChecked = false;
                 _dahuaUpdatingArchiveChannelChecks = false;
-                DahuaPlaybackSyncStatusText.Text = $"Układ obsługuje maksymalnie {capacity} kanałów.";
+                ViewModel.Dahua.PlaybackSyncStatusText = $"Układ obsługuje maksymalnie {capacity} kanałów.";
             }
 
             _dahuaArchiveSelectedChannels.Clear();
@@ -1415,6 +1210,7 @@ namespace VideoPlayer
                 if (check.Tag is int number) _dahuaArchiveSelectedChannels.Add(number);
 
             UpdateDahuaArchiveChannelCheckStates();
+            SyncDahuaArchivePrimaryChannelFromChecks();
             RefreshDahuaArchiveSelectedChannelsSummary();
         }
 
@@ -1432,6 +1228,7 @@ namespace VideoPlayer
             }
             _dahuaUpdatingArchiveChannelChecks = false;
             UpdateDahuaArchiveChannelCheckStates();
+            SyncDahuaArchivePrimaryChannelFromChecks();
             RefreshDahuaArchiveSelectedChannelsSummary();
         }
 
@@ -1457,7 +1254,7 @@ namespace VideoPlayer
             if (selected.Count > capacity && sender is CheckBox changed)
             {
                 changed.IsChecked = false;
-                DahuaStatusLabel.Text = $"Wybrany układ obsługuje maksymalnie {capacity} kanał(ów).";
+                ViewModel.Dahua.StatusText = $"Wybrany układ obsługuje maksymalnie {capacity} kanał(ów).";
                 selected = DahuaModernChannelChecksPanel.Children.OfType<CheckBox>().Where(ch => ch.IsChecked == true).ToList();
             }
             foreach (CheckBox check in DahuaModernChannelChecksPanel.Children.OfType<CheckBox>())
@@ -1483,9 +1280,9 @@ namespace VideoPlayer
             DisposeDahuaMultiViewSlots();
 
             int capacity = requestedCapacity ?? GetDahuaMultiViewCapacity();
-            int columns = capacity == 1 ? 1 : capacity == 4 ? 2 : capacity == 9 ? 3 : 4;
+            (int columns, int rows) = DahuaSessionService.GetGridDimensions(capacity);
             DahuaMultiVideoGrid.Columns = columns;
-            DahuaMultiVideoGrid.Rows = capacity / columns;
+            DahuaMultiVideoGrid.Rows = rows;
 
             foreach (int channel in channels.Take(capacity))
             {
@@ -1499,15 +1296,24 @@ namespace VideoPlayer
                     Size = new System.Drawing.Size(640, 360)
                 };
                 viewport.Controls.Add(picture);
-                picture.CreateControl();
+                // HWND PictureBox powstaje dopiero po osadzeniu WindowsFormsHost
+                // w widocznym drzewie WPF — wcześniej nie tworzymy natywnego uchwytu.
                 viewport.MouseWheel += (_, args) => HandleDahuaSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
                 picture.MouseWheel += (_, args) => HandleDahuaSlotZoomWheel(slotRef!, args, viewport.PointToClient(Forms.Control.MousePosition));
                 viewport.MouseDown += (_, args) => BeginDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
                 picture.MouseDown += (_, args) => BeginDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
                 viewport.MouseMove += (_, args) => UpdateDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
                 picture.MouseMove += (_, args) => UpdateDahuaSlotSelectionOrPan(slotRef!, viewport.PointToClient(Forms.Control.MousePosition), args);
-                viewport.MouseUp += (_, args) => EndDahuaSlotSelectionOrPan(slotRef!, args);
-                picture.MouseUp += (_, args) => EndDahuaSlotSelectionOrPan(slotRef!, args);
+                viewport.MouseUp += (_, args) =>
+                {
+                    EndDahuaSlotSelectionOrPan(slotRef!, args);
+                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(DahuaPrimaryVideoHost);
+                };
+                picture.MouseUp += (_, args) =>
+                {
+                    EndDahuaSlotSelectionOrPan(slotRef!, args);
+                    if (args.Button == Forms.MouseButtons.Right) ShowVideoContextMenu(DahuaPrimaryVideoHost);
+                };
 
                 var host = new FormsIntegration.WindowsFormsHost { Child = viewport, Background = Brushes.Black };
                 var tile = new Grid { Background = Brushes.Black, ClipToBounds = true, Margin = new Thickness(2) };
@@ -1532,6 +1338,7 @@ namespace VideoPlayer
                 channelLabel.MouseLeftButtonDown += (_, args) =>
                 {
                     _dahuaCurrentChannel = channel;
+                    ViewModel.Dahua.CurrentChannel = channel;
                     HighlightActiveDahuaChannelButton(channel);
                     DahuaChannelNameEditBox.Text = _currentDahuaDevice?.GetChannelName(channel) ?? $"Kanał {channel}";
                     args.Handled = true;
@@ -1550,12 +1357,64 @@ namespace VideoPlayer
             if (slot == null || slot.Viewport.IsDisposed || slot.PictureBox.IsDisposed) return;
             int viewportWidth = Math.Max(1, slot.Viewport.ClientSize.Width);
             int viewportHeight = Math.Max(1, slot.Viewport.ClientSize.Height);
-            int width = Math.Max(1, (int)Math.Round(viewportWidth * slot.Zoom));
-            int height = Math.Max(1, (int)Math.Round(viewportHeight * slot.Zoom));
+            double aspect = slot.SourceAspect > 0.01 && double.IsFinite(slot.SourceAspect)
+                ? slot.SourceAspect : 16.0 / 9.0;
+            double viewportAspect = (double)viewportWidth / viewportHeight;
+            bool fill = string.Equals(_dahuaViewScaleMode, "fill", StringComparison.OrdinalIgnoreCase);
 
-            slot.PanX = Math.Min(0, Math.Max(viewportWidth - width, slot.PanX));
-            slot.PanY = Math.Min(0, Math.Max(viewportHeight - height, slot.PanY));
-            if (slot.Zoom <= 1.001) { slot.Zoom = 1.0; slot.PanX = 0; slot.PanY = 0; }
+            // Dopasuj cały obraz (Fit) albo wypełnij viewport i przytnij nadmiar (Fill),
+            // zawsze zachowując proporcje rzeczywistej klatki źródłowej.
+            double baseWidth = fill
+                ? Math.Max(viewportWidth, viewportHeight * aspect)
+                : Math.Min(viewportWidth, viewportHeight * aspect);
+            double baseHeight = baseWidth / aspect;
+            if (!fill && baseHeight > viewportHeight)
+            {
+                baseHeight = viewportHeight;
+                baseWidth = baseHeight * aspect;
+            }
+            else if (fill && baseHeight < viewportHeight)
+            {
+                baseHeight = viewportHeight;
+                baseWidth = baseHeight * aspect;
+            }
+
+            // W trybie Fit przy bazowym powiększeniu zawsze licz pozycję
+            // od nowa. Rozmiar WindowsFormsHost może zmienić się jeszcze po
+            // uruchomieniu strumienia (layout WPF), a zachowanie przesunięcia
+            // z poprzedniego rozmiaru powodowało wyrównanie obrazu do lewej.
+            bool fitAtBaseZoom =
+                string.Equals(_dahuaViewScaleMode, "fit", StringComparison.OrdinalIgnoreCase) &&
+                slot.Zoom <= 1.001;
+            if (fitAtBaseZoom)
+                slot.Zoom = 1.0;
+
+            int width = Math.Max(1, (int)Math.Round(baseWidth * slot.Zoom));
+            int height = Math.Max(1, (int)Math.Round(baseHeight * slot.Zoom));
+
+            if (fitAtBaseZoom)
+            {
+                // Dopasuj i wyśrodkuj obraz względem aktualnego viewportu.
+                slot.PanX = (int)Math.Round((viewportWidth - width) / 2.0);
+                slot.PanY = (int)Math.Round((viewportHeight - height) / 2.0);
+            }
+            else
+            {
+                // Przy powiększeniu zachowujemy ręczne przesunięcie obrazu.
+                if (slot.PanX == 0)
+                    slot.PanX = (int)Math.Round((viewportWidth - width) / 2.0);
+                if (slot.PanY == 0)
+                    slot.PanY = (int)Math.Round((viewportHeight - height) / 2.0);
+            }
+
+            // Gdy obraz jest mniejszy od viewportu, pozycja może być dodatnia.
+            // Gdy jest większy, ograniczamy przesunięcie do zakresu bez pustych krawędzi.
+            int minPanX = Math.Min(0, viewportWidth - width);
+            int maxPanX = Math.Max(0, viewportWidth - width);
+            int minPanY = Math.Min(0, viewportHeight - height);
+            int maxPanY = Math.Max(0, viewportHeight - height);
+            slot.PanX = Math.Clamp(slot.PanX, minPanX, maxPanX);
+            slot.PanY = Math.Clamp(slot.PanY, minPanY, maxPanY);
 
             slot.PictureBox.Size = new System.Drawing.Size(width, height);
             slot.PictureBox.Location = new System.Drawing.Point(slot.PanX, slot.PanY);
@@ -1565,16 +1424,13 @@ namespace VideoPlayer
         {
             if (args.Delta == 0) return;
 
-            // W widoku jednego kanału kółko steruje fizycznym obiektywem PTZ.
-            // Nie zmieniamy rozmiaru obrazu w oknie aplikacji.
             if (_dahuaMultiViewSlots.Count == 1)
             {
-                if (_dahuaLoginId == IntPtr.Zero || _dahuaPtzAreaZoomRunning) return;
+                if (DahuaSession.LoginId == IntPtr.Zero || _dahuaPtzAreaZoomRunning) return;
                 _ = RunDahuaPtzWheelZoomAsync(args.Delta > 0);
                 return;
             }
 
-            // W układach wielokanałowych pozostaje lokalna nawigacja po kafelku.
             double oldZoom = slot.Zoom;
             double newZoom = Math.Max(1.0, Math.Min(5.0, oldZoom * (args.Delta > 0 ? 1.2 : 1.0 / 1.2)));
             if (Math.Abs(newZoom - oldZoom) < 0.001) return;
@@ -1593,7 +1449,8 @@ namespace VideoPlayer
             _dahuaPtzAreaZoomRunning = true;
             try
             {
-                await RunDahuaPtzPulseAsync(
+                await ViewModel.Dahua.RunPtzPulseAsync(
+                    _dahuaCurrentChannel,
                     zoomIn ? DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN : DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_OUT,
                     180);
             }
@@ -1604,7 +1461,7 @@ namespace VideoPlayer
         {
             if (args.Button != Forms.MouseButtons.Left) return;
 
-            if (_dahuaMultiViewSlots.Count == 1 && _dahuaLoginId != IntPtr.Zero)
+            if (_dahuaMultiViewSlots.Count == 1 && DahuaSession.LoginId != IntPtr.Zero)
             {
                 slot.IsSelectingArea = true;
                 slot.SelectionStart = cursor;
@@ -1670,7 +1527,7 @@ namespace VideoPlayer
                 if (area.Width >= 18 && area.Height >= 18)
                     _ = ApplyDahuaAreaZoomAsync(slot, area);
                 else
-                    DahuaStatusLabel.Text = "Zaznacz większy obszar obrazu, aby przybliżyć kamerę.";
+                    ViewModel.Dahua.StatusText = "Zaznacz większy obszar obrazu, aby przybliżyć kamerę.";
                 return;
             }
 
@@ -1681,7 +1538,7 @@ namespace VideoPlayer
 
         private async Task ApplyDahuaAreaZoomAsync(DahuaMultiViewSlot slot, System.Drawing.Rectangle area)
         {
-            if (_dahuaPtzAreaZoomRunning || _dahuaLoginId == IntPtr.Zero || _dahuaMultiViewSlots.Count != 1)
+            if (_dahuaPtzAreaZoomRunning || DahuaSession.LoginId == IntPtr.Zero || _dahuaMultiViewSlots.Count != 1)
                 return;
 
             _dahuaPtzAreaZoomRunning = true;
@@ -1689,118 +1546,197 @@ namespace VideoPlayer
             {
                 int viewWidth = Math.Max(1, slot.Viewport.ClientSize.Width);
                 int viewHeight = Math.Max(1, slot.Viewport.ClientSize.Height);
-                double centerX = (area.Left + area.Width / 2.0) / viewWidth;
-                double centerY = (area.Top + area.Height / 2.0) / viewHeight;
+                ViewModel.Dahua.StatusText = "PTZ: ustawianie kierunku na zaznaczony obszar…";
 
-                DahuaStatusLabel.Text = "PTZ: ustawianie kierunku na zaznaczony obszar…";
+                await ViewModel.Dahua.ApplyAreaZoomAsync(
+                    slot.Channel, viewWidth, viewHeight, area.Left, area.Top, area.Width, area.Height);
 
-                // Najpierw przesuwamy kamerę w stronę środka zaznaczenia.
-                double horizontalOffset = (centerX - 0.5) * 2.0;
-                double verticalOffset = (centerY - 0.5) * 2.0;
-
-                if (Math.Abs(horizontalOffset) > 0.07)
-                {
-                    var command = horizontalOffset > 0
-                        ? DahuaNetSdk.EM_PTZ_COMMAND.RIGHT
-                        : DahuaNetSdk.EM_PTZ_COMMAND.LEFT;
-                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(horizontalOffset) * 650, 90, 650), slot.Channel);
-                }
-
-                if (Math.Abs(verticalOffset) > 0.07)
-                {
-                    var command = verticalOffset > 0
-                        ? DahuaNetSdk.EM_PTZ_COMMAND.DOWN
-                        : DahuaNetSdk.EM_PTZ_COMMAND.UP;
-                    await RunDahuaPtzPulseAsync(command, (int)Math.Clamp(Math.Abs(verticalOffset) * 550, 90, 550), slot.Channel);
-                }
-
-                // Następnie wykonujemy fizyczny zoom obiektywu. Czas jest
-                // przybliżeniem zależnym od wielkości zaznaczenia, nie od skali obrazu.
-                double relativeWidth = area.Width / (double)viewWidth;
-                double relativeHeight = area.Height / (double)viewHeight;
-
-                // Mocniejsze przybliżenie: obszar docelowy wyznacza mniejszy
-                // z wymiarów zaznaczenia. Dłuższy impuls pozwala wykorzystać
-                // większy zakres optycznego zoomu obiektywu PTZ.
-                double targetFactor = Math.Clamp(
-                    1.0 / Math.Max(0.05, Math.Min(relativeWidth, relativeHeight)),
-                    1.0,
-                    12.0);
-                if (targetFactor > 1.08)
-                {
-                    int zoomDuration = (int)Math.Clamp(Math.Log(targetFactor) * 950, 150, 4000);
-                    await RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND.ZOOM_IN, zoomDuration, slot.Channel);
-                }
-
-                DahuaStatusLabel.Text = "PTZ: zakończono przybliżanie zaznaczonego obszaru. W razie potrzeby skoryguj ręcznie kierunek lub zoom.";
+                ViewModel.Dahua.StatusText = "PTZ: zakończono przybliżanie zaznaczonego obszaru. W razie potrzeby skoryguj ręcznie kierunek lub zoom.";
             }
             catch (Exception ex)
             {
-                DahuaStatusLabel.Text = $"Błąd przybliżania obszaru PTZ: {ex.Message}";
+                ViewModel.Dahua.StatusText = $"Błąd przybliżania obszaru PTZ: {ex.Message}";
             }
             finally { _dahuaPtzAreaZoomRunning = false; }
         }
 
-        private async Task RunDahuaPtzPulseAsync(DahuaNetSdk.EM_PTZ_COMMAND command, int durationMs, int? channelNumber = null)
-        {
-            if (_dahuaLoginId == IntPtr.Zero) return;
-            int channelIndex = Math.Max(0, (channelNumber ?? _dahuaCurrentChannel) - 1);
-            bool started = DahuaNetSdk.CLIENT_DHPTZControlEx2(
-                _dahuaLoginId, channelIndex, (uint)command, 4, 4, 0, false, IntPtr.Zero);
-            if (!started)
-            {
-                uint error = DahuaNetSdk.CLIENT_GetLastError();
-                throw new InvalidOperationException(DahuaNetSdk.GetErrorDescription(error));
-            }
-
-            try { await Task.Delay(durationMs); }
-            finally
-            {
-                DahuaNetSdk.CLIENT_DHPTZControlEx2(
-                    _dahuaLoginId, channelIndex, (uint)command, 4, 4, 0, true, IntPtr.Zero);
-            }
-        }
-
-        private void DahuaStartMultiLive_Click(object sender, RoutedEventArgs e)
+        private async void DahuaStartMultiLive_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
-                DahuaConnect_Click(sender, e);
-                return;
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
+                if (_dahuaMultiViewSlots.Any(slot => slot.StreamHandle != IntPtr.Zero))
+                    return;
             }
-            StartDahuaMultiLiveForSelectedChannels();
+            await StartDahuaMultiLiveForSelectedChannelsAsync();
         }
 
-        private void StartDahuaMultiLiveForSelectedChannels()
+        private async Task StartDahuaMultiLiveForSelectedChannelsAsync()
         {
-            if (_dahuaLoginId == IntPtr.Zero || _currentDahuaDevice == null) return;
+            if (DahuaSession.LoginId == IntPtr.Zero || _currentDahuaDevice == null) return;
+
+            // Każde nowe żądanie unieważnia oczekujące uruchomienie poprzedniego układu.
+            int requestId = ++_dahuaLiveStartRequestId;
             var channels = GetSelectedDahuaModernChannels();
             if (channels.Count == 0) channels.Add(_dahuaCurrentChannel);
             channels = channels.Take(GetDahuaMultiViewCapacity()).ToList();
+            if (channels.Count == 0) return;
+
             _dahuaCurrentChannel = channels[0];
+            ViewModel.Dahua.CurrentChannel = _dahuaCurrentChannel;
             HighlightActiveDahuaChannelButton(_dahuaCurrentChannel);
 
             DahuaStopSynchronizedPlayback();
             if (_dahuaRealPlayHandle != IntPtr.Zero)
             {
-                DahuaNetSdk.CLIENT_StopRealPlayEx(_dahuaRealPlayHandle);
+                ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                 _dahuaRealPlayHandle = IntPtr.Zero;
             }
+
             BuildDahuaMultiViewSlots(channels);
+
+            // Nie przekazujemy SDK uchwytu kontrolki utworzonej przed dołączeniem
+            // WindowsFormsHost do widocznego drzewa WPF. Najpierw wymuszamy layout,
+            // a dopiero po jego zakończeniu tworzymy/odczytujemy końcowy HWND.
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_closing || requestId != _dahuaLiveStartRequestId) return;
+
+                DahuaViewportLayer.UpdateLayout();
+                DahuaMultiVideoGrid.UpdateLayout();
+
+                foreach (DahuaMultiViewSlot slot in _dahuaMultiViewSlots)
+                {
+                    slot.Host.UpdateLayout();
+                    if (!slot.Viewport.IsHandleCreated)
+                        slot.Viewport.CreateControl();
+                    if (!slot.PictureBox.IsHandleCreated)
+                        slot.PictureBox.CreateControl();
+
+                    ApplyDahuaSlotViewport(slot);
+                }
+            }, DispatcherPriority.Render);
+
+            if (_closing || requestId != _dahuaLiveStartRequestId ||
+                DahuaSession.LoginId == IntPtr.Zero)
+                return;
 
             var streamType = DahuaStreamTypeBox.SelectedIndex == 1
                 ? DahuaNetSdk.EM_RealPlayType.Realplay_1
                 : DahuaNetSdk.EM_RealPlayType.Realplay;
             int started = 0;
-            foreach (var slot in _dahuaMultiViewSlots)
+            uint lastError = 0;
+            foreach (DahuaMultiViewSlot slot in _dahuaMultiViewSlots)
             {
-                slot.StreamHandle = DahuaNetSdk.CLIENT_RealPlayEx(_dahuaLoginId, Math.Max(0, slot.Channel - 1), slot.PictureBox.Handle, streamType);
-                if (slot.StreamHandle != IntPtr.Zero) started++;
+                if (!slot.PictureBox.IsHandleCreated)
+                    slot.PictureBox.CreateControl();
+
+                slot.StreamHandle = ViewModel.Dahua.StartLiveStream(
+                    slot.Channel, slot.PictureBox.Handle, streamType);
+
+                if (slot.StreamHandle != IntPtr.Zero)
+                {
+                    started++;
+                    // Callback przekazuje metadane klatki; przechowujemy delegata w slocie,
+                    // aby GC nie zwolnił go, gdy natywny SDK nadal go wywołuje.
+                    slot.FrameInfoCallback = (handle, dataType, buffer, bufferSize, param, user) =>
+                    {
+                        if (dataType != 1 || param == IntPtr.Zero) return;
+                        try
+                        {
+                            DahuaNetSdk.tagVideoFrameParam frame =
+                                System.Runtime.InteropServices.Marshal.PtrToStructure<DahuaNetSdk.tagVideoFrameParam>(param);
+                            (int sourceWidth, int sourceHeight) = frame.size == 255
+                                ? (frame.width, frame.height)
+                                : frame.size switch
+                                {
+                                    18 => (1920, 1080), // 1080
+                                    17 => (1280, 720),  // 720
+                                    15 => (1920, 1200), // WUXGA
+                                    14 => (1600, 1200), // UXGA
+                                    12 => (1280, 1024), // SXGA
+                                    11 => (1280, 800),  // WXGA
+                                    10 => (1024, 768),  // XVGA
+                                    9 => (800, 600),    // SVGA
+                                    6 => (320, 240),    // QVGA
+                                    4 => (640, 480),    // VGA
+                                    _ => (0, 0)
+                                };
+                            if (sourceWidth <= 0 || sourceHeight <= 0) return;
+
+                            double aspect = (double)sourceWidth / sourceHeight;
+                            if (!double.IsFinite(aspect) || aspect <= 0.01) return;
+
+                            // Nie wykonujemy operacji UI na wątku NetSDK. Ograniczamy
+                            // liczbę oczekujących aktualizacji do jednej na slot.
+                            if (slot.SourceWidth == sourceWidth && slot.SourceHeight == sourceHeight)
+                                return;
+                            if (System.Threading.Interlocked.CompareExchange(
+                                ref slot.FrameInfoUpdatePending, 1, 0) != 0)
+                                return;
+
+                            Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                try
+                                {
+                                    if (_closing || slot.StreamHandle != handle ||
+                                        !_dahuaMultiViewSlots.Contains(slot) ||
+                                        slot.SourceWidth == sourceWidth && slot.SourceHeight == sourceHeight)
+                                        return;
+
+                                    slot.SourceWidth = sourceWidth;
+                                    slot.SourceHeight = sourceHeight;
+                                    slot.SourceAspect = aspect;
+                                    ApplyDahuaSlotViewport(slot);
+                                }
+                                finally
+                                {
+                                    System.Threading.Interlocked.Exchange(ref slot.FrameInfoUpdatePending, 0);
+                                }
+                            }), DispatcherPriority.Render);
+                        }
+                        catch
+                        {
+                            // Nie wolno dopuścić, aby wyjątek zarządzany opuścił callback natywny.
+                        }
+                    };
+
+                    // 0x2 = REALDATA_FLAG_DATA_WITH_FRAME_INFO.
+                    // Jeśli firmware/SDK nie obsługuje callbacku, Live pozostaje aktywny
+                    // i zachowuje bezpieczne proporcje domyślne do czasu kolejnego odczytu.
+                    try
+                    {
+                        if (!DahuaNetSdk.CLIENT_SetRealDataCallBackEx2(
+                            slot.StreamHandle, slot.FrameInfoCallback, IntPtr.Zero, 0x00000002))
+                        {
+                            slot.FrameInfoCallback = null;
+                        }
+                    }
+                    catch (EntryPointNotFoundException)
+                    {
+                        // Starszy wariant NetSDK może nie eksportować Ex2.
+                        // Nie przerywamy z tego powodu działającego podglądu Live.
+                        slot.FrameInfoCallback = null;
+                    }
+                    catch (DllNotFoundException)
+                    {
+                        slot.FrameInfoCallback = null;
+                    }
+                }
+                else
+                    lastError = DahuaNetSdk.CLIENT_GetLastError();
             }
-            DahuaStatusLabel.Text = $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów.";
-            DahuaPlaybackSyncStatusText.Text = "Podgląd na żywo";
-            DahuaStreamOverlay.Visibility = Visibility.Collapsed;
+
+            ViewModel.Dahua.StatusText = started == channels.Count
+                ? $"Podgląd wielokanałowy: uruchomiono {started}/{channels.Count} kanałów."
+                : started > 0
+                    ? $"Podgląd Live: uruchomiono {started}/{channels.Count} kanałów. Błąd pozostałych: {DahuaNetSdk.GetErrorDescription(lastError)}"
+                    : $"Nie udało się uruchomić podglądu Live. {DahuaNetSdk.GetErrorDescription(lastError)}";
+
+            ViewModel.Dahua.PlaybackSyncStatusText = "Podgląd na żywo";
+            ViewModel.Dahua.IsStreamOverlayVisible = started == 0;
         }
 
         private void DahuaStopMultiLiveStreams()
@@ -1808,50 +1744,64 @@ namespace VideoPlayer
             foreach (var slot in _dahuaMultiViewSlots)
             {
                 if (slot.StreamHandle == IntPtr.Zero) continue;
-                try { DahuaNetSdk.CLIENT_StopRealPlayEx(slot.StreamHandle); } catch { }
+                ViewModel.Dahua.StopLiveStream(slot.StreamHandle);
                 slot.StreamHandle = IntPtr.Zero;
+                slot.FrameInfoCallback = null;
             }
         }
 
         private double GetDahuaPlaybackDurationSeconds() => Math.Max(1, (_dahuaPlaybackRangeEnd - _dahuaPlaybackRangeStart).TotalSeconds);
 
+        private double GetDahuaPlaybackElapsedSeconds()
+        {
+            double elapsed = _dahuaPlaybackElapsedBeforePause;
+            if (!_dahuaSynchronizedPlaybackPaused)
+                elapsed += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
+            return Math.Clamp(elapsed, 0, GetDahuaPlaybackDurationSeconds());
+        }
+
         private void UpdateDahuaPlaybackSliderRange(bool keepPlayheadVisible)
         {
-            if (DahuaPlaybackPositionSlider == null || _dahuaMultiPlaybackHandles.Count == 0) return;
+            if (DahuaPlaybackPositionSlider == null || DahuaMultiPlaybackHandles.Count == 0) return;
 
             double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
+            DateTime selectedDay = (DahuaStartDatePicker.SelectedDate ?? _dahuaPlaybackRangeStart.Date).Date;
             double viewStartHour = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
             double viewEndHour = viewStartHour + visibleHours;
-            double playbackStartHour = (_dahuaPlaybackRangeStart - _dahuaPlaybackRangeStart.Date).TotalHours;
+            double elapsed = GetDahuaPlaybackElapsedSeconds();
+            DateTime playheadTime = _dahuaPlaybackRangeStart.AddSeconds(elapsed);
+
+            // Oś godzin i suwak muszą korzystać z tej samej daty kalendarzowej.
+            if (keepPlayheadVisible && playheadTime.Date != selectedDay)
+            {
+                selectedDay = playheadTime.Date;
+                DahuaStartDatePicker.SelectedDate = selectedDay;
+            }
 
             if (keepPlayheadVisible)
             {
-                double elapsed = _dahuaPlaybackElapsedBeforePause;
-                if (!_dahuaSynchronizedPlaybackPaused)
-                    elapsed += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
-
-                double playheadHour = playbackStartHour + elapsed / 3600.0;
+                double playheadHour = (playheadTime - selectedDay).TotalHours;
                 if (playheadHour < viewStartHour || playheadHour > viewEndHour)
                 {
-                    _dahuaRecordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+                    _dahuaRecordingTimelineStartHour = Math.Clamp(
+                        playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
                     viewStartHour = _dahuaRecordingTimelineStartHour;
                     viewEndHour = viewStartHour + visibleHours;
                     RefreshDahuaRecordingTimeline();
                 }
             }
 
-            double minOffset = (viewStartHour - playbackStartHour) * 3600.0;
-            double maxOffset = (viewEndHour - playbackStartHour) * 3600.0;
+            // Wartość suwaka to sekundy od początku odtwarzania, a jego zakres
+            // odpowiada dokładnie widocznemu przedziałowi osi godzin.
+            DateTime visibleStart = selectedDay.AddHours(viewStartHour);
+            DateTime visibleEnd = selectedDay.AddHours(viewEndHour);
+            double minOffset = (visibleStart - _dahuaPlaybackRangeStart).TotalSeconds;
+            double maxOffset = (visibleEnd - _dahuaPlaybackRangeStart).TotalSeconds;
             if (maxOffset <= minOffset) maxOffset = minOffset + 1;
 
             DahuaPlaybackPositionSlider.Minimum = minOffset;
             DahuaPlaybackPositionSlider.Maximum = maxOffset;
-
-            double currentOffset = _dahuaPlaybackElapsedBeforePause;
-            if (!_dahuaSynchronizedPlaybackPaused)
-                currentOffset += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
-
-            DahuaPlaybackPositionSlider.Value = Math.Clamp(currentOffset, minOffset, maxOffset);
+            DahuaPlaybackPositionSlider.Value = Math.Clamp(elapsed, minOffset, maxOffset);
         }
 
         private void RefreshDahuaArchiveSelectedChannelsSummary()
@@ -1873,23 +1823,26 @@ namespace VideoPlayer
 
             string summary = string.Join(", ", channels.Select(channel =>
                 $"{_currentDahuaDevice.GetChannelName(channel)} (CH {channel})"));
-            DahuaArchiveSelectedChannelsText.Text = summary;
+            int primaryChannel = channels[0];
+            DahuaArchiveSelectedChannelsText.Text =
+                $"Kamera do wyszukiwania: {_currentDahuaDevice.GetChannelName(primaryChannel)} (CH {primaryChannel})\n" +
+                $"Kamery do odtwarzania: {summary}";
         }
 
-        private void DahuaStartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
+        private async void DahuaStartSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
             DateTime? start = GetDahuaStartDateTime();
             DateTime? end = GetDahuaEndDateTime();
-            if (start == null || end == null || end <= start)
+            if (!DahuaSessionService.ValidateArchiveRange(start, end, out string rangeError))
             {
-                MessageBox.Show(this, "Wybierz poprawny przedział czasu.", "Błędny zakres", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, rangeError, "Błędny zakres", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
-                DahuaConnect_Click(sender, e);
-                if (_dahuaLoginId == IntPtr.Zero) return;
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
             }
 
             var channels = _dahuaArchiveSelectedChannels.OrderBy(channel => channel).ToList();
@@ -1907,18 +1860,20 @@ namespace VideoPlayer
                 return;
             }
             _dahuaCurrentChannel = channels[0];
+            ViewModel.Dahua.CurrentChannel = _dahuaCurrentChannel;
             HighlightActiveDahuaChannelButton(_dahuaCurrentChannel);
             DahuaStopMultiLiveStreams();
             if (_dahuaRealPlayHandle != IntPtr.Zero)
             {
-                DahuaNetSdk.CLIENT_StopRealPlayEx(_dahuaRealPlayHandle);
+                ViewModel.Dahua.StopLiveStream(_dahuaRealPlayHandle);
                 _dahuaRealPlayHandle = IntPtr.Zero;
             }
             DahuaStopSynchronizedPlayback();
             BuildDahuaMultiViewSlots(channels, capacity);
 
-            _dahuaPlaybackRangeStart = start.Value;
-            _dahuaPlaybackRangeEnd = end.Value;
+            _dahuaPlaybackRangeStart = start!.Value;
+            _dahuaPlaybackRangeEnd = end!.Value;
+            DahuaStartDatePicker.SelectedDate = _dahuaPlaybackRangeStart.Date;
             _dahuaPlaybackElapsedBeforePause = 0;
             _dahuaPlaybackSegmentStartedAt = DateTime.Now;
             _dahuaSynchronizedPlaybackPaused = false;
@@ -1930,23 +1885,17 @@ namespace VideoPlayer
             DahuaPlaybackPositionSlider.Maximum = Math.Max(1, (end.Value - start.Value).TotalSeconds);
             DahuaPlaybackPositionSlider.Value = 0;
             DahuaPlaybackPositionSlider.IsEnabled = true;
-            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
 
             try
             {
-                ConfigureDahuaRecordModes(_dahuaLoginId);
+                DahuaSession.ConfigureCurrentRecordModes();
                 int started = 0;
                 var failedChannels = new List<int>();
                 foreach (var slot in _dahuaMultiViewSlots)
                 {
-                    var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
-                    var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
-                    slot.PlaybackHandle = DahuaNetSdk.CLIENT_PlayBackByTimeEx(
-                        _dahuaLoginId, Math.Max(0, slot.Channel - 1), ref tmStart, ref tmEnd,
-                        slot.PictureBox.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                    slot.PlaybackHandle = ViewModel.Dahua.StartArchivePlayback(slot.Channel, start.Value, end.Value, slot.PictureBox.Handle);
                     if (slot.PlaybackHandle != IntPtr.Zero)
                     {
-                        _dahuaMultiPlaybackHandles.Add(slot.PlaybackHandle);
                         started++;
                     }
                     else
@@ -1956,20 +1905,24 @@ namespace VideoPlayer
                 }
                 if (started == 0)
                     throw new InvalidOperationException("Rejestrator nie uruchomił odtwarzania na żadnym z wybranych kanałów.");
+
+                // Dopiero teraz istnieją uchwyty archiwum; można zsynchronizować zakres suwaka z widocznym zakresem osi godzin.
+                UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: true);
+                RefreshDahuaRecordingTimeline();
                 _dahuaPlaybackUiTimer.Start();
-                DahuaStreamOverlay.Visibility = Visibility.Collapsed;
+                ViewModel.Dahua.IsStreamOverlayVisible = false;
                 string failedSummary = failedChannels.Count == 0
                     ? "Wszystkie wybrane kanały uruchomione."
                     : $"Nie uruchomiono kanałów: {string.Join(", ", failedChannels.Select(channel => $"CH {channel}"))}.";
-                DahuaPlaybackSyncStatusText.Text = $"Odtwarzanie archiwum: {started}/{channels.Count} kanałów. {failedSummary}";
-                DahuaStatusLabel.Text = failedChannels.Count == 0
+                ViewModel.Dahua.PlaybackSyncStatusText = $"Odtwarzanie archiwum: {started}/{channels.Count} kanałów. {failedSummary}";
+                ViewModel.Dahua.StatusText = failedChannels.Count == 0
                     ? $"Odtwarzanie wielokanałowe uruchomione: {started} kanałów od {start.Value:HH:mm:ss}."
                     : $"Odtwarzanie częściowe: {started}/{channels.Count} kanałów od {start.Value:HH:mm:ss}. Brak: {string.Join(", ", failedChannels.Select(channel => $"CH {channel}"))}.";
             }
             catch (Exception ex)
             {
                 DahuaStopSynchronizedPlayback();
-                DahuaStatusLabel.Text = $"Błąd zsynchronizowanego odtwarzania: {ex.Message}";
+                ViewModel.Dahua.StatusText = $"Błąd zsynchronizowanego odtwarzania: {ex.Message}";
                 MessageBox.Show(this, ex.Message, "Archiwum Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -1984,7 +1937,7 @@ namespace VideoPlayer
             if (width <= 0) return;
 
             DateTime selectedDay = (DahuaStartDatePicker.SelectedDate ?? DateTime.Today).Date;
-            var records = (DahuaArchiveRecordsGrid.ItemsSource as IEnumerable<DahuaRecordItem>)?.ToList() ?? new List<DahuaRecordItem>();
+            var records = ViewModel.Dahua.ArchiveRecords.ToList();
             const double left = 24, right = 8;
             double usableWidth = Math.Max(1, width - left - right);
             double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
@@ -2058,6 +2011,230 @@ namespace VideoPlayer
                 Canvas.SetTop(hint, 27);
                 DahuaRecordingTimelineCanvas.Children.Add(hint);
             }
+
+            DrawDahuaTimelineSelection(selectedDay, viewStartHour, viewEndHour, xForHour);
+            DrawDahuaPlaybackPlayhead(selectedDay, viewStartHour, viewEndHour, xForHour);
+        }
+
+        private void DrawDahuaPlaybackPlayhead(
+            DateTime selectedDay,
+            double viewStartHour,
+            double viewEndHour,
+            Func<double, double> xForHour)
+        {
+            if (DahuaMultiPlaybackHandles.Count == 0) return;
+
+            DateTime playheadTime = _dahuaPlaybackRangeStart.AddSeconds(GetDahuaPlaybackElapsedSeconds());
+            if (playheadTime.Date != selectedDay) return;
+
+            double hour = playheadTime.TimeOfDay.TotalHours;
+            if (hour < viewStartHour || hour > viewEndHour) return;
+
+            double x = xForHour(hour);
+            DahuaRecordingTimelineCanvas.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = x, X2 = x,
+                Y1 = 0, Y2 = Math.Max(30, DahuaRecordingTimelineCanvas.ActualHeight),
+                Stroke = new SolidColorBrush(Color.FromRgb(248, 113, 113)),
+                StrokeThickness = 2,
+                IsHitTestVisible = false
+            });
+
+            var label = new TextBlock
+            {
+                Text = $"▶ {playheadTime:HH:mm:ss}",
+                Foreground = new SolidColorBrush(Color.FromRgb(254, 202, 202)),
+                Background = new SolidColorBrush(Color.FromArgb(220, 127, 29, 29)),
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
+                Padding = new Thickness(3, 1, 3, 1),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, Math.Clamp(x + 4, 0, Math.Max(0, DahuaRecordingTimelineCanvas.ActualWidth - 72)));
+            Canvas.SetTop(label, 22);
+            DahuaRecordingTimelineCanvas.Children.Add(label);
+        }
+
+        private void DrawDahuaTimelineSelection(
+            DateTime selectedDay,
+            double viewStartHour,
+            double viewEndHour,
+            Func<double, double> xForHour)
+        {
+            if (_dahuaTimelineSelectionStart == null || _dahuaTimelineSelectionEnd == null)
+                return;
+
+            DateTime start = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value
+                ? _dahuaTimelineSelectionStart.Value : _dahuaTimelineSelectionEnd.Value;
+            DateTime end = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value
+                ? _dahuaTimelineSelectionEnd.Value : _dahuaTimelineSelectionStart.Value;
+            DateTime dayEnd = selectedDay.AddDays(1);
+            if (end < selectedDay || start > dayEnd) return;
+
+            double startHour = Math.Clamp((start - selectedDay).TotalHours, viewStartHour, viewEndHour);
+            double endHour = Math.Clamp((end - selectedDay).TotalHours, viewStartHour, viewEndHour);
+            double x1 = xForHour(startHour);
+            double x2 = xForHour(endHour);
+
+            var selection = new System.Windows.Shapes.Rectangle
+            {
+                Width = Math.Max(2, x2 - x1),
+                Height = 12,
+                RadiusX = 2,
+                RadiusY = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(85, 59, 130, 246)),
+                Stroke = new SolidColorBrush(Color.FromRgb(96, 165, 250)),
+                StrokeThickness = 1,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(selection, Math.Min(x1, x2));
+            Canvas.SetTop(selection, 24);
+            DahuaRecordingTimelineCanvas.Children.Add(selection);
+
+            var label = new TextBlock
+            {
+                Text = $"{start:HH:mm:ss} – {end:HH:mm:ss}",
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromArgb(220, 30, 64, 110)),
+                FontSize = 9,
+                Padding = new Thickness(3, 1, 3, 1),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, Math.Clamp(Math.Min(x1, x2), 0, Math.Max(0, DahuaRecordingTimelineCanvas.ActualWidth - 120)));
+            Canvas.SetTop(label, 25);
+            DahuaRecordingTimelineCanvas.Children.Add(label);
+        }
+
+        private DateTime GetDahuaTimelineTime(Point point)
+        {
+            const double left = 24;
+            double usableWidth = Math.Max(1, DahuaRecordingTimelineCanvas.ActualWidth - left - 8);
+            double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
+            double viewStartHour = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
+            double pointerRatio = Math.Clamp((point.X - left) / usableWidth, 0, 1);
+            double hour = Math.Clamp(viewStartHour + pointerRatio * visibleHours, 0, 24);
+            double seconds = Math.Clamp(Math.Round(hour * 3600), 0, 86399);
+            return (DahuaStartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(seconds);
+        }
+
+        private void ClearDahuaTimelineSelection()
+        {
+            _dahuaTimelineSelectionStart = null;
+            _dahuaTimelineSelectionEnd = null;
+            if (_dahuaTimelineIsSelecting)
+            {
+                _dahuaTimelineIsSelecting = false;
+                if (DahuaRecordingTimelineCanvas?.IsMouseCaptured == true)
+                    DahuaRecordingTimelineCanvas.ReleaseMouseCapture();
+            }
+            if (DahuaRecordingTimelineCanvas != null)
+                RefreshDahuaRecordingTimeline();
+        }
+
+        private DahuaRecordItem? FindDahuaRecordAt(DateTime time, int channel)
+        {
+            return ViewModel.Dahua.ArchiveRecords.FirstOrDefault(record =>
+                record.Channel == channel && time >= record.StartTime && time <= record.EndTime);
+        }
+
+        private void DahuaRecordingTimelineCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_dahuaTimelineIsSelecting) return;
+            Point current = e.GetPosition(DahuaRecordingTimelineCanvas);
+            if (!_dahuaTimelineDragStarted)
+            {
+                double dx = current.X - _dahuaTimelinePointerDown.X;
+                double dy = current.Y - _dahuaTimelinePointerDown.Y;
+                if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return;
+                _dahuaTimelineDragStarted = true;
+            }
+            _dahuaTimelineSelectionEnd = GetDahuaTimelineTime(current);
+            RefreshDahuaRecordingTimeline();
+        }
+
+        private void DahuaRecordingTimelineCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_dahuaTimelineIsSelecting) return;
+            DateTime releaseTime = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
+            bool wasDrag = _dahuaTimelineDragStarted;
+            _dahuaTimelineIsSelecting = false;
+            _dahuaTimelineDragStarted = false;
+            DahuaRecordingTimelineCanvas.ReleaseMouseCapture();
+
+            if (!wasDrag)
+            {
+                DahuaStartDatePicker.SelectedDate = releaseTime.Date;
+                DahuaStartTimeBox.Text = releaseTime.ToString("HH:mm:ss");
+                UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
+                _dahuaTimelineSelectionStart = null;
+                _dahuaTimelineSelectionEnd = null;
+                RefreshDahuaRecordingTimeline();
+                if (DahuaMultiPlaybackHandles.Count > 0 &&
+                    releaseTime >= _dahuaPlaybackRangeStart && releaseTime <= _dahuaPlaybackRangeEnd)
+                {
+                    int offset = DahuaSessionService.ComputeArchiveSeekOffsetSeconds(releaseTime, _dahuaPlaybackRangeStart, _dahuaPlaybackRangeEnd);
+                    SeekDahuaSynchronizedPlayback(offset);
+                    ViewModel.Dahua.PlaybackSyncStatusText = $"Przewinięto do {releaseTime:HH:mm:ss}.";
+                }
+                else if (FindDahuaRecordAt(releaseTime, GetSelectedDahuaArchiveChannel()) != null)
+                    ViewModel.Dahua.PlaybackSyncStatusText = $"Wybrano {releaseTime:HH:mm:ss}. Naciśnij „Odtwórz od wskazanego”, aby rozpocząć.";
+                else
+                    ViewModel.Dahua.PlaybackSyncStatusText = $"O {releaseTime:HH:mm:ss} nie ma nagrania na wybranym kanale.";
+                e.Handled = true;
+                return;
+            }
+
+            if (_dahuaTimelineSelectionStart == null || _dahuaTimelineSelectionEnd == null) return;
+            DateTime start = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionStart.Value : _dahuaTimelineSelectionEnd.Value;
+            DateTime finish = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionEnd.Value : _dahuaTimelineSelectionStart.Value;
+            DahuaRecordItem? startRecord = FindDahuaRecordAt(start, GetSelectedDahuaArchiveChannel());
+            DahuaRecordItem? endRecord = FindDahuaRecordAt(finish, GetSelectedDahuaArchiveChannel());
+            if (finish <= start || startRecord == null || endRecord == null || !ReferenceEquals(startRecord, endRecord))
+            {
+                _dahuaTimelineSelectionStart = null;
+                _dahuaTimelineSelectionEnd = null;
+                ViewModel.Dahua.PlaybackSyncStatusText = "Zaznaczenie musi mieścić się w jednym zielonym, ciągłym fragmencie nagrania. Spróbuj ponownie.";
+                RefreshDahuaRecordingTimeline();
+                e.Handled = true;
+                return;
+            }
+            DahuaStartDatePicker.SelectedDate = start.Date;
+            DahuaStartTimeBox.Text = start.ToString("HH:mm:ss");
+            DahuaEndDatePicker.SelectedDate = finish.Date;
+            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
+            DahuaEndTimeBox.Text = finish.ToString("HH:mm:ss");
+            ViewModel.Dahua.PlaybackSyncStatusText = $"Zaznaczono {start:HH:mm:ss} – {finish:HH:mm:ss} ({(finish-start).TotalMinutes:0.0} min). Możesz odtworzyć lub pobrać fragment.";
+            RefreshDahuaRecordingTimeline();
+            e.Handled = true;
+        }
+
+        private void DahuaRecordingTimelineCanvas_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            _dahuaTimelineIsSelecting = false;
+            _dahuaTimelineDragStarted = false;
+        }
+
+        private void DahuaPlayFromTimeline_Click(object sender, RoutedEventArgs e)
+        {
+            DateTime? start = _dahuaTimelineSelectionStart.HasValue && _dahuaTimelineSelectionEnd.HasValue
+                ? (_dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionStart : _dahuaTimelineSelectionEnd)
+                : GetDahuaStartDateTime();
+            DateTime? end = _dahuaTimelineSelectionStart.HasValue && _dahuaTimelineSelectionEnd.HasValue
+                ? (_dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value ? _dahuaTimelineSelectionEnd : _dahuaTimelineSelectionStart)
+                : null;
+            if (start == null) return;
+            DahuaRecordItem? record = FindDahuaRecordAt(start.Value, GetSelectedDahuaArchiveChannel());
+            if (record == null)
+            {
+                MessageBox.Show(this, "Wskaż kliknięciem zielony fragment nagrania albo zaznacz go przeciągnięciem.", "Brak nagrania", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (end == null || end.Value <= start.Value) end = record.EndTime;
+            DahuaStartDatePicker.SelectedDate = start.Value.Date;
+            DahuaStartTimeBox.Text = start.Value.ToString("HH:mm:ss");
+            DahuaEndDatePicker.SelectedDate = end.Value.Date;
+            DahuaEndTimeBox.Text = end.Value.ToString("HH:mm:ss");
+            DahuaStartSynchronizedPlayback_Click(sender, e);
         }
 
         private void DahuaRecordingTimelineCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -2093,97 +2270,102 @@ namespace VideoPlayer
         private void DahuaRecordingTimelineCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (_currentDahuaDevice == null || DahuaRecordingTimelineCanvas.ActualWidth <= 0) return;
-            Point point = e.GetPosition(DahuaRecordingTimelineCanvas);
-            const double left = 24;
-            double usableWidth = Math.Max(1, DahuaRecordingTimelineCanvas.ActualWidth - left - 8);
-            double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
-            double viewStartHour = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
-            double pointerRatio = Math.Clamp((point.X - left) / usableWidth, 0, 1);
-            double hour = Math.Clamp(viewStartHour + pointerRatio * visibleHours, 0, 24);
-            DateTime selectedTime = (DahuaStartDatePicker.SelectedDate ?? DateTime.Today).Date.AddSeconds(hour * 3600);
-            DahuaStartTimeBox.Text = selectedTime.ToString("HH:mm:ss");
-
-            if (_dahuaMultiPlaybackHandles.Count > 0 && selectedTime >= _dahuaPlaybackRangeStart && selectedTime <= _dahuaPlaybackRangeEnd)
+            DateTime pressedTime = GetDahuaTimelineTime(e.GetPosition(DahuaRecordingTimelineCanvas));
+            int channel = GetSelectedDahuaArchiveChannel();
+            if (FindDahuaRecordAt(pressedTime, channel) == null)
             {
-                int offset = (int)Math.Clamp(Math.Round((selectedTime - _dahuaPlaybackRangeStart).TotalSeconds), 0, GetDahuaPlaybackDurationSeconds());
-                SeekDahuaSynchronizedPlayback(offset);
-                DahuaPlaybackSyncStatusText.Text = $"Przewinięto do {selectedTime:HH:mm:ss}";
+                ViewModel.Dahua.PlaybackSyncStatusText = ViewModel.Dahua.ArchiveRecords.Count == 0
+                    ? "Najpierw wyszukaj nagrania dla wybranego kanału i dnia. Zielone pasy oznaczają dostępne nagrania."
+                    : $"W tym miejscu ({pressedTime:HH:mm:ss}) nie ma nagrania. Kliknij lub przeciągnij po zielonym pasie.";
+                return;
             }
-            else
-            {
-                DahuaPlaybackSyncStatusText.Text = _dahuaMultiPlaybackHandles.Count == 0
-                    ? $"Wybrano {selectedTime:HH:mm:ss}. Uruchom odtwarzanie archiwum."
-                    : $"Godzina {selectedTime:HH:mm:ss} jest poza zakresem odtwarzania.";
-            }
+            _dahuaTimelinePointerDown = e.GetPosition(DahuaRecordingTimelineCanvas);
+            _dahuaTimelineSelectionStart = pressedTime;
+            _dahuaTimelineSelectionEnd = pressedTime;
+            _dahuaTimelineIsSelecting = true;
+            _dahuaTimelineDragStarted = false;
+            DahuaRecordingTimelineCanvas.CaptureMouse();
             e.Handled = true;
         }
 
         private void DahuaArchiveSpeedBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_dahuaUpdatingArchiveSpeed || !IsLoaded || _dahuaMultiPlaybackHandles.Count == 0 ||
+            if (_dahuaUpdatingArchiveSpeed || !IsLoaded || DahuaMultiPlaybackHandles.Count == 0 ||
                 DahuaArchiveSpeedBox.SelectedItem is not ComboBoxItem item ||
-                !double.TryParse(item.Tag?.ToString(), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out double requestedSpeed))
+                !double.TryParse(item.Tag?.ToString(), NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out double requestedSpeed))
                 return;
 
             double elapsed = _dahuaPlaybackElapsedBeforePause;
             if (!_dahuaSynchronizedPlaybackPaused)
                 elapsed += (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
 
-            int succeeded = 0;
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-            {
-                bool ok = DahuaNetSdk.CLIENT_NormalPlayBack(handle);
-                int steps = requestedSpeed == 1.0 ? 0 : (int)Math.Round(Math.Abs(Math.Log(requestedSpeed, 2)));
-                for (int step = 0; ok && step < steps; step++)
-                    ok = requestedSpeed > 1.0 ? DahuaNetSdk.CLIENT_FastPlayBack(handle) : DahuaNetSdk.CLIENT_SlowPlayBack(handle);
-                if (ok) succeeded++;
-            }
+            int succeeded = ViewModel.Dahua.SetArchivePlaybackSpeed(requestedSpeed);
 
-            if (succeeded != _dahuaMultiPlaybackHandles.Count)
+            if (succeeded != DahuaMultiPlaybackHandles.Count)
             {
-                foreach (IntPtr handle in _dahuaMultiPlaybackHandles) DahuaNetSdk.CLIENT_NormalPlayBack(handle);
                 _dahuaArchivePlaybackSpeed = 1.0;
                 _dahuaUpdatingArchiveSpeed = true;
                 DahuaArchiveSpeedBox.SelectedIndex = 2;
                 _dahuaUpdatingArchiveSpeed = false;
-                DahuaPlaybackSyncStatusText.Text = "Rejestrator nie przyjął zmiany tempa. Przywrócono 1×.";
+                ViewModel.Dahua.PlaybackSyncStatusText = "Rejestrator nie przyjął zmiany tempa. Przywrócono 1×.";
                 return;
             }
 
             _dahuaPlaybackElapsedBeforePause = Math.Clamp(elapsed, 0, DahuaPlaybackPositionSlider.Maximum);
             _dahuaPlaybackSegmentStartedAt = DateTime.Now;
             _dahuaArchivePlaybackSpeed = requestedSpeed;
-            DahuaPlaybackSyncStatusText.Text = $"Tempo odtwarzania: {requestedSpeed.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}× ({succeeded} kanałów)";
+            ViewModel.Dahua.PlaybackSyncStatusText = $"Tempo odtwarzania: {requestedSpeed.ToString("0.##", CultureInfo.InvariantCulture)}× ({succeeded} kanałów)";
         }
 
         private void SeekDahuaSynchronizedPlayback(int offsetSeconds)
         {
             offsetSeconds = (int)Math.Clamp(offsetSeconds, 0, GetDahuaPlaybackDurationSeconds());
-            int succeeded = 0;
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-                if (DahuaNetSdk.CLIENT_SeekPlayBack(handle, offsetSeconds, 0)) succeeded++;
-            if (succeeded != _dahuaMultiPlaybackHandles.Count)
+            int succeeded = ViewModel.Dahua.SeekArchivePlayback(offsetSeconds);
+            if (succeeded != DahuaMultiPlaybackHandles.Count)
             {
-                DahuaPlaybackSyncStatusText.Text = $"Przewijanie nie powiodło się ({succeeded}/{_dahuaMultiPlaybackHandles.Count}).";
+                ViewModel.Dahua.PlaybackSyncStatusText = $"Przewijanie nie powiodło się ({succeeded}/{DahuaMultiPlaybackHandles.Count}).";
                 return;
             }
             _dahuaPlaybackElapsedBeforePause = offsetSeconds;
             _dahuaPlaybackSegmentStartedAt = DateTime.Now;
             UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: true);
             DahuaPlaybackPositionSlider.Value = Math.Clamp(offsetSeconds, DahuaPlaybackPositionSlider.Minimum, DahuaPlaybackPositionSlider.Maximum);
-            DahuaPlaybackPositionText.Text = $"{_dahuaPlaybackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
-            DahuaPlaybackSyncStatusText.Text = $"Przewinięto kanały: {succeeded}/{_dahuaMultiPlaybackHandles.Count}";
+            ViewModel.Dahua.PlaybackPositionText = $"{_dahuaPlaybackRangeStart.AddSeconds(offsetSeconds):HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+            RefreshDahuaRecordingTimeline();
+            ViewModel.Dahua.PlaybackSyncStatusText = $"Przewinięto kanały: {succeeded}/{DahuaMultiPlaybackHandles.Count}";
+        }
+
+        private void DahuaPlaybackPositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_dahuaIsSeekingPlayback || DahuaMultiPlaybackHandles.Count == 0) return;
+
+            double offset = Math.Clamp(e.NewValue, 0, GetDahuaPlaybackDurationSeconds());
+            DateTime previewTime = _dahuaPlaybackRangeStart.AddSeconds(offset);
+            ViewModel.Dahua.PlaybackPositionText = $"{previewTime:HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+
+            DateTime selectedDay = (DahuaStartDatePicker.SelectedDate ?? previewTime.Date).Date;
+            if (previewTime.Date != selectedDay)
+                DahuaStartDatePicker.SelectedDate = previewTime.Date;
+
+            double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
+            double hour = previewTime.TimeOfDay.TotalHours;
+            double viewStart = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
+            if (hour < viewStart || hour > viewStart + visibleHours)
+                _dahuaRecordingTimelineStartHour = Math.Clamp(
+                    hour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+
+            RefreshDahuaRecordingTimeline();
         }
 
         private void DahuaPlaybackSlider_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_dahuaMultiPlaybackHandles.Count > 0) _dahuaIsSeekingPlayback = true;
+            if (DahuaMultiPlaybackHandles.Count > 0) _dahuaIsSeekingPlayback = true;
         }
 
         private void DahuaPlaybackSlider_LostMouseCapture(object sender, MouseEventArgs e)
         {
-            if (_dahuaIsSeekingPlayback && _dahuaMultiPlaybackHandles.Count > 0) CommitDahuaPlaybackSliderSeek();
+            if (_dahuaIsSeekingPlayback && DahuaMultiPlaybackHandles.Count > 0) CommitDahuaPlaybackSliderSeek();
         }
 
         private void DahuaPlaybackSlider_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => CommitDahuaPlaybackSliderSeek();
@@ -2192,46 +2374,50 @@ namespace VideoPlayer
         {
             if (!_dahuaIsSeekingPlayback) return;
             _dahuaIsSeekingPlayback = false;
-            if (_dahuaMultiPlaybackHandles.Count == 0) return;
+            if (DahuaMultiPlaybackHandles.Count == 0) return;
             int offsetSeconds = (int)Math.Clamp(Math.Round(DahuaPlaybackPositionSlider.Value), 0, GetDahuaPlaybackDurationSeconds());
             SeekDahuaSynchronizedPlayback(offsetSeconds);
         }
 
         private void DahuaPlaybackUiTimer_Tick(object? sender, EventArgs e)
         {
-            if (_dahuaIsSeekingPlayback || _dahuaSynchronizedPlaybackPaused || _dahuaMultiPlaybackHandles.Count == 0) return;
-            double elapsed = _dahuaPlaybackElapsedBeforePause + (DateTime.Now - _dahuaPlaybackSegmentStartedAt).TotalSeconds * _dahuaArchivePlaybackSpeed;
-            elapsed = Math.Clamp(elapsed, 0, GetDahuaPlaybackDurationSeconds());
-            double playheadHour = (_dahuaPlaybackRangeStart.AddSeconds(elapsed) - _dahuaPlaybackRangeStart.Date).TotalHours;
+            if (_dahuaIsSeekingPlayback || _dahuaSynchronizedPlaybackPaused || DahuaMultiPlaybackHandles.Count == 0) return;
+            double elapsed = GetDahuaPlaybackElapsedSeconds();
+            DateTime playheadTime = _dahuaPlaybackRangeStart.AddSeconds(elapsed);
+            DateTime selectedDay = (DahuaStartDatePicker.SelectedDate ?? _dahuaPlaybackRangeStart.Date).Date;
+            if (playheadTime.Date != selectedDay)
+            {
+                selectedDay = playheadTime.Date;
+                DahuaStartDatePicker.SelectedDate = selectedDay;
+            }
+
             double visibleHours = 24.0 / _dahuaRecordingTimelineZoom;
+            double playheadHour = (playheadTime - selectedDay).TotalHours;
             double viewStart = Math.Clamp(_dahuaRecordingTimelineStartHour, 0, 24.0 - visibleHours);
             if (playheadHour < viewStart || playheadHour > viewStart + visibleHours)
-            {
-                _dahuaRecordingTimelineStartHour = Math.Clamp(playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
-                RefreshDahuaRecordingTimeline();
-                UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
-            }
+                _dahuaRecordingTimelineStartHour = Math.Clamp(
+                    playheadHour - visibleHours * 0.15, 0, 24.0 - visibleHours);
+
+            UpdateDahuaPlaybackSliderRange(keepPlayheadVisible: false);
             DahuaPlaybackPositionSlider.Value = Math.Clamp(elapsed, DahuaPlaybackPositionSlider.Minimum, DahuaPlaybackPositionSlider.Maximum);
-            DahuaPlaybackPositionText.Text = $"{_dahuaPlaybackRangeStart.AddSeconds(elapsed):HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+            ViewModel.Dahua.PlaybackPositionText = $"{playheadTime:HH:mm:ss} / {_dahuaPlaybackRangeEnd:HH:mm:ss}";
+            RefreshDahuaRecordingTimeline();
             if (elapsed >= GetDahuaPlaybackDurationSeconds())
             {
                 _dahuaPlaybackUiTimer.Stop();
-                DahuaPlaybackSyncStatusText.Text = "Koniec zakresu archiwum";
+                ViewModel.Dahua.PlaybackSyncStatusText = "Koniec zakresu archiwum";
             }
         }
 
         private void DahuaToggleSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
         {
-            if (_dahuaMultiPlaybackHandles.Count == 0) return;
+            if (DahuaMultiPlaybackHandles.Count == 0) return;
             bool pause = !_dahuaSynchronizedPlaybackPaused;
-            var succeededHandles = new List<IntPtr>();
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-                if (DahuaNetSdk.CLIENT_PausePlayBack(handle, pause)) succeededHandles.Add(handle);
+            bool synchronized = ViewModel.Dahua.SetArchivePlaybackPaused(pause);
 
-            if (succeededHandles.Count != _dahuaMultiPlaybackHandles.Count)
+            if (!synchronized)
             {
-                foreach (IntPtr handle in succeededHandles) DahuaNetSdk.CLIENT_PausePlayBack(handle, !pause);
-                DahuaPlaybackSyncStatusText.Text = "Nie udało się zsynchronizować sterowania";
+                ViewModel.Dahua.PlaybackSyncStatusText = "Nie udało się zsynchronizować sterowania";
                 return;
             }
             if (pause)
@@ -2246,16 +2432,13 @@ namespace VideoPlayer
                 _dahuaSynchronizedPlaybackPaused = false;
                 _dahuaPlaybackUiTimer.Start();
             }
-            DahuaPlaybackSyncStatusText.Text = pause ? "Wstrzymano wszystkie kanały" : "Wznowiono wszystkie kanały";
+            ViewModel.Dahua.PlaybackSyncStatusText = pause ? "Wstrzymano wszystkie kanały" : "Wznowiono wszystkie kanały";
         }
 
         private void DahuaStopPlaybackHandlesOnly()
         {
-            foreach (IntPtr handle in _dahuaMultiPlaybackHandles)
-            {
-                try { DahuaNetSdk.CLIENT_StopPlayBack(handle); } catch { }
-            }
-            _dahuaMultiPlaybackHandles.Clear();
+            foreach (IntPtr handle in DahuaMultiPlaybackHandles)
+                ViewModel.Dahua.StopArchivePlayback(handle);
             foreach (var slot in _dahuaMultiViewSlots) slot.PlaybackHandle = IntPtr.Zero;
         }
 
@@ -2277,14 +2460,15 @@ namespace VideoPlayer
                 DahuaPlaybackPositionSlider.IsEnabled = false;
                 DahuaPlaybackPositionSlider.Value = 0;
             }
-            if (DahuaPlaybackPositionText != null) DahuaPlaybackPositionText.Text = "00:00:00 / 00:00:00";
+            ViewModel.Dahua.PlaybackPositionText = "00:00:00 / 00:00:00";
+            RefreshDahuaRecordingTimeline();
         }
 
         private void DahuaStopSynchronizedPlayback_Click(object sender, RoutedEventArgs e)
         {
             DahuaStopSynchronizedPlayback();
-            DahuaPlaybackSyncStatusText.Text = "Odtwarzanie zatrzymane";
-            DahuaStatusLabel.Text = "Zatrzymano zsynchronizowane odtwarzanie archiwum.";
+            ViewModel.Dahua.PlaybackSyncStatusText = "Odtwarzanie zatrzymane";
+            ViewModel.Dahua.StatusText = "Zatrzymano zsynchronizowane odtwarzanie archiwum.";
         }
 
         #endregion
@@ -2316,19 +2500,18 @@ namespace VideoPlayer
                 string filename = $"Dahua_CH{captureChannel}_{DateTime.Now:yyyyMMdd_HHmmssfff}.jpg";
                 string fullPath = Path.Combine(folder, filename);
 
-                bool ok = DahuaNetSdk.CLIENT_CapturePictureEx(handle, fullPath, DahuaNetSdk.NET_CAPTURE_FORMATS.JPEG);
-                if (ok && File.Exists(fullPath))
+                if (DahuaSessionService.CapturePicture(handle, fullPath))
                 {
-                    DahuaStatusLabel.Text = $"Zapisano zrzut: {filename}";
-                    AddRecentScreenshot(fullPath);
+                    ViewModel.Dahua.StatusText = $"Zapisano zrzut: {filename}";
+                    RecordRecentScreenshot(fullPath);
                     return fullPath;
                 }
-                DahuaStatusLabel.Text = "Błąd zapisu zrzutu z biblioteki Dahua NetSDK.";
+                ViewModel.Dahua.StatusText = "Błąd zapisu zrzutu z biblioteki Dahua NetSDK.";
                 return null;
             }
             catch (Exception ex)
             {
-                DahuaStatusLabel.Text = $"Wyjątek podczas zapisu klatki: {ex.Message}";
+                ViewModel.Dahua.StatusText = $"Wyjątek podczas zapisu klatki: {ex.Message}";
                 return null;
             }
         }
@@ -2357,11 +2540,14 @@ namespace VideoPlayer
 
         private void DahuaArchiveChannelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            ClearDahuaTimelineSelection();
             _dahuaArchiveAvailableDays.Clear();
             _dahuaRecorderAvailableDays.Clear();
-            string cachePrefix = $"{_currentDahuaDevice?.Id}|{GetSelectedDahuaArchiveChannel()}|";
-            foreach (var entry in _dahuaRecorderAvailabilityCache.Where(pair => pair.Key.StartsWith(cachePrefix, StringComparison.Ordinal)))
-                _dahuaRecorderAvailableDays.UnionWith(entry.Value);
+            if (_currentDahuaDevice != null)
+            {
+                foreach (DateTime day in DahuaSession.GetCachedAvailabilityForChannel(_currentDahuaDevice.Id, GetSelectedDahuaArchiveChannel()))
+                    _dahuaRecorderAvailableDays.Add(day);
+            }
             RefreshOpenDahuaArchiveCalendars();
             RefreshDahuaArchiveSelectedChannelsSummary();
             foreach (DatePicker picker in new[] { DahuaStartDatePicker, DahuaEndDatePicker })
@@ -2415,84 +2601,48 @@ namespace VideoPlayer
             if (_currentDahuaDevice == null || DahuaArchiveChannelBox.SelectedItem == null) return;
             int channel = GetSelectedDahuaArchiveChannel();
             DateTime monthStart = new(displayedDate.Year, displayedDate.Month, 1);
-            string cacheKey = $"{_currentDahuaDevice.Id}|{channel}|{monthStart:yyyyMM}";
+            string deviceId = _currentDahuaDevice.Id;
 
-            if (_dahuaRecorderAvailabilityCache.TryGetValue(cacheKey, out var cachedDays))
+            if (DahuaSession.TryGetCachedMonthAvailability(deviceId, channel, monthStart, out var cachedDays) && cachedDays != null)
             {
                 _dahuaRecorderAvailableDays.UnionWith(cachedDays);
                 RefreshOpenDahuaArchiveCalendars();
-                DahuaCalendarAvailabilityStatusText.Text = $"Dostępność pobrana z pamięci: {cachedDays.Count} dni w {monthStart:MM.yyyy}.";
+                ViewModel.Dahua.CalendarAvailabilityStatusText = $"Dostępność pobrana z pamięci: {cachedDays.Count} dni w {monthStart:MM.yyyy}.";
                 return;
             }
-            if (!_dahuaAvailabilityQueriesInProgress.Add(cacheKey)) return;
+            if (!DahuaSession.TryBeginMonthAvailabilityQuery(deviceId, channel, monthStart)) return;
 
-            string deviceId = _currentDahuaDevice.Id;
-            DahuaCalendarAvailabilityStatusText.Text = $"Sprawdzanie dostępności nagrań: {monthStart:MM.yyyy}, kanał {channel}…";
+            ViewModel.Dahua.CalendarAvailabilityStatusText = $"Sprawdzanie dostępności nagrań: {monthStart:MM.yyyy}, kanał {channel}…";
 
             try
             {
-                if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, deviceId, StringComparison.Ordinal))
+                if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
                 {
                     _dahuaConnectForCalendarAvailability = true;
-                    try { DahuaConnect_Click(this, new RoutedEventArgs()); }
+                    try { await DahuaConnectAsync(); }
                     finally { _dahuaConnectForCalendarAvailability = false; }
-                    if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, deviceId, StringComparison.Ordinal))
+                    if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
                         throw new InvalidOperationException("Nie udało się połączyć z wybranym rejestratorem.");
                 }
 
-                IntPtr login = _dahuaLoginId;
-                HashSet<DateTime> days = await QueryDahuaRecorderAvailabilityForMonthAsync(login, channel, monthStart);
+                HashSet<DateTime> days = await DahuaSession.QueryMonthAvailabilityAsync(deviceId, channel, monthStart);
                 if (_currentDahuaDevice?.Id != deviceId || GetSelectedDahuaArchiveChannel() != channel) return;
 
-                _dahuaRecorderAvailabilityCache[cacheKey] = days;
                 _dahuaRecorderAvailableDays.UnionWith(days);
                 RefreshOpenDahuaArchiveCalendars();
-                DahuaCalendarAvailabilityStatusText.Text = days.Count == 0
+                ViewModel.Dahua.CalendarAvailabilityStatusText = days.Count == 0
                     ? $"Brak nagrań w {monthStart:MM.yyyy} (kanał {channel})."
                     : $"Nagrania w {days.Count} dniach miesiąca {monthStart:MM.yyyy} (kanał {channel}).";
             }
             catch (Exception ex)
             {
                 if (_currentDahuaDevice?.Id == deviceId && GetSelectedDahuaArchiveChannel() == channel)
-                    DahuaCalendarAvailabilityStatusText.Text = $"Nie udało się pobrać dostępności: {ex.Message}";
+                    ViewModel.Dahua.CalendarAvailabilityStatusText = $"Nie udało się pobrać dostępności: {ex.Message}";
             }
-            finally { _dahuaAvailabilityQueriesInProgress.Remove(cacheKey); }
-        }
-
-        private async Task<HashSet<DateTime>> QueryDahuaRecorderAvailabilityForMonthAsync(IntPtr login, int channel, DateTime monthStart)
-        {
-            await _dahuaArchiveAvailabilitySemaphore.WaitAsync();
-            try
+            finally
             {
-                return await Task.Run(() =>
-                {
-                    var availableDays = new HashSet<DateTime>();
-                    ConfigureDahuaRecordModes(login);
-                    DateTime monthEnd = monthStart.AddMonths(1);
-                    DateTime lastDay = monthEnd < DateTime.Today.AddDays(1) ? monthEnd : DateTime.Today.AddDays(1);
-                    int itemSize = Marshal.SizeOf<DahuaNetSdk.NET_RECORDFILE_INFO>();
-                    IntPtr buffer = Marshal.AllocHGlobal(itemSize);
-                    try
-                    {
-                        for (DateTime day = monthStart; day < lastDay; day = day.AddDays(1))
-                        {
-                            for (int i = 0; i < itemSize; i++) Marshal.WriteByte(buffer, i, 0);
-                            var from = DahuaNetSdk.NET_TIME.FromDateTime(day);
-                            var to = DahuaNetSdk.NET_TIME.FromDateTime(day.AddDays(1));
-                            bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(login, Math.Max(0, channel - 1), 0, ref from, ref to, null, buffer, itemSize, out int count, 8000, false);
-                            if (!ok)
-                            {
-                                uint error = DahuaNetSdk.CLIENT_GetLastError();
-                                throw new InvalidOperationException($"Zapytanie o {day:dd.MM.yyyy} nie powiodło się: {DahuaNetSdk.GetErrorDescription(error)}");
-                            }
-                            if (count > 0) availableDays.Add(day.Date);
-                        }
-                    }
-                    finally { Marshal.FreeHGlobal(buffer); }
-                    return availableDays;
-                });
+                DahuaSession.EndMonthAvailabilityQuery(deviceId, channel, monthStart);
             }
-            finally { _dahuaArchiveAvailabilitySemaphore.Release(); }
         }
 
         private void RefreshDahuaDatePickerCalendar(DatePicker picker)
@@ -2568,15 +2718,6 @@ namespace VideoPlayer
             return DahuaEndDatePicker.SelectedDate.Value.Date + time;
         }
 
-        private static void ConfigureDahuaRecordModes(IntPtr login)
-        {
-            if (login == IntPtr.Zero) throw new InvalidOperationException("Brak aktywnego uchwytu logowania Dahua.");
-            int streamType = 0;
-            DahuaNetSdk.CLIENT_SetDeviceMode(login, 6, ref streamType);
-            int recordType = 0;
-            DahuaNetSdk.CLIENT_SetDeviceMode(login, 8, ref recordType);
-        }
-
         private int GetSelectedDahuaArchiveChannel() =>
             DahuaArchiveChannelBox.SelectedItem is ComboBoxItem item && item.Tag is int ch ? ch : _dahuaCurrentChannel;
 
@@ -2585,72 +2726,29 @@ namespace VideoPlayer
             if (_currentDahuaDevice == null) return;
             var start = GetDahuaStartDateTime();
             var end = GetDahuaEndDateTime();
-            if (start == null || end == null || end <= start)
+            if (!DahuaSessionService.ValidateArchiveRange(start, end, out string error))
             {
-                MessageBox.Show(this, "Wybierz poprawny przedział czasu.", "Błędny zakres dat", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, error, "Błędny zakres dat", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
-                DahuaConnect_Click(sender, e);
-                if (_dahuaLoginId == IntPtr.Zero) return;
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
             }
 
             int channel = GetSelectedDahuaArchiveChannel();
-            int channelIndex = Math.Max(0, channel - 1);
-            IntPtr login = _dahuaLoginId;
-            var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
-            var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
 
-            DahuaDownloadStatusText.Visibility = Visibility.Visible;
-            DahuaDownloadStatusText.Text = $"Wyszukiwanie nagrań: {_currentDahuaDevice.Name}, kanał {channel}…";
-            DahuaArchiveRecordsGrid.ItemsSource = null;
+            ClearDahuaTimelineSelection();
+            ViewModel.Dahua.DownloadStatusText = $"Wyszukiwanie nagrań: {_currentDahuaDevice.Name}, kanał {channel}…";
+            ViewModel.Dahua.ArchiveRecords.Clear();
             RefreshDahuaRecordingTimeline();
             _dahuaArchiveAvailableDays.Clear();
             RefreshOpenDahuaArchiveCalendars();
-            DahuaDevicesListBox.IsEnabled = false;
-            DahuaArchiveChannelBox.IsEnabled = false;
-            DahuaStartDatePicker.IsEnabled = false;
-            DahuaEndDatePicker.IsEnabled = false;
-            DahuaStartTimeBox.IsEnabled = false;
-            DahuaEndTimeBox.IsEnabled = false;
-            DahuaSearchArchiveButton.IsEnabled = false;
 
             try
             {
-                List<DahuaRecordItem> records = await Task.Run(() =>
-                {
-                    const int maxRecords = 200;
-                    int itemSize = Marshal.SizeOf<DahuaNetSdk.NET_RECORDFILE_INFO>();
-                    int bufferSize = checked(itemSize * maxRecords);
-                    IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
-                    try
-                    {
-                        for (int i = 0; i < bufferSize; i++) Marshal.WriteByte(buffer, i, 0);
-                        ConfigureDahuaRecordModes(login);
-                        bool ok = DahuaNetSdk.CLIENT_QueryRecordFile(login, channelIndex, 0, ref tmStart, ref tmEnd, null, buffer, bufferSize, out int count, 8000, false);
-                        if (!ok) throw new InvalidOperationException(DahuaNetSdk.GetErrorDescription(DahuaNetSdk.CLIENT_GetLastError()));
-
-                        var result = new List<DahuaRecordItem>();
-                        int safeCount = Math.Clamp(count, 0, maxRecords);
-                        for (int i = 0; i < safeCount; i++)
-                        {
-                            var native = Marshal.PtrToStructure<DahuaNetSdk.NET_RECORDFILE_INFO>(IntPtr.Add(buffer, i * itemSize));
-                            DateTime recordStart = new((int)native.starttime.dwYear, (int)native.starttime.dwMonth, (int)native.starttime.dwDay, (int)native.starttime.dwHour, (int)native.starttime.dwMinute, (int)native.starttime.dwSecond);
-                            DateTime recordEnd = new((int)native.endtime.dwYear, (int)native.endtime.dwMonth, (int)native.endtime.dwDay, (int)native.endtime.dwHour, (int)native.endtime.dwMinute, (int)native.endtime.dwSecond);
-                            if (recordEnd <= recordStart) continue;
-                            result.Add(new DahuaRecordItem
-                            {
-                                Channel = channel, FileName = native.FileName, StartTime = recordStart,
-                                EndTime = recordEnd, SizeKb = native.size, RecordType = native.nRecordFileType
-                            });
-                        }
-                        return result.OrderBy(x => x.StartTime).ToList();
-                    }
-                    finally { Marshal.FreeHGlobal(buffer); }
-                });
-
-                DahuaArchiveRecordsGrid.ItemsSource = records;
+                List<DahuaRecordItem> records = await ViewModel.Dahua.SearchArchiveRecordsAsync(channel, start!.Value, end!.Value);
                 RefreshDahuaRecordingTimeline();
                 foreach (DahuaRecordItem record in records)
                 {
@@ -2661,27 +2759,11 @@ namespace VideoPlayer
                     }
                 }
                 RefreshOpenDahuaArchiveCalendars();
-
-                DahuaDownloadStatusText.Text = records.Count == 0
-                    ? "Rejestrator nie zwrócił nagrań dla wybranego kanału i zakresu."
-                    : records.Count >= 200
-                        ? "Znaleziono co najmniej 200 nagrań. Zawęź zakres czasu."
-                        : $"Znaleziono {records.Count} nagrań.";
             }
             catch (Exception ex)
             {
-                DahuaDownloadStatusText.Text = "Błąd wyszukiwania archiwum.";
+                ViewModel.Dahua.DownloadStatusText = "Błąd wyszukiwania archiwum.";
                 MessageBox.Show(this, $"Nie udało się wyszukać nagrań: {ex.Message}", "Archiwum Dahua", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                DahuaDevicesListBox.IsEnabled = true;
-                DahuaArchiveChannelBox.IsEnabled = true;
-                DahuaStartDatePicker.IsEnabled = true;
-                DahuaEndDatePicker.IsEnabled = true;
-                DahuaStartTimeBox.IsEnabled = true;
-                DahuaEndTimeBox.IsEnabled = true;
-                DahuaSearchArchiveButton.IsEnabled = true;
             }
         }
 
@@ -2693,6 +2775,13 @@ namespace VideoPlayer
             DahuaStartTimeBox.Text = record.StartTime.ToString("HH:mm:ss");
             DahuaEndDatePicker.SelectedDate = record.EndTime.Date;
             DahuaEndTimeBox.Text = record.EndTime.ToString("HH:mm:ss");
+            _dahuaArchiveSelectedChannels.Clear();
+            _dahuaArchiveSelectedChannels.Add(record.Channel);
+            _dahuaUpdatingArchiveChannelChecks = true;
+            foreach (CheckBox check in DahuaArchiveChannelChecksPanel.Children.OfType<CheckBox>())
+                check.IsChecked = check.Tag is int number && number == record.Channel;
+            _dahuaUpdatingArchiveChannelChecks = false;
+            UpdateDahuaArchiveChannelCheckStates();
             for (int i = 0; i < DahuaArchiveChannelBox.Items.Count; i++)
             {
                 if (DahuaArchiveChannelBox.Items[i] is ComboBoxItem item && item.Tag is int ch && ch == record.Channel)
@@ -2703,6 +2792,22 @@ namespace VideoPlayer
             }
         }
 
+        private void DahuaArchivePlay_Click(object sender, RoutedEventArgs e)
+        {
+            // Zaznaczony wynik wyszukiwania ma pierwszeństwo:
+            // odtwarzamy dokładny zakres i kanał tego nagrania.
+            var record = GetSelectedDahuaRecord();
+            if (record != null)
+            {
+                ApplyDahuaRecordRange(record);
+                SelectDahuaModernChannel(record.Channel);
+            }
+
+            DahuaStartSynchronizedPlayback_Click(sender, e);
+        }
+
+        // Zachowane jako zgodnościowe handlery — główny interfejs używa teraz
+        // jednego przycisku odtwarzania obsługującego zakres lub wybrany wynik.
         private void DahuaPlaySelectedRecord_Click(object sender, RoutedEventArgs e)
         {
             var record = GetSelectedDahuaRecord();
@@ -2720,158 +2825,181 @@ namespace VideoPlayer
             DahuaLoadToPlayer_Click(sender, e);
         }
 
-        private async Task<string> RunDahuaFfmpegConversionAsync(string ffmpegPath, string inputPath, string outputPath, bool transcodeVideo)
-        {
-            var psi = new ProcessStartInfo { FileName = ffmpegPath, UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
-            psi.ArgumentList.Add("-y");
-            psi.ArgumentList.Add("-hide_banner");
-            psi.ArgumentList.Add("-i");
-            psi.ArgumentList.Add(inputPath);
-            psi.ArgumentList.Add("-map");
-            psi.ArgumentList.Add("0:v:0");
-            psi.ArgumentList.Add("-map");
-            psi.ArgumentList.Add("0:a?");
-            if (transcodeVideo)
-            {
-                psi.ArgumentList.Add("-c:v"); psi.ArgumentList.Add("libx264");
-                psi.ArgumentList.Add("-preset"); psi.ArgumentList.Add("veryfast");
-                psi.ArgumentList.Add("-crf"); psi.ArgumentList.Add("20");
-            }
-            else { psi.ArgumentList.Add("-c:v"); psi.ArgumentList.Add("copy"); }
-            psi.ArgumentList.Add("-c:a"); psi.ArgumentList.Add("aac");
-            psi.ArgumentList.Add("-b:a"); psi.ArgumentList.Add("128k");
-            psi.ArgumentList.Add("-movflags"); psi.ArgumentList.Add("+faststart");
-            psi.ArgumentList.Add(outputPath);
-
-            using var process = Process.Start(psi) ?? throw new InvalidOperationException("Nie można uruchomić FFmpeg.");
-            Task<string> errorTask = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-            string error = await errorTask;
-            if (process.ExitCode != 0 || !File.Exists(outputPath) || new FileInfo(outputPath).Length == 0)
-                throw new InvalidOperationException(error);
-            return error;
-        }
-
-        private async Task ConvertDahuaRecordingToMp4Async(string inputPath, string outputPath)
-        {
-            string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath))
-                throw new FileNotFoundException("Nie znaleziono ffmpeg.exe.", ffmpegPath);
-            try { await RunDahuaFfmpegConversionAsync(ffmpegPath, inputPath, outputPath, transcodeVideo: false); }
-            catch (Exception remuxError)
-            {
-                if (File.Exists(outputPath)) File.Delete(outputPath);
-                try { await RunDahuaFfmpegConversionAsync(ffmpegPath, inputPath, outputPath, transcodeVideo: true); }
-                catch (Exception transcodeError)
-                {
-                    throw new InvalidOperationException("Konwersja DAV do MP4 nie powiodła się. Remux: " + remuxError.Message + " | H.264: " + transcodeError.Message, transcodeError);
-                }
-            }
-        }
-
         private async void DahuaLoadToPlayer_Click(object sender, RoutedEventArgs e)
         {
             if (_currentDahuaDevice == null) return;
+
+            // Jeśli zaznaczono wynik wyszukiwania, pobieramy dokładnie to
+            // nagranie. W przeciwnym razie używamy kamery i zakresu z formularza.
+            var selectedRecord = GetSelectedDahuaRecord();
+            if (selectedRecord != null)
+                ApplyDahuaRecordRange(selectedRecord);
             var start = GetDahuaStartDateTime();
             var end = GetDahuaEndDateTime();
-            if (start == null || end == null || end <= start)
+            if (!DahuaSessionService.ValidateArchiveRange(start, end, out string error))
             {
-                MessageBox.Show(this, "Wybierz poprawny przedział czasu.", "Błędny zakres dat", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, error, "Błędny zakres dat", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             int channel = GetSelectedDahuaArchiveChannel();
-            string chName = _currentDahuaDevice.GetChannelName(channel);
-            if (_dahuaLoginId == IntPtr.Zero || !string.Equals(_connectedDahuaDeviceId, _currentDahuaDevice.Id, StringComparison.Ordinal))
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
             {
-                DahuaConnect_Click(sender, e);
-                if (_dahuaLoginId == IntPtr.Zero) return;
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
             }
 
-            string outputDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VideoPlayer", "nagrania_dahua");
-            Directory.CreateDirectory(outputDir);
-            string safeChannelName = string.Concat(chName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)).Replace(' ', '_');
-            string fileStem = $"Dahua_{safeChannelName}_CH{channel}_{start.Value:yyyyMMdd_HHmmss}-{end.Value:HHmmss}";
-            string davFilePath = Path.Combine(outputDir, fileStem + ".dav");
-            string targetFilePath = Path.Combine(outputDir, fileStem + ".mp4");
-            if (File.Exists(davFilePath)) File.Delete(davFilePath);
-            if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
-
-            DahuaDownloadProgressBar.Visibility = Visibility.Visible;
-            DahuaDownloadProgressBar.IsIndeterminate = true;
-            DahuaDownloadStatusText.Visibility = Visibility.Visible;
-            DahuaDownloadStatusText.Text = $"Pobieranie nagrania: {chName} (CH {channel})…";
-            DahuaLoadToPlayerButton.IsEnabled = false;
-            DahuaDevicesListBox.IsEnabled = false;
-            DahuaArchiveChannelBox.IsEnabled = false;
-            DahuaSearchArchiveButton.IsEnabled = false;
+            _dahuaArchiveDownloadCts?.Dispose();
+            _dahuaArchiveDownloadCts = new CancellationTokenSource();
+            ViewModel.Dahua.IsDownloadBusy = true;
+            DahuaCancelDownloadButton.IsEnabled = true;
+            DahuaDownloadTimelineSelectionButton.IsEnabled = false;
 
             try
             {
-                int channelIndex = Math.Max(0, channel - 1);
-                var tmStart = DahuaNetSdk.NET_TIME.FromDateTime(start.Value);
-                var tmEnd = DahuaNetSdk.NET_TIME.FromDateTime(end.Value);
-                IntPtr activeLoginId = _dahuaLoginId;
-                bool downloadFinished = false;
-
-                await Task.Run(async () =>
+                string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
+                var progress = new Progress<string>(status =>
                 {
-                    ConfigureDahuaRecordModes(activeLoginId);
-                    var completed = new ManualResetEventSlim(false);
-                    DahuaNetSdk.fTimeDownLoadPosCallBack progressCallback = (_, totalSize, downloadedSize, _, _, _) =>
-                    {
-                        if (downloadedSize == uint.MaxValue || (totalSize > 0 && downloadedSize >= totalSize))
-                            completed.Set();
-                    };
-
-                    IntPtr hDown = DahuaNetSdk.CLIENT_DownloadByTimeEx(
-                        activeLoginId, channelIndex, 0, ref tmStart, ref tmEnd, davFilePath,
-                        progressCallback, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-                    if (hDown == IntPtr.Zero)
-                        throw new InvalidOperationException($"CLIENT_DownloadByTimeEx: {DahuaNetSdk.GetErrorDescription(DahuaNetSdk.CLIENT_GetLastError())}");
-
-                    try
-                    {
-                        bool signaled = await Task.Run(() => completed.Wait(TimeSpan.FromMinutes(30)));
-                        if (signaled && File.Exists(davFilePath) && new FileInfo(davFilePath).Length > 0)
-                            downloadFinished = true;
-                    }
-                    finally
-                    {
-                        DahuaNetSdk.CLIENT_StopDownload(hDown);
-                        GC.KeepAlive(progressCallback);
-                    }
+                    ViewModel.Dahua.DownloadStatusText = status;
+                    ViewModel.Dahua.PlaybackSyncStatusText = status;
                 });
 
-                if (!downloadFinished || !File.Exists(davFilePath) || new FileInfo(davFilePath).Length == 0)
-                    throw new InvalidOperationException("NetSDK nie zakończył pobierania pliku archiwum.");
+                string? targetFilePath = await DahuaSession.DownloadAndConvertToMp4Async(
+                    _currentDahuaDevice, channel, start!.Value, end!.Value, ffmpegPath, progress,
+                    _dahuaArchiveDownloadCts?.Token ?? CancellationToken.None);
 
-                DahuaDownloadStatusText.Text = "Pobrano plik DAV. Konwersja do MP4…";
-                await ConvertDahuaRecordingToMp4Async(davFilePath, targetFilePath);
-
-                if (File.Exists(targetFilePath) && new FileInfo(targetFilePath).Length > 0)
+                if (!string.IsNullOrEmpty(targetFilePath) && File.Exists(targetFilePath))
                 {
-                    DahuaDownloadStatusText.Text = "Wczytano do odtwarzacza!";
+                    ViewModel.Dahua.DownloadStatusText = "Wczytano do odtwarzacza!";
                     await OpenDahuaStreamAsync(targetFilePath);
                 }
                 else
                 {
-                    DahuaDownloadStatusText.Text = "Nie znaleziono nagrania na rejestratorze w wybranym przedziale czasu.";
+                    ViewModel.Dahua.DownloadStatusText = "Nie znaleziono nagrania na rejestratorze w wybranym przedziale czasu.";
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                ViewModel.Dahua.DownloadStatusText = "Pobieranie anulowano.";
             }
             catch (Exception ex)
             {
-                DahuaDownloadStatusText.Text = $"Błąd pobierania: {ex.Message}";
+                ViewModel.Dahua.DownloadStatusText = $"Błąd pobierania: {ex.Message}";
                 MessageBox.Show(this, $"Błąd pobierania nagrania: {ex.Message}", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
-                DahuaDownloadProgressBar.Visibility = Visibility.Collapsed;
-                DahuaLoadToPlayerButton.IsEnabled = true;
-                DahuaDevicesListBox.IsEnabled = true;
-                DahuaArchiveChannelBox.IsEnabled = true;
-                DahuaSearchArchiveButton.IsEnabled = true;
+                ViewModel.Dahua.IsDownloadBusy = false;
+                DahuaCancelDownloadButton.IsEnabled = false;
+                DahuaDownloadTimelineSelectionButton.IsEnabled = true;
+                _dahuaArchiveDownloadCts?.Dispose();
+                _dahuaArchiveDownloadCts = null;
             }
+        }
+
+        private async void DahuaDownloadTimelineSelection_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDahuaDevice == null || _dahuaTimelineSelectionStart == null || _dahuaTimelineSelectionEnd == null)
+            {
+                MessageBox.Show(this, "Najpierw zaznacz fragment nagrania na osi czasu.", "Brak zaznaczenia",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            DateTime start = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value
+                ? _dahuaTimelineSelectionStart.Value : _dahuaTimelineSelectionEnd.Value;
+            DateTime end = _dahuaTimelineSelectionStart.Value <= _dahuaTimelineSelectionEnd.Value
+                ? _dahuaTimelineSelectionEnd.Value : _dahuaTimelineSelectionStart.Value;
+            int channel = GetSelectedDahuaArchiveChannel();
+
+            if (!DahuaSessionService.ValidateArchiveRange(start, end, out string rangeError))
+            {
+                MessageBox.Show(this, rangeError, "Nieprawidłowy zakres", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            bool coveredByRecording = ViewModel.Dahua.ArchiveRecords.Any(record =>
+                record.Channel == channel && start >= record.StartTime && end <= record.EndTime);
+            if (!coveredByRecording)
+            {
+                MessageBox.Show(this,
+                    "Wybrany przedział nie mieści się w całości w jednym ciągłym nagraniu. Zaznacz fragment bez przerw.",
+                    "Nieprawidłowe zaznaczenie", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string safeChannelName = string.Concat(_currentDahuaDevice.GetChannelName(channel)
+                .Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)).Replace(' ', '_');
+            string fileStem = $"Dahua_{safeChannelName}_CH{channel}_{start:yyyyMMdd_HHmmss}-{end:HHmmss}";
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Zapisz zaznaczony fragment nagrania",
+                Filter = "Plik MP4 (*.mp4)|*.mp4|Oryginalne archiwum Dahua (*.dav)|*.dav",
+                FilterIndex = 1,
+                DefaultExt = ".mp4",
+                AddExtension = true,
+                OverwritePrompt = true,
+                FileName = fileStem
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            bool convertToMp4 = dialog.FilterIndex == 1;
+            string targetPath = Path.ChangeExtension(dialog.FileName, convertToMp4 ? ".mp4" : ".dav");
+
+            if (!DahuaSession.IsConnectedTo(_currentDahuaDevice))
+            {
+                if (!await DahuaConnectAsync() || !DahuaSession.IsConnectedTo(_currentDahuaDevice))
+                    return;
+            }
+
+            _dahuaArchiveDownloadCts?.Dispose();
+            _dahuaArchiveDownloadCts = new CancellationTokenSource();
+            CancellationToken token = _dahuaArchiveDownloadCts.Token;
+            ViewModel.Dahua.IsDownloadBusy = true;
+            DahuaCancelDownloadButton.IsEnabled = true;
+            DahuaDownloadTimelineSelectionButton.IsEnabled = false;
+
+            try
+            {
+                string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
+                var progress = new Progress<string>(status =>
+                {
+                    ViewModel.Dahua.DownloadStatusText = status;
+                    ViewModel.Dahua.PlaybackSyncStatusText = status;
+                });
+                string savedPath = await DahuaSession.DownloadArchiveAsync(
+                    _currentDahuaDevice, channel, start, end, targetPath, convertToMp4,
+                    ffmpegPath, progress, token);
+
+                ViewModel.Dahua.DownloadStatusText =
+                    $"Zapisano {Path.GetFileName(savedPath)} ({(end - start).ToString(@"hh\:mm\:ss")}).";
+                ViewModel.Dahua.PlaybackSyncStatusText = ViewModel.Dahua.DownloadStatusText;
+                ViewModel.Dahua.StatusText = $"Pobrano archiwum kanału {channel}: {start:HH:mm:ss}–{end:HH:mm:ss}.";
+            }
+            catch (OperationCanceledException)
+            {
+                ViewModel.Dahua.DownloadStatusText = "Pobieranie anulowano. Plik tymczasowy został usunięty.";
+            }
+            catch (Exception ex)
+            {
+                ViewModel.Dahua.DownloadStatusText = $"Błąd pobierania: {ex.Message}";
+                MessageBox.Show(this, $"Nie udało się pobrać zaznaczonego fragmentu: {ex.Message}",
+                    "Błąd pobierania", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                ViewModel.Dahua.IsDownloadBusy = false;
+                DahuaCancelDownloadButton.IsEnabled = false;
+                DahuaDownloadTimelineSelectionButton.IsEnabled = true;
+                _dahuaArchiveDownloadCts?.Dispose();
+                _dahuaArchiveDownloadCts = null;
+            }
+        }
+
+        private void DahuaCancelDownload_Click(object sender, RoutedEventArgs e)
+        {
+            _dahuaArchiveDownloadCts?.Cancel();
+            ViewModel.Dahua.DownloadStatusText = "Anulowanie pobierania…";
         }
 
         private void DahuaPlayArchiveInWindow_Click(object sender, RoutedEventArgs e)

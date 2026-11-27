@@ -29,7 +29,7 @@ namespace VideoPlayer
                 _mouseSendTimer.Tick += SendPointerFrame;
                 _mouseSendTimer.Start();
             }
-            catch (Exception ex) { StatusText.Text = "Nie uruchomiono sterowania myszą: " + ex.Message; }
+            catch (Exception ex) { ViewModel.StatusMessage = "Nie uruchomiono sterowania myszą: " + ex.Message; }
         }
 
         private async void SendPointerFrame(object? sender, EventArgs e)
@@ -44,7 +44,7 @@ namespace VideoPlayer
             {
                 await _mpvService.SendAsync("script-message", "vp-pointer", F(p.Dx), F(p.Dy), F(p.Wheel), F(p.X), F(p.Y), F(p.Width), F(p.Height));
             }
-            catch (Exception ex) { if (!_closing) StatusText.Text = "Sterowanie obrazem: " + ex.Message; }
+            catch (Exception ex) { if (!_closing) ViewModel.StatusMessage = "Sterowanie obrazem: " + ex.Message; }
             finally { _sendingPointer = false; }
         }
     }

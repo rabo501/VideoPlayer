@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -13,13 +14,24 @@ namespace VideoPlayer
         private readonly Canvas _overlay = new() { Background = Brushes.Transparent };
         private readonly Rectangle _region = new()
         {
-            Stroke = Brushes.Lime, StrokeThickness = 3,
+            Stroke = Brushes.Lime,
+            StrokeThickness = 3,
             Fill = new SolidColorBrush(Color.FromArgb(28, 50, 220, 100)),
             IsHitTestVisible = false
         };
         private readonly double _x, _y, _width, _height;
 
         public MotionEventPreviewWindow(string imagePath, double x, double y, double width, double height)
+            : this(LoadBitmapFromPath(imagePath), x, y, width, height)
+        {
+        }
+
+        public MotionEventPreviewWindow(byte[] encodedImageBytes, double x, double y, double width, double height)
+            : this(LoadBitmapFromBytes(encodedImageBytes), x, y, width, height)
+        {
+        }
+
+        private MotionEventPreviewWindow(BitmapSource bitmap, double x, double y, double width, double height)
         {
             _x = Math.Clamp(x, 0, 1); _y = Math.Clamp(y, 0, 1);
             _width = Math.Clamp(width, 0, 1 - _x); _height = Math.Clamp(height, 0, 1 - _y);
@@ -31,13 +43,38 @@ namespace VideoPlayer
             DockPanel.SetDock(note, Dock.Top); root.Children.Add(note);
             var frame = new Border
             {
-                Background = Brushes.Black, BorderBrush = new SolidColorBrush(Color.FromRgb(65, 75, 92)), BorderThickness = new Thickness(1),
+                Background = Brushes.Black,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(65, 75, 92)),
+                BorderThickness = new Thickness(1),
                 Child = new Grid { Children = { _image, _overlay } }
             };
             _overlay.Children.Add(_region); root.Children.Add(frame); Content = root;
-            var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.UriSource = new Uri(imagePath); bitmap.EndInit(); bitmap.Freeze(); _image.Source = bitmap;
-            _overlay.SizeChanged += (_, __) => Redraw(); Loaded += (_, __) => Redraw();
+            _image.Source = bitmap;
+            _overlay.SizeChanged += (_, __) => Redraw();
+            Loaded += (_, __) => Redraw();
+        }
+
+        private static BitmapSource LoadBitmapFromPath(string imagePath)
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(imagePath);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+
+        private static BitmapSource LoadBitmapFromBytes(byte[] encodedImageBytes)
+        {
+            using var stream = new MemoryStream(encodedImageBytes);
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
         }
 
         private void Redraw()

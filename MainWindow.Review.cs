@@ -7,110 +7,43 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Forms = System.Windows.Forms;
+using VideoPlayer.Services;
+using VideoPlayer.ViewModels;
 
 namespace VideoPlayer
 {
     public partial class MainWindow
     {
-        private ReportMetadata CurrentReportMetadata() => new ReportMetadata
-        {
-            CaseNumber = ReportCaseNumberBox.Text.Trim(),
-            CaseTitle = ReportCaseTitleBox.Text.Trim(),
-            Location = ReportLocationBox.Text.Trim(),
-            Notes = ReportNotesBox.Text.Trim()
-        };
-
-        private void RefreshCaseArchiveList(Guid? selectId = null)
-        {
-            if (_cases == null || ReportCasesBox == null) return;
-            List<CaseRecord> cases = _cases.LoadAll();
-            ReportCasesBox.ItemsSource = cases;
-            ReportCasesBox.SelectedItem = selectId.HasValue
-                ? cases.FirstOrDefault(item => item.Id == selectId.Value)
-                : null;
-        }
-
         private void SaveCase_Click(object sender, RoutedEventArgs e)
         {
             if (_cases == null) return;
-            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
-            {
-                CaseArchiveStatusText.Text = "Najpierw otwórz nagranie, które ma zostać powiązane ze sprawą.";
-                StatusText.Text = CaseArchiveStatusText.Text;
-                return;
-            }
-
             try
             {
-                ReportMetadata metadata = CurrentReportMetadata();
-                if (string.IsNullOrWhiteSpace(metadata.CaseNumber) && ReportCasesBox.SelectedItem is CaseRecord selected)
-                    metadata = ToReportMetadata(selected);
-                CaseRecord saved = _cases.Save(metadata, _sourceFilePath);
-                RefreshCaseArchiveList(saved.Id);
-                CaseArchiveStatusText.Text = $"Zapisano sprawę {saved.CaseNumber}. Powiązane nagrania: {saved.SourceCount}.";
-                StatusText.Text = "Dane sprawy zapisano w lokalnym archiwum.";
+                var result = ViewModel.Cases.SaveCurrentCase(_sourceFilePath);
+                ViewModel.StatusMessage = result.Success
+                    ? "Dane sprawy zapisano w lokalnym archiwum."
+                    : result.Message;
             }
             catch (Exception ex)
             {
-                CaseArchiveStatusText.Text = "Nie udało się zapisać sprawy: " + ex.Message;
-                StatusText.Text = CaseArchiveStatusText.Text;
+                ViewModel.Cases.StatusText = "Nie udało się zapisać sprawy: " + ex.Message;
+                ViewModel.StatusMessage = ViewModel.Cases.StatusText;
                 MessageBox.Show(this, ex.Message, "Archiwum spraw", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
         private void LoadCase_Click(object sender, RoutedEventArgs e)
         {
-            if (ReportCasesBox.SelectedItem is not CaseRecord selected)
-            {
-                CaseArchiveStatusText.Text = "Wybierz sprawę z listy.";
-                return;
-            }
-
-            CaseRecord? record = _cases.Load(selected.Id);
-            if (record == null)
-            {
-                RefreshCaseArchiveList();
-                CaseArchiveStatusText.Text = "Wybrana sprawa nie istnieje już w bazie. Odświeżono listę.";
-                return;
-            }
-
-            ApplyCaseMetadata(record);
-            CaseArchiveStatusText.Text = $"Wczytano sprawę {record.CaseNumber}. Powiązane nagrania: {record.SourceCount}. Zapisz ponownie, aby dołączyć bieżące nagranie.";
-            StatusText.Text = "Wczytano dane sprawy z lokalnego archiwum.";
-        }
-
-        private void ReportCasesBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (ReportCasesBox.SelectedItem is CaseRecord selected)
-            {
-                ApplyCaseMetadata(selected);
-                CaseArchiveStatusText.Text = $"Wybrano sprawę {selected.CaseNumber}. Powiązane nagrania: {selected.SourceCount}. Otwarcie kolejnego pliku i zapis dołączy go do tej sprawy.";
-            }
-        }
-
-        private void ClearCaseSelection_Click(object sender, RoutedEventArgs e)
-        {
-            ReportCasesBox.SelectedItem = null;
-            ReportCaseNumberBox.Clear();
-            ReportCaseTitleBox.Clear();
-            ReportLocationBox.Clear();
-            ReportNotesBox.Clear();
-            CaseArchiveStatusText.Text = "Wybór sprawy wyczyszczono. Raport będzie dotyczył bieżącego nagrania.";
-        }
-
-        private void ApplyCaseMetadata(CaseRecord record)
-        {
-            ReportCaseNumberBox.Text = record.CaseNumber;
-            ReportCaseTitleBox.Text = record.Title;
-            ReportLocationBox.Text = record.Location;
-            ReportNotesBox.Text = record.Notes;
+            var result = ViewModel.Cases.ReloadSelectedCase();
+            if (result.Found)
+                ViewModel.StatusMessage = "Wczytano dane sprawy z lokalnego archiwum.";
         }
 
         private void DeleteCase_Click(object sender, RoutedEventArgs e)
         {
-            if (ReportCasesBox.SelectedItem is not CaseRecord selected)
+            if (ViewModel.Cases.SelectedCase is not CaseRecord selected)
             {
-                CaseArchiveStatusText.Text = "Wybierz sprawę, którą chcesz usunąć.";
+                ViewModel.Cases.StatusText = "Wybierz sprawę, którą chcesz usunąć.";
                 return;
             }
 
@@ -121,79 +54,20 @@ namespace VideoPlayer
 
             try
             {
-                bool deleted = _cases.Delete(selected.Id);
-                ReportCaseNumberBox.Clear();
-                ReportCaseTitleBox.Clear();
-                ReportLocationBox.Clear();
-                ReportNotesBox.Clear();
-                RefreshCaseArchiveList();
-                CaseArchiveStatusText.Text = deleted
-                    ? $"Usunięto sprawę {selected.CaseNumber}. Nagrania i ich dane pozostały bez zmian."
-                    : "Sprawa nie istnieje już w archiwum.";
-                StatusText.Text = CaseArchiveStatusText.Text;
+                var result = ViewModel.Cases.DeleteSelectedCase();
+                ViewModel.StatusMessage = result.Message;
             }
             catch (Exception ex)
             {
-                CaseArchiveStatusText.Text = "Nie udało się usunąć sprawy: " + ex.Message;
+                ViewModel.Cases.StatusText = "Nie udało się usunąć sprawy: " + ex.Message;
                 MessageBox.Show(this, ex.Message, "Archiwum spraw", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private async Task<List<CaseReportSource>> BuildCaseReportSourcesAsync(CaseRecord record, CancellationToken ct)
-        {
-            List<string> paths = _cases.LoadSources(record.Id);
-            if (paths.Count == 0)
-                throw new InvalidOperationException("Wybrana sprawa nie ma przypisanych nagrań. Otwórz nagranie i użyj opcji „Zapisz / aktualizuj sprawę”.");
-
-            var result = new List<CaseReportSource>();
-            for (int i = 0; i < paths.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-                string path = paths[i];
-                MediaInfoData? info = null;
-                if (File.Exists(path))
-                {
-                    try { info = await _mediaInfoService.ReadAsync(path).ConfigureAwait(false); }
-                    catch (OperationCanceledException) { throw; }
-                    catch { /* A technical-info error for one source must not block the case report. */ }
-                }
-                result.Add(new CaseReportSource
-                {
-                    Path = path,
-                    Markers = _historyService.LoadMarkers(path),
-                    Exports = _historyService.LoadExports(path),
-                    MediaInfo = info
-                });
-            }
-            return result;
-        }
-
-        private static ReportMetadata ToReportMetadata(CaseRecord record) => new ReportMetadata
-        {
-            CaseNumber = record.CaseNumber,
-            CaseTitle = record.Title,
-            Location = record.Location,
-            Notes = record.Notes
-        };
-
-        private void RefreshRanges()
-        {
-            if (!ReferenceEquals(ClipRangesListBox.ItemsSource, _clips)) ClipRangesListBox.ItemsSource = _clips;
-            UpdateRangeHint();
-        }
-
-        private void UpdateRangeHint()
-        {
-            if (RangeFeedbackText == null) return;
-            string a = _clipStart.HasValue ? TimeSpan.FromSeconds(_clipStart.Value).ToString(@"hh\:mm\:ss\.fff") : "nie ustawiono";
-            string b = _clipEnd.HasValue ? TimeSpan.FromSeconds(_clipEnd.Value).ToString(@"hh\:mm\:ss\.fff") : "nie ustawiono";
-            RangeFeedbackText.Text = $"Początek: {a} | Koniec: {b} | Fragmenty: {_clips.Count}";
-        }
-
         private ClipRange? RangeError(string text)
         {
-            StatusText.Text = text;
-            RangeFeedbackText.Text = text;
+            ViewModel.StatusMessage = text;
+            ViewModel.Export.SetRangeErrorText(text);
             MessageBox.Show(this, text, "Lista fragmentów", MessageBoxButton.OK, MessageBoxImage.Information);
             return null;
         }
@@ -203,46 +77,48 @@ namespace VideoPlayer
             if (_shutdownRequested) return RangeError("Program jest zamykany.");
             if (_opening) return RangeError("Trwa otwieranie filmu. Poczekaj, aż zostanie wczytany.");
             if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath)) return RangeError("Najpierw otwórz film.");
-            string? error = ClipRangeValidator.Error(_clipStart, _clipEnd, PositionSlider.Maximum);
+            string? error = ClipRangeValidator.Error(ViewModel.Export.ClipStart, ViewModel.Export.ClipEnd, PositionSlider.Maximum);
             if (error != null) return RangeError(error);
-            string name = ClipNameBox.Text.Trim();
-            if (name.Length == 0) { name = $"Fragment {_clips.Count + 1}"; ClipNameBox.Text = name; }
-            return new ClipRange { Name = name, Start = _clipStart!.Value, End = _clipEnd!.Value };
+            string name = ViewModel.Export.ClipName.Trim();
+            if (name.Length == 0)
+            {
+                name = $"Fragment {ViewModel.Export.Clips.Count + 1}";
+                ViewModel.Export.ClipName = name;
+            }
+            return new ClipRange
+            {
+                Name = name,
+                Start = ViewModel.Export.ClipStart!.Value,
+                End = ViewModel.Export.ClipEnd!.Value
+            };
         }
 
         private void AddRange_Click(object sender, RoutedEventArgs e)
         {
             var range = CurrentRange();
             if (range == null) return;
-            _clips.Add(range);
-            RefreshRanges();
-            ClipRangesListBox.SelectedItem = range;
+            ViewModel.Export.AddClip(range);
             ClipRangesListBox.ScrollIntoView(range);
-            StatusText.Text = $"Dodano fragment: {range.Name}. Liczba fragmentów: {_clips.Count}.";
+            ViewModel.StatusMessage = $"Dodano fragment: {range.Name}. Liczba fragmentów: {ViewModel.Export.Clips.Count}.";
             SaveSession();
         }
 
         private void UpdateRange_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipRangesListBox.SelectedItem is not ClipRange selected) { RangeError("Najpierw wybierz fragment na liście."); return; }
+            if (ViewModel.Export.SelectedClip is not ClipRange selected) { RangeError("Najpierw wybierz fragment na liście."); return; }
             var range = CurrentRange();
             if (range == null) return;
-            int i = _clips.IndexOf(selected);
-            if (i < 0) { RangeError("Wybrany fragment nie jest już na liście."); return; }
-            _clips[i] = range;
-            RefreshRanges();
-            ClipRangesListBox.SelectedItem = range;
-            StatusText.Text = "Zaktualizowano fragment: " + range.Name;
+            if (!ViewModel.Export.ReplaceClip(selected, range)) { RangeError("Wybrany fragment nie jest już na liście."); return; }
+            ViewModel.StatusMessage = "Zaktualizowano fragment: " + range.Name;
             SaveSession();
         }
 
         private async void LoadRange_Click(object sender, RoutedEventArgs e)
         {
-            if (_opening || _shutdownRequested || ClipRangesListBox.SelectedItem is not ClipRange c) return;
-            _clipStart = c.Start;
-            _clipEnd = c.End;
-            ClipNameBox.Text = c.Name;
-            UpdateClipRangeText();
+            if (_opening || _shutdownRequested || ViewModel.Export.SelectedClip is not ClipRange c) return;
+            ViewModel.Export.ClipName = c.Name;
+            ViewModel.Export.SetClipRange(c.Start, c.End);
+            UpdateTimelineOverlay();
             await SendAsync("set_property", "pause", true);
             await SeekAsync(c.Start);
             SaveSession();
@@ -250,27 +126,18 @@ namespace VideoPlayer
 
         private void DeleteRange_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipRangesListBox.SelectedItem is not ClipRange c) return;
-            _clips.Remove(c);
-            RefreshRanges();
+            if (ViewModel.Export.SelectedClip is not ClipRange c) return;
+            ViewModel.Export.RemoveClip(c);
             SaveSession();
-        }
-
-        private static string SafeName(string s)
-        {
-            foreach (char c in Path.GetInvalidFileNameChars()) s = s.Replace(c, '_');
-            s = s.Trim().TrimEnd('.');
-            if (s.Length > 70) s = s.Substring(0, 70);
-            return s.Length == 0 ? "fragment" : s;
         }
 
         private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanOperate() || _clips.Count == 0) { StatusText.Text = "Dodaj fragmenty do listy."; return; }
-            string source = _sourceFilePath!, profile = SelectedProfile;
-            bool copy = StreamCopyCheckBox.IsChecked == true;
+            if (!CanOperate() || ViewModel.Export.Clips.Count == 0) { ViewModel.StatusMessage = "Dodaj fragmenty do listy."; return; }
+            string source = _sourceFilePath!, profile = ViewModel.Export.SelectedProfileTag;
+            bool copy = ViewModel.Export.UseStreamCopy;
             if (!ConfirmCopy(copy)) return;
-            List<ClipRange> clips = _clips.Select(c => new ClipRange { Name = c.Name, Start = c.Start, End = c.End }).ToList();
+            List<ClipRange> clips = ViewModel.Export.Clips.Select(c => new ClipRange { Name = c.Name, Start = c.Start, End = c.End }).ToList();
             using var dialog = new Forms.FolderBrowserDialog { Description = "Wybierz folder nadrzędny eksportu", UseDescriptionForTitle = true };
             if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
             string folder = Path.Combine(dialog.SelectedPath, "VideoPlayer_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6));
@@ -281,9 +148,9 @@ namespace VideoPlayer
                 {
                     ct.ThrowIfCancellationRequested();
                     ClipRange c = clips[i];
-                    string output = Path.Combine(folder, $"{i + 1:000}_{SafeName(c.Name)}.mp4");
+                    string output = Path.Combine(folder, $"{i + 1:000}_{ExportWorkspaceService.SanitizeFileName(c.Name)}.mp4");
                     await _exports.ExportAsync(source, output, c.Start, c.End, profile, copy, OperationProgress(ct, $"Plik {i + 1}/{clips.Count}: ", i, clips.Count), ct);
-                    RecordExport(source, output, "Eksport seryjny", c.Start, c.End, $"Fragment: {c.Name}; profil: {profile}; kopiowanie strumieni: {(copy ? "tak" : "nie")}; rozmiar: {FormatFileSize(new FileInfo(output).Length)}");
+                    RecordExport(source, output, "Eksport seryjny", c.Start, c.End, $"Fragment: {c.Name}; profil: {profile}; kopiowanie strumieni: {(copy ? "tak" : "nie")}; rozmiar: {ExportWorkspaceService.FormatFileSize(new FileInfo(output).Length)}");
                 }
                 return $"Zapisano {clips.Count} fragmentów: {folder}";
             });
@@ -293,7 +160,7 @@ namespace VideoPlayer
         {
             try
             {
-                _historyService.AddExport(new ExportHistoryItem
+                string? historyError = ViewModel.History.AddExport(new ExportHistoryItem
                 {
                     SourcePath = source,
                     OutputPath = output,
@@ -303,31 +170,33 @@ namespace VideoPlayer
                     CreatedLocal = DateTime.Now,
                     Details = details
                 });
+                if (!string.IsNullOrWhiteSpace(historyError))
+                    ViewModel.StatusMessage = "Plik został utworzony, ale nie udało się zapisać historii eksportu: " + historyError;
             }
             catch (Exception ex)
             {
-                StatusText.Text = "Plik został utworzony, ale nie udało się zapisać historii eksportu: " + ex.Message;
+                ViewModel.StatusMessage = "Plik został utworzony, ale nie udało się zapisać historii eksportu: " + ex.Message;
             }
         }
 
-        private List<TimelineMarker> MarkerSnapshot() => _timelineMarkers.OrderBy(m => m.Seconds).Select(m => new TimelineMarker { Id = m.Id, Seconds = m.Seconds, Description = m.Description, VehicleMake = m.VehicleMake, EndSeconds = m.EndSeconds, MotionX = m.MotionX, MotionY = m.MotionY, MotionWidth = m.MotionWidth, MotionHeight = m.MotionHeight, RelatedMotionCount = m.RelatedMotionCount }).ToList();
+        private List<TimelineMarker> MarkerSnapshot() => ViewModel.EventCenter.BuildSortedSnapshot();
 
         private async void CsvReport_Click(object sender, RoutedEventArgs e)
         {
-            CaseRecord? selectedCase = ReportCasesBox.SelectedItem as CaseRecord;
+            CaseRecord? selectedCase = ViewModel.Cases.SelectedCase;
             if (selectedCase == null && (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath)))
             {
-                StatusText.Text = "Wybierz zapisaną sprawę albo otwórz nagranie.";
+                ViewModel.StatusMessage = "Wybierz zapisaną sprawę albo otwórz nagranie.";
                 return;
             }
-            if (selectedCase == null && _timelineMarkers.Count == 0)
+            if (selectedCase == null && ViewModel.EventCenter.AllMarkers.Count == 0)
             {
-                StatusText.Text = "Dodaj znaczniki zdarzeń do filmu.";
+                ViewModel.StatusMessage = "Dodaj znaczniki zdarzeń do filmu.";
                 return;
             }
 
             string defaultName = selectedCase != null
-                ? "Sprawa_" + SafeName(selectedCase.CaseNumber) + "_raport.csv"
+                ? "Sprawa_" + ExportWorkspaceService.SanitizeFileName(selectedCase.CaseNumber) + "_raport.csv"
                 : Path.GetFileNameWithoutExtension(_sourceFilePath) + "_zdarzenia.csv";
             string? output = ChooseOutput("Raport CSV", defaultName, "csv");
             if (output == null) return;
@@ -336,38 +205,35 @@ namespace VideoPlayer
             {
                 if (selectedCase != null)
                 {
-                    CaseRecord record = _cases.Load(selectedCase.Id)
-                        ?? throw new InvalidOperationException("Wybrana sprawa nie istnieje już w archiwum.");
-                    List<CaseReportSource> sources = await BuildCaseReportSourcesAsync(record, ct).ConfigureAwait(false);
-                    await _reports.CsvCaseAsync(sources, output, ToReportMetadata(record), ct).ConfigureAwait(false);
-                    int eventCount = sources.Sum(s => s.Markers.Count);
-                    return $"Zapisano raport sprawy {record.CaseNumber}: {sources.Count} nagrania, {eventCount} zdarzeń.";
+                    return await ViewModel.Cases.GenerateCaseReportAsync(
+                        selectedCase.Id, pdf: false, output, includeThumbnails: false,
+                        progress: null, cancellationToken: ct).ConfigureAwait(false);
                 }
 
                 string source = _sourceFilePath!;
-                await _reports.CsvAsync(source, MarkerSnapshot(), output, CurrentReportMetadata(),
-                    _currentMediaInfo, _historyService.LoadExports(source), ct).ConfigureAwait(false);
+                await _reports.CsvAsync(source, MarkerSnapshot(), output, ViewModel.Cases.ToReportMetadata(),
+                    ViewModel.Export.CurrentMediaInfo, ViewModel.History.LoadExports(source), ct).ConfigureAwait(false);
                 return "Zapisano raport CSV: " + output;
             }, requireSource: selectedCase == null);
         }
 
         private async void PdfReport_Click(object sender, RoutedEventArgs e)
         {
-            CaseRecord? selectedCase = ReportCasesBox.SelectedItem as CaseRecord;
+            CaseRecord? selectedCase = ViewModel.Cases.SelectedCase;
             if (selectedCase == null && (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath)))
             {
-                StatusText.Text = "Wybierz zapisaną sprawę albo otwórz nagranie.";
+                ViewModel.StatusMessage = "Wybierz zapisaną sprawę albo otwórz nagranie.";
                 return;
             }
-            if (selectedCase == null && _timelineMarkers.Count == 0)
+            if (selectedCase == null && ViewModel.EventCenter.AllMarkers.Count == 0)
             {
-                StatusText.Text = "Dodaj znaczniki zdarzeń do filmu.";
+                ViewModel.StatusMessage = "Dodaj znaczniki zdarzeń do filmu.";
                 return;
             }
 
-            bool images = ReportThumbnailsCheckBox.IsChecked == true;
+            bool images = ViewModel.Cases.IncludeThumbnails;
             string defaultName = selectedCase != null
-                ? "Sprawa_" + SafeName(selectedCase.CaseNumber) + "_raport.pdf"
+                ? "Sprawa_" + ExportWorkspaceService.SanitizeFileName(selectedCase.CaseNumber) + "_raport.pdf"
                 : Path.GetFileNameWithoutExtension(_sourceFilePath) + "_raport.pdf";
             string? output = ChooseOutput("Raport PDF", defaultName, "pdf");
             if (output == null) return;
@@ -380,18 +246,14 @@ namespace VideoPlayer
                 IProgress<ExportProgress> progress = OperationProgress(ct);
                 if (selectedCase != null)
                 {
-                    CaseRecord record = _cases.Load(selectedCase.Id)
-                        ?? throw new InvalidOperationException("Wybrana sprawa nie istnieje już w archiwum.");
-                    List<CaseReportSource> sources = await BuildCaseReportSourcesAsync(record, ct).ConfigureAwait(false);
-                    await _reports.PdfCaseAsync(sources, output, images, ToReportMetadata(record),
+                    return await ViewModel.Cases.GenerateCaseReportAsync(
+                        selectedCase.Id, pdf: true, output, images,
                         progress, ct).ConfigureAwait(false);
-                    int eventCount = sources.Sum(s => s.Markers.Count);
-                    return $"Zapisano raport sprawy {record.CaseNumber}: {sources.Count} nagrania, {eventCount} zdarzeń.";
                 }
 
                 string source = _sourceFilePath!;
-                await _reports.PdfAsync(source, MarkerSnapshot(), output, images, CurrentReportMetadata(),
-                    _currentMediaInfo, _historyService.LoadExports(source), progress, ct).ConfigureAwait(false);
+                await _reports.PdfAsync(source, MarkerSnapshot(), output, images, ViewModel.Cases.ToReportMetadata(),
+                    ViewModel.Export.CurrentMediaInfo, ViewModel.History.LoadExports(source), progress, ct).ConfigureAwait(false);
                 return "Zapisano raport PDF: " + output;
             }, requireSource: selectedCase == null);
         }

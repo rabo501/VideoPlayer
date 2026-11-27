@@ -15,14 +15,14 @@ namespace VideoPlayer
             Dahua
         }
 
-        private double _toolsWidth = 390;
+        private double _toolsWidth = 350;
         private WorkspaceMode _workspaceMode = WorkspaceMode.Player;
         private bool _switchingWorkspace;
 
         private void ConstrainToolsWidth()
         {
             if (ToolsColumn == null || ActualWidth <= 0) return;
-            ToolsColumn.MaxWidth = Math.Max(320, (ActualWidth - 40) * 0.55);
+            ToolsColumn.MaxWidth = Math.Max(300, (ActualWidth - 40) * 0.55);
         }
 
         private void ToggleTools_Click(object sender, RoutedEventArgs e)
@@ -35,8 +35,8 @@ namespace VideoPlayer
             if (visible)
             {
                 ConstrainToolsWidth();
-                ToolsColumn.MinWidth = 320;
-                ToolsColumn.Width = new GridLength(Math.Max(320, _toolsWidth));
+                ToolsColumn.MinWidth = 300;
+                ToolsColumn.Width = new GridLength(Math.Max(300, _toolsWidth));
                 ToolsSplitterColumn.Width = new GridLength(7);
                 ToolsPanel.Visibility = Visibility.Visible;
                 ToolsSplitter.Visibility = Visibility.Visible;
@@ -52,6 +52,7 @@ namespace VideoPlayer
             }
             ToolsPanelMenuItem.IsChecked = visible;
             PanelToggleButton.Content = visible ? "Ukryj panel ▶" : "◀ Pokaż panel";
+            SaveWindowSettings();
         }
 
         private void SetWorkspaceMode(WorkspaceMode mode, int? preferredTabIndex = null)
@@ -60,7 +61,7 @@ namespace VideoPlayer
             _switchingWorkspace = true;
             try
             {
-                if (mode != WorkspaceMode.PlateOcr && _ocrActive)
+                if (mode != WorkspaceMode.PlateOcr && ViewModel.PlateOcr.IsActive)
                 {
                     ResetOcrWorkspaceState(silent: true);
                 }
@@ -116,10 +117,10 @@ namespace VideoPlayer
 
         private void SwitchToPlayerMode_Click(object sender, RoutedEventArgs e)
         {
-            if (_ocrBusy)
+            if (ViewModel.PlateOcr.IsBusy)
             {
-                StatusText.Text = "Poczekaj na zatrzymanie bieżącego rozpoznawania OCR.";
-                _ocrWorkCts?.Cancel();
+                ViewModel.StatusMessage = "Poczekaj na zatrzymanie bieżącego rozpoznawania OCR.";
+                ViewModel.PlateOcr.CancelRecognition();
                 return;
             }
             int? targetTab = ToolsTabs.SelectedIndex == 3 ? 0 : null;
@@ -129,6 +130,7 @@ namespace VideoPlayer
         private void ToolsTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_switchingWorkspace || !IsLoaded || !ReferenceEquals(e.Source, ToolsTabs)) return;
+            SaveWindowSettings();
 
             if (ToolsTabs.SelectedIndex == 3)
             {
@@ -150,32 +152,63 @@ namespace VideoPlayer
 
         private void MenuScale_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not MenuItem menu) return;
-            foreach (ComboBoxItem item in VideoScaleBox.Items)
-            {
-                if (string.Equals(item.Tag?.ToString(), menu.Tag?.ToString(), StringComparison.Ordinal))
-                {
-                    VideoScaleBox.SelectedItem = item;
-                    break;
-                }
-            }
+            if (sender is not MenuItem menu || menu.Tag is not string mode) return;
+            ApplyScaleFromContextMenu(mode);
         }
 
-        private void ShowVideoContextMenu()
+        private void VideoPanel_MouseUp(object? sender, System.Windows.Forms.MouseEventArgs e)
         {
-            var menu = new ContextMenu { PlacementTarget = VideoHost, Placement = PlacementMode.MousePoint };
+            if (e.Button == System.Windows.Forms.MouseButtons.Right && _workspaceMode == WorkspaceMode.Player)
+                ShowVideoContextMenu(VideoHost);
+        }
+
+        private void DahuaVideoSurface_MouseUp(object? sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            if (e.Button == System.Windows.Forms.MouseButtons.Right && _workspaceMode == WorkspaceMode.Dahua)
+                ShowVideoContextMenu(DahuaPrimaryVideoHost);
+        }
+
+        private void ShowVideoContextMenu(FrameworkElement? placementTarget = null)
+        {
+            var menu = new ContextMenu { PlacementTarget = placementTarget ?? VideoHost, Placement = PlacementMode.MousePoint };
             void Add(string text, RoutedEventHandler action)
             {
                 var item = new MenuItem { Header = text };
                 item.Click += action;
                 menu.Items.Add(item);
             }
-            Add("Ustaw początek (I)", MarkStart_Click);
-            Add("Ustaw koniec (O)", MarkEnd_Click);
+            string selectedScale = (VideoScaleBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "fit";
+            void AddScale(string label, string mode)
+            {
+                var scaleItem = new MenuItem
+                {
+                    Header = label,
+                    IsCheckable = true,
+                    IsChecked = string.Equals(selectedScale, mode, StringComparison.Ordinal)
+                };
+                // Opcje są bezpośrednimi pozycjami menu. Unikamy zagnieżdżonego
+                // podmenu, które w połączeniu z WindowsFormsHost bywało trudne
+                // do kliknięcia i nie przekazywało wyboru do odtwarzacza.
+                scaleItem.Click += (_, __) => ApplyScaleFromContextMenu(mode);
+                menu.Items.Add(scaleItem);
+            }
+            AddScale("Dopasuj cały obraz", "fit");
+            AddScale("Wypełnij okno", "fill");
+            AddScale("Powiększenie 125%", "1.25");
+            AddScale("Powiększenie 150%", "1.5");
+            AddScale("Powiększenie 200%", "2");
+
+            if (_workspaceMode == WorkspaceMode.Player)
+            {
+                menu.Items.Add(new Separator());
+                Add("Ustaw początek (I)", MarkStart_Click);
+                Add("Ustaw koniec (O)", MarkEnd_Click);
+                menu.Items.Add(new Separator());
+                Add("Dodaj zdarzenie…", ContextAddMarker_Click);
+                Add("Rozpoznaj tablicę (OCR)…", PlateOcr_Click);
+                Add("Zapisz klatkę (S)", Screenshot_Click);
+            }
             menu.Items.Add(new Separator());
-            Add("Dodaj zdarzenie…", ContextAddMarker_Click);
-            Add("Rozpoznaj tablicę (OCR)…", PlateOcr_Click);
-            Add("Zapisz klatkę (S)", Screenshot_Click);
             Add("Resetuj widok (R)", ResetView_Click);
             menu.IsOpen = true;
         }

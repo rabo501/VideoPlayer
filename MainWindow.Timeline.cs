@@ -15,6 +15,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 
 using Forms = System.Windows.Forms;
+using VideoPlayer.Services;
 
 namespace VideoPlayer
 {
@@ -40,16 +41,17 @@ namespace VideoPlayer
                 return;
             }
 
-            _clipStart = PositionSlider.Value;
+            double start = PositionSlider.Value;
+            double? end = ViewModel.Export.ClipEnd;
 
             // Nowy początek nie może znajdować się za końcem.
-            if (_clipEnd.HasValue &&
-                _clipEnd.Value <= _clipStart.Value)
+            if (end.HasValue && end.Value <= start)
             {
-                _clipEnd = null;
+                end = null;
             }
 
-            UpdateClipRangeText();
+            ViewModel.Export.SetClipRange(start, end);
+            UpdateTimelineOverlay();
         }
 
         private void MarkEnd_Click(
@@ -74,7 +76,7 @@ namespace VideoPlayer
 
             double position = PositionSlider.Value;
 
-            if (!_clipStart.HasValue)
+            if (!ViewModel.Export.ClipStart.HasValue)
             {
                 MessageBox.Show(
                     this,
@@ -84,7 +86,7 @@ namespace VideoPlayer
                 return;
             }
 
-            if (position <= _clipStart.Value)
+            if (position <= ViewModel.Export.ClipStart.Value)
             {
                 MessageBox.Show(
                     this,
@@ -94,46 +96,8 @@ namespace VideoPlayer
                 return;
             }
 
-            _clipEnd = position;
-            UpdateClipRangeText();
-        }
-
-        private static string FormatClipTime(double seconds)
-        {
-            return TimeSpan
-                .FromSeconds(Math.Max(0, seconds))
-                .ToString(
-                    @"d\.hh\:mm\:ss\.fff",
-                    CultureInfo.InvariantCulture);
-        }
-
-        private void UpdateClipRangeText()
-        {
-            UpdateRangeHint();
-            string start = _clipStart.HasValue
-                ? FormatClipTime(_clipStart.Value)
-                : "—";
-
-            string end = _clipEnd.HasValue
-                ? FormatClipTime(_clipEnd.Value)
-                : "—";
-
-            string duration = "—";
-
-            if (_clipStart.HasValue &&
-                _clipEnd.HasValue &&
-                _clipEnd.Value > _clipStart.Value)
-            {
-                duration = FormatClipTime(_clipEnd.Value - _clipStart.Value);
-            }
-
-            ClipRangeText.Text =
-                $"Początek: {start}\n" +
-                $"Koniec: {end}\n" +
-                $"Długość: {duration}";
-
+            ViewModel.Export.SetClipRange(ViewModel.Export.ClipStart, position);
             UpdateTimelineOverlay();
-            UpdateEstimatedSizeText();
         }
 
         private void TimelineOverlay_SizeChanged(
@@ -159,19 +123,21 @@ namespace VideoPlayer
             if (width <= 0 || duration <= 0 || !double.IsFinite(width))
                 return;
 
-            bool hasStart = _clipStart.HasValue;
-            bool hasEnd = _clipEnd.HasValue;
-            bool hasRange = hasStart && hasEnd && _clipEnd!.Value > _clipStart!.Value;
+            double? clipStart = ViewModel.Export.ClipStart;
+            double? clipEnd = ViewModel.Export.ClipEnd;
+            bool hasStart = clipStart.HasValue;
+            bool hasEnd = clipEnd.HasValue;
+            bool hasRange = hasStart && hasEnd && clipEnd!.Value > clipStart!.Value;
 
             ClipStartHandle.Visibility = hasStart ? Visibility.Visible : Visibility.Collapsed;
             ClipEndHandle.Visibility = hasEnd ? Visibility.Visible : Visibility.Collapsed;
             ClipSelectionRect.Visibility = hasRange ? Visibility.Visible : Visibility.Collapsed;
 
             double startX = hasStart
-                ? Math.Clamp((_clipStart!.Value - PositionSlider.Minimum) / duration * width, 0, width)
+                ? Math.Clamp((clipStart!.Value - PositionSlider.Minimum) / duration * width, 0, width)
                 : 0;
             double endX = hasEnd
-                ? Math.Clamp((_clipEnd!.Value - PositionSlider.Minimum) / duration * width, 0, width)
+                ? Math.Clamp((clipEnd!.Value - PositionSlider.Minimum) / duration * width, 0, width)
                 : 0;
 
             if (hasStart)
@@ -194,7 +160,7 @@ namespace VideoPlayer
             object sender,
             DragDeltaEventArgs e)
         {
-            if (_clipStart == null || TimelineOverlay.ActualWidth <= 0)
+            if (ViewModel.Export.ClipStart == null || TimelineOverlay.ActualWidth <= 0)
                 return;
 
             double width = TimelineOverlay.ActualWidth;
@@ -209,18 +175,19 @@ namespace VideoPlayer
             double newTime = PositionSlider.Minimum +
                 center / width * (PositionSlider.Maximum - PositionSlider.Minimum);
 
-            if (_clipEnd.HasValue)
-                newTime = Math.Min(newTime, _clipEnd.Value - 0.001);
+            if (ViewModel.Export.ClipEnd.HasValue)
+                newTime = Math.Min(newTime, ViewModel.Export.ClipEnd.Value - 0.001);
 
-            _clipStart = Math.Clamp(newTime, PositionSlider.Minimum, PositionSlider.Maximum);
-            UpdateClipRangeText();
+            double clamped = Math.Clamp(newTime, PositionSlider.Minimum, PositionSlider.Maximum);
+            ViewModel.Export.SetClipRange(clamped, ViewModel.Export.ClipEnd);
+            UpdateTimelineOverlay();
         }
 
         private void ClipEndHandle_DragDelta(
             object sender,
             DragDeltaEventArgs e)
         {
-            if (_clipEnd == null || TimelineOverlay.ActualWidth <= 0)
+            if (ViewModel.Export.ClipEnd == null || TimelineOverlay.ActualWidth <= 0)
                 return;
 
             double width = TimelineOverlay.ActualWidth;
@@ -235,99 +202,35 @@ namespace VideoPlayer
             double newTime = PositionSlider.Minimum +
                 center / width * (PositionSlider.Maximum - PositionSlider.Minimum);
 
-            if (_clipStart.HasValue)
-                newTime = Math.Max(newTime, _clipStart.Value + 0.001);
+            if (ViewModel.Export.ClipStart.HasValue)
+                newTime = Math.Max(newTime, ViewModel.Export.ClipStart.Value + 0.001);
 
-            _clipEnd = Math.Clamp(newTime, PositionSlider.Minimum, PositionSlider.Maximum);
-            UpdateClipRangeText();
+            double clamped = Math.Clamp(newTime, PositionSlider.Minimum, PositionSlider.Maximum);
+            ViewModel.Export.SetClipRange(ViewModel.Export.ClipStart, clamped);
+            UpdateTimelineOverlay();
         }
 
         private void ClipHandle_DragCompleted(
             object sender,
             DragCompletedEventArgs e)
         {
-            UpdateClipRangeText();
+            ViewModel.Export.RefreshClipTexts();
+            UpdateTimelineOverlay();
         }
 
         private void LoadTimelineMarkers()
         {
-            _timelineMarkers.Clear();
-            if (!string.IsNullOrWhiteSpace(_sourceFilePath) && File.Exists(_sourceFilePath))
-                _timelineMarkers.AddRange(_historyService.LoadMarkers(_sourceFilePath));
-            RefreshTimelineMarkerList();
+            string? error = ViewModel.EventCenter.LoadMarkersForSource(_sourceFilePath);
+            if (!string.IsNullOrWhiteSpace(error))
+                ViewModel.StatusMessage = "Nie udało się wczytać znaczników: " + error;
             UpdateTimelineOverlay();
         }
 
         private void SaveTimelineMarkers()
         {
-            if (string.IsNullOrWhiteSpace(_sourceFilePath) || !File.Exists(_sourceFilePath))
-                return;
-            try
-            {
-                _historyService.SaveMarkers(_sourceFilePath, _timelineMarkers);
-            }
-            catch (Exception ex)
-            {
-                StatusText.Text = "Nie udało się zapisać znaczników: " + ex.Message;
-            }
-        }
-
-        private void RefreshTimelineMarkerList()
-        {
-            if (TimelineMarkersListBox == null) return;
-
-            // Relate a confirmed plate event to motion intervals occurring at the same time.
-            // The source markers remain independent; this is an informational association only.
-            var motionEvents = _timelineMarkers
-                .Where(m => m.EventType == "Ruch" && m.EndSeconds.HasValue)
-                .ToList();
-
-            foreach (TimelineMarker marker in _timelineMarkers)
-            {
-                marker.RelatedMotionCount = marker.EventType == "Tablica"
-                    ? motionEvents.Count(m =>
-                        marker.Seconds >= m.Seconds - 3.0 &&
-                        marker.Seconds <= m.EndSeconds!.Value + 3.0)
-                    : 0;
-            }
-
-            string filter = EventCenterFilterBox?.Text?.Trim() ?? "";
-            string category = (EventCenterCategoryBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
-
-            var visible = _timelineMarkers
-                .Where(m => category == "all" ||
-                    (category == "related" ? m.RelatedMotionCount > 0 : m.EventType == category))
-                .Where(m => filter.Length == 0 ||
-                    m.Description.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
-                    m.VehicleMake.Contains(filter, StringComparison.CurrentCultureIgnoreCase) ||
-                    m.EventType.Contains(filter, StringComparison.CurrentCultureIgnoreCase))
-                .OrderBy(m => m.Seconds)
-                .ToList();
-
-            TimelineMarkersListBox.ItemsSource = null;
-            TimelineMarkersListBox.ItemsSource = visible;
-
-            if (EventCenterCountText != null)
-            {
-                int motionCount = _timelineMarkers.Count(m => m.EventType == "Ruch");
-                int plateCount = _timelineMarkers.Count(m => m.EventType == "Tablica");
-                int manualCount = _timelineMarkers.Count(m => m.EventType == "Ręczne");
-                int relatedCount = _timelineMarkers.Count(m => m.EventType == "Tablica" && m.RelatedMotionCount > 0);
-                EventCenterCountText.Text =
-                    $"Widoczne: {visible.Count}/{_timelineMarkers.Count}  •  Ruch: {motionCount}  •  Tablice: {plateCount}  •  Ręczne: {manualCount}  •  Tablice powiązane z ruchem: {relatedCount}";
-            }
-        }
-
-        private void EventCenterFilter_Changed(object sender, RoutedEventArgs e)
-        {
-            RefreshTimelineMarkerList();
-        }
-
-        private void EventCenterClearFilter_Click(object sender, RoutedEventArgs e)
-        {
-            if (EventCenterFilterBox != null) EventCenterFilterBox.Clear();
-            if (EventCenterCategoryBox != null) EventCenterCategoryBox.SelectedIndex = 0;
-            RefreshTimelineMarkerList();
+            string? error = ViewModel.EventCenter.SaveMarkersForSource(_sourceFilePath);
+            if (!string.IsNullOrWhiteSpace(error))
+                ViewModel.StatusMessage = "Nie udało się zapisać znaczników: " + error;
         }
 
         private void AddMarker_Click(object sender, RoutedEventArgs e)
@@ -340,7 +243,7 @@ namespace VideoPlayer
                 return;
             }
 
-            string description = MarkerDescriptionBox.Text.Trim();
+            string description = ViewModel.EventCenter.MarkerDescription.Trim();
             if (description.Length == 0)
             {
                 MessageBox.Show(this, "Wpisz opis zdarzenia przed dodaniem znacznika.",
@@ -349,27 +252,27 @@ namespace VideoPlayer
                 return;
             }
 
-            _timelineMarkers.Add(new TimelineMarker
+            var marker = new TimelineMarker
             {
                 Id = Guid.NewGuid(),
                 Seconds = Math.Clamp(PositionSlider.Value, 0, PositionSlider.Maximum),
                 Description = description
-            });
+            };
+            ViewModel.EventCenter.AddMarker(marker);
             SaveTimelineMarkers();
-            RefreshTimelineMarkerList();
             UpdateTimelineOverlay();
-            StatusText.Text = "Dodano znacznik: " + description;
+            ViewModel.StatusMessage = "Dodano znacznik: " + description;
         }
 
         private void UpdateMarker_Click(object sender, RoutedEventArgs e)
         {
-            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker selected)
+            if (ViewModel.EventCenter.SelectedMarker is not TimelineMarker selected)
             {
                 MessageBox.Show(this, "Wybierz znacznik z listy.", "Znaczniki zdarzeń",
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            string description = MarkerDescriptionBox.Text.Trim();
+            string description = ViewModel.EventCenter.MarkerDescription.Trim();
             if (description.Length == 0)
             {
                 MessageBox.Show(this, "Opis nie może być pusty.", "Znaczniki zdarzeń",
@@ -378,41 +281,33 @@ namespace VideoPlayer
             }
             selected.Description = description;
             SaveTimelineMarkers();
-            RefreshTimelineMarkerList();
-            TimelineMarkersListBox.SelectedItem = _timelineMarkers.FirstOrDefault(m => m.Id == selected.Id);
+            ViewModel.EventCenter.Refresh();
             UpdateTimelineOverlay();
         }
 
         private async void GoToMarker_Click(object sender, RoutedEventArgs e)
         {
-            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker selected) return;
+            if (ViewModel.EventCenter.SelectedMarker is not TimelineMarker selected) return;
             await SeekAsync(selected.Seconds);
-            StatusText.Text = "Przejście do zdarzenia: " + selected.Description;
+            ViewModel.StatusMessage = "Przejście do zdarzenia: " + selected.Description;
         }
 
         private void DeleteMarker_Click(object sender, RoutedEventArgs e)
         {
-            if (TimelineMarkersListBox.SelectedItem is not TimelineMarker selected) return;
-            _timelineMarkers.RemoveAll(m => m.Id == selected.Id);
+            if (ViewModel.EventCenter.SelectedMarker is not TimelineMarker selected) return;
+            ViewModel.EventCenter.RemoveMarker(selected.Id);
             SaveTimelineMarkers();
-            RefreshTimelineMarkerList();
-            MarkerDescriptionBox.Clear();
+            ViewModel.EventCenter.MarkerDescription = string.Empty;
             UpdateTimelineOverlay();
-        }
-
-        private void TimelineMarkersListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (TimelineMarkersListBox.SelectedItem is TimelineMarker marker)
-                MarkerDescriptionBox.Text = marker.Description;
         }
 
         private async void MarkerListItem_DoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (sender is ListBoxItem item && item.DataContext is TimelineMarker marker)
             {
-                TimelineMarkersListBox.SelectedItem = marker;
+                ViewModel.EventCenter.SelectedMarker = marker;
                 await SeekAsync(marker.Seconds);
-                StatusText.Text = "Przejście do zdarzenia: " + marker.Description;
+                ViewModel.StatusMessage = "Przejście do zdarzenia: " + marker.Description;
             }
         }
 
@@ -429,7 +324,9 @@ namespace VideoPlayer
             double duration = PositionSlider.Maximum - PositionSlider.Minimum;
             if (width <= 0 || duration <= 0 || !PositionSlider.IsEnabled) return;
 
-            foreach (TimelineMarker marker in _timelineMarkers.Where(m => m.EndSeconds.HasValue && m.EndSeconds.Value > m.Seconds))
+            var markers = ViewModel.EventCenter.AllMarkers;
+
+            foreach (TimelineMarker marker in markers.Where(m => m.EndSeconds.HasValue && m.EndSeconds.Value > m.Seconds))
             {
                 double startX = Math.Clamp((marker.Seconds - PositionSlider.Minimum) / duration * width, 0, width);
                 double endX = Math.Clamp((marker.EndSeconds!.Value - PositionSlider.Minimum) / duration * width, 0, width);
@@ -441,7 +338,7 @@ namespace VideoPlayer
                     BorderBrush = System.Windows.Media.Brushes.DarkOrange,
                     BorderThickness = new Thickness(0, 1, 0, 1),
                     CornerRadius = new CornerRadius(2),
-                    ToolTip = $"{FormatClipTime(marker.Seconds)} – {FormatClipTime(marker.EndSeconds.Value)} — {marker.Description}",
+                    ToolTip = $"{ExportWorkspaceService.FormatClipTime(marker.Seconds)} – {ExportWorkspaceService.FormatClipTime(marker.EndSeconds.Value)} — {marker.Description}",
                     IsHitTestVisible = false
                 };
                 Canvas.SetLeft(band, startX);
@@ -451,7 +348,7 @@ namespace VideoPlayer
                 _motionRangeBands.Add(band);
             }
 
-            foreach (TimelineMarker marker in _timelineMarkers)
+            foreach (TimelineMarker marker in markers)
             {
                 double x = Math.Clamp((marker.Seconds - PositionSlider.Minimum) / duration * width, 0, width);
                 var button = new System.Windows.Controls.Button
@@ -463,16 +360,16 @@ namespace VideoPlayer
                     BorderBrush = System.Windows.Media.Brushes.White,
                     Background = System.Windows.Media.Brushes.DarkOrange,
                     ToolTip = marker.EndSeconds is double end && end > marker.Seconds
-                        ? $"{FormatClipTime(marker.Seconds)} – {FormatClipTime(end)} — {marker.Description}"
-                        : $"{FormatClipTime(marker.Seconds)} — {marker.Description}",
+                        ? $"{ExportWorkspaceService.FormatClipTime(marker.Seconds)} – {ExportWorkspaceService.FormatClipTime(end)} — {marker.Description}"
+                        : $"{ExportWorkspaceService.FormatClipTime(marker.Seconds)} — {marker.Description}",
                     Cursor = Cursors.Hand,
                     Focusable = true
                 };
                 button.Click += async (_, __) =>
                 {
-                    TimelineMarkersListBox.SelectedItem = marker;
+                    ViewModel.EventCenter.SelectedMarker = marker;
                     await SeekAsync(marker.Seconds);
-                    StatusText.Text = "Przejście do zdarzenia: " + marker.Description;
+                    ViewModel.StatusMessage = "Przejście do zdarzenia: " + marker.Description;
                 };
                 Canvas.SetLeft(button, Math.Clamp(x - button.Width / 2, 0, Math.Max(0, width - button.Width)));
                 Canvas.SetTop(button, Math.Max(0, (TimelineOverlay.ActualHeight - button.Height) / 2));
